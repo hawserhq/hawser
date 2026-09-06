@@ -21,6 +21,11 @@ type consoleHandler struct {
 	mu    *sync.Mutex
 	w     io.Writer
 	level slog.Level
+	// attrs are carried from WithAttrs so log.With(...) context is not lost
+	// (#93): the old no-op silently dropped it. Groups are flattened into a
+	// key prefix, which is all this line-oriented handler needs.
+	attrs  []slog.Attr
+	prefix string
 }
 
 func newConsoleHandler(w io.Writer, level slog.Level) slog.Handler {
@@ -44,23 +49,25 @@ func (h *consoleHandler) Handle(_ context.Context, r slog.Record) error {
 	}
 	b.WriteString(r.Message)
 
-	r.Attrs(func(a slog.Attr) bool {
-		// "fix" carries a remedy, which belongs on its own line where it can
-		// be read rather than appended to a key=value tail.
-		if a.Key == "fix" {
-			return true
+	// Handler-level attrs (from log.With) render alongside the record's own.
+	var fix slog.Value
+	haveFix := false
+	emit := func(a slog.Attr) {
+		if a.Key == "fix" { // remedy goes on its own line, below
+			fix, haveFix = a.Value, true
+			return
 		}
-		fmt.Fprintf(&b, " %s=%v", a.Key, a.Value)
-		return true
-	})
+		fmt.Fprintf(&b, " %s%s=%v", h.prefix, a.Key, a.Value)
+	}
+	for _, a := range h.attrs {
+		emit(a)
+	}
+	r.Attrs(func(a slog.Attr) bool { emit(a); return true })
 	b.WriteString("\n")
 
-	r.Attrs(func(a slog.Attr) bool {
-		if a.Key == "fix" {
-			fmt.Fprintf(&b, "    fix: %v\n", a.Value)
-		}
-		return true
-	})
+	if haveFix {
+		fmt.Fprintf(&b, "    fix: %v\n", fix)
+	}
 
 	h.mu.Lock()
 	defer h.mu.Unlock()
@@ -68,8 +75,20 @@ func (h *consoleHandler) Handle(_ context.Context, r slog.Record) error {
 	return err
 }
 
-func (h *consoleHandler) WithAttrs([]slog.Attr) slog.Handler { return h }
-func (h *consoleHandler) WithGroup(string) slog.Handler      { return h }
+func (h *consoleHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	nh := *h
+	nh.attrs = append(append([]slog.Attr(nil), h.attrs...), attrs...)
+	return &nh
+}
+
+func (h *consoleHandler) WithGroup(name string) slog.Handler {
+	if name == "" {
+		return h
+	}
+	nh := *h
+	nh.prefix = h.prefix + name + "."
+	return &nh
+}
 
 // emitJSON writes v to stdout for scripting, and is the only place --json
 // output is produced so the shape stays consistent across commands.

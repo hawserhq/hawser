@@ -709,3 +709,38 @@ func TestEngineRunningNeverBootsAStoppedDistro(t *testing.T) {
 		t.Errorf("health probe ran %d exec(s) against a stopped distro; that boots it", n)
 	}
 }
+
+func TestValidateDistroNameRejectsShellDangerousNames(t *testing.T) {
+	url, sum := rootfsServer(t, []byte("x"))
+	bad := []string{"../evil", "a b", "name;rm", "back`tick`", "$(x)", "..", ".", "a/b"}
+	for _, name := range bad {
+		w := healthyWSL()
+		p := &provision.Provisioner{WSL: w, Logger: quietLogger()}
+		opts := testOptions(t, url, sum)
+		opts.Distro = name
+		if _, err := p.Install(context.Background(), opts); err == nil {
+			t.Errorf("Install accepted dangerous distro name %q", name)
+		}
+		if len(w.imported) != 0 {
+			t.Errorf("name %q reached import", name)
+		}
+	}
+}
+
+func TestWriteManifestIsAtomic(t *testing.T) {
+	// No .tmp litter after a successful write, and the file round-trips —
+	// the tmp+rename path (#93) must leave only the final file.
+	url, sum := rootfsServer(t, []byte("pretend rootfs"))
+	w := healthyWSL()
+	p := &provision.Provisioner{WSL: w, Logger: quietLogger()}
+	opts := testOptions(t, url, sum)
+	if _, err := p.Install(context.Background(), opts); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(opts.StateDir, "manifest.json.tmp")); !os.IsNotExist(err) {
+		t.Error("manifest .tmp left behind after write")
+	}
+	if _, err := p.ReadManifest(opts); err != nil {
+		t.Errorf("manifest not readable after atomic write: %v", err)
+	}
+}
