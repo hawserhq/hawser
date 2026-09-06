@@ -23,6 +23,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 
 	"github.com/zcsizmadia/hawser/internal/vsockproto"
 	"golang.org/x/sys/unix"
@@ -66,7 +67,17 @@ func run(port uint32, socket string) error {
 	for {
 		cfd, peer, err := unix.Accept4(fd, unix.SOCK_CLOEXEC)
 		if err != nil {
-			if err == unix.EINTR || err == unix.ECONNABORTED {
+			switch err {
+			case unix.EINTR, unix.ECONNABORTED:
+				continue
+			case unix.EMFILE, unix.ENFILE, unix.ENOBUFS, unix.ENOMEM:
+				// Transient resource pressure (#92): killing the agent here
+				// would take the whole fast path down until the next
+				// StartEngine, when the fd it could not get will likely be
+				// free again. Pause briefly and keep accepting; the deadline
+				// on the handshake below bounds the leaked-fd source.
+				log.Printf("accept: %v; backing off", err)
+				time.Sleep(100 * time.Millisecond)
 				continue
 			}
 			return fmt.Errorf("accept: %w", err)
@@ -90,13 +101,21 @@ func run(port uint32, socket string) error {
 // vsockHostCID is VMADDR_CID_HOST: the Windows host partition.
 const vsockHostCID = 2
 
+// handshakeTimeout bounds the opening handshake: a peer that connects and then
+// says nothing must not pin a goroutine and fd forever (#92).
+const handshakeTimeout = 10 * time.Second
+
 func serve(conn *vsockConn, socket string) {
 	defer conn.Close()
 
+	conn.SetReadDeadline(time.Now().Add(handshakeTimeout))
 	if err := vsockproto.ServerHandshake(conn, Identity); err != nil {
 		log.Printf("handshake refused: %v", err)
 		return
 	}
+	// Clear the deadline before the transparent relay phase: a long-lived
+	// idle stream (docker events on a quiet engine) is legitimate.
+	conn.SetReadDeadline(time.Time{})
 	backend, err := net.Dial("unix", socket)
 	if err != nil {
 		log.Printf("dialing %s: %v", socket, err)
