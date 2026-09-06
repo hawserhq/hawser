@@ -75,6 +75,7 @@ func TestAcceptance(t *testing.T) {
 		{"BuildHawser", stageBuild},
 		{"InstallFromPublishedRelease", stageInstall},
 		{"StartProxy", stageProxy},
+		{"DoctorReportsHealthy", stageDoctor},
 		{"HelloWorld", stageHelloWorld},
 		{"BindMountReadThroughContainer", stageBindMount},
 		{"ExecInRunningContainer", stageExec},
@@ -269,6 +270,44 @@ func stageProxy(t *testing.T, s *state) {
 	}
 	log, _ := os.ReadFile(logPath)
 	t.Fatalf("engine never answered through the pipe. Proxy log:\n%s", log)
+}
+
+// stageDoctor runs `hawser doctor --json` against the live install and asserts
+// the checks that describe a healthy engine all pass. It does not assert the
+// overall exit code: host-specific checks (which docker.exe is on PATH, whether
+// a credential helper resolves, the machine's default docker context) depend on
+// the developer's or CI runner's environment, not on Hawser, so pinning them
+// would make the suite flaky. The engine-shaped checks are what doctor owns.
+func stageDoctor(t *testing.T, s *state) {
+	// doctor exits non-zero when any check fails (e.g. no docker.exe on the CI
+	// runner's PATH), but still writes the full JSON report to stdout, so parse
+	// the output regardless of the exit error.
+	out, _ := run(t, 60*time.Second, s.hawser, "doctor", "--json", "--state-dir", s.stateDir)
+	var rep struct {
+		Results []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"results"`
+	}
+	if err := json.Unmarshal([]byte(out), &rep); err != nil {
+		t.Fatalf("doctor --json unparseable: %v\n%s", err, out)
+	}
+
+	status := map[string]string{}
+	for _, r := range rep.Results {
+		status[r.Name] = r.Status
+	}
+
+	// With the supervisor up and the engine answering, these must be ok.
+	for _, name := range []string{"wsl", "engine", "supervisor"} {
+		if status[name] != "ok" {
+			t.Errorf("doctor check %q = %q, want ok\nfull report:\n%s", name, status[name], out)
+		}
+	}
+	// Disk should never fail on a machine that just installed the engine.
+	if status["disk"] == "fail" {
+		t.Errorf("doctor disk check failed unexpectedly\nfull report:\n%s", out)
+	}
 }
 
 func stageHelloWorld(t *testing.T, s *state) {
