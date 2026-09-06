@@ -299,9 +299,16 @@ func (p *Provisioner) shareEngineSocket(ctx context.Context, opts Options) {
 // the transport), an agent already running must not be doubled, and `exec`
 // keeps the process tree flat. Never fatal by design — the engine is fully
 // usable without the vsock path.
+//
+// The agent's -socket is passed explicitly as EngineSocket (#92): both
+// transports must target the same engine socket. A host-side `--socket`
+// override on `hawser proxy` steers only the socat fallback and cannot reach
+// the agent (which runs in-distro and connects to dockerd's real socket
+// there), so binding the agent to the same constant keeps the two from
+// silently diverging.
 const agentStartCmd = "command -v hawser-agent >/dev/null 2>&1 || exit 0; " +
 	"pgrep -x hawser-agent >/dev/null 2>&1 && exit 0; " +
-	"exec hawser-agent >>/var/log/hawser-agent.log 2>&1"
+	"exec hawser-agent -socket " + EngineSocket + " >>/var/log/hawser-agent.log 2>&1"
 
 func (p *Provisioner) startAgent(ctx context.Context, opts Options) {
 	if _, err := p.wsl().Start(ctx, opts.Distro, "root", "sh", "-c", agentStartCmd); err != nil {
