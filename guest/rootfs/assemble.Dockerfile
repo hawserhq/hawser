@@ -7,7 +7,12 @@
 # populated but is subtly wrong. Building natively runs every trigger the way
 # Alpine intends, and sidesteps the root-owned-files problem on the runner.
 ARG ALPINE_TAG=3.24
-FROM alpine:${ALPINE_TAG}
+# ALPINE_DIGEST pins the base by content (#88); the tag is kept alongside for
+# readability but the digest is what Docker actually resolves. build.sh passes
+# the value from versions.env; the default here is a same-value fallback for a
+# bare `docker build`.
+ARG ALPINE_DIGEST=sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
+FROM alpine:${ALPINE_TAG}@${ALPINE_DIGEST}
 
 # Runtime dependencies. None of these are in the Alpine minirootfs, and their
 # absence only surfaces when the engine is actually booted:
