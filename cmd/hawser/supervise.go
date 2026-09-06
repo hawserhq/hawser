@@ -151,6 +151,9 @@ flags:
 			return c.IdleTimeout
 		},
 		Busy: engineBusy(dialer, p, opts, log),
+		// Lifecycle hooks (#70): fire off-thread and time-bounded so a user's
+		// script never blocks the reconciler.
+		Hook: hookRunner(opts.StateDir, log),
 	}
 	srv.Dialer = &demandDialer{sup: sup, inner: dialer}
 	go sup.Run(ctx)

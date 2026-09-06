@@ -77,6 +77,11 @@ type Supervisor struct {
 	// because stopping the engine kills whatever runs in it.
 	Busy func(ctx context.Context) (bool, error)
 
+	// Hook fires a lifecycle event (#70). It must return promptly — the caller
+	// runs the user's script time-bounded and off the reconciler — so it never
+	// blocks a tick or the mutex. Nil disables hooks.
+	Hook func(event string)
+
 	// mu serializes tick and Demand: a cold start must not race the
 	// reconciler's own view of why the engine is down.
 	mu sync.Mutex
@@ -97,6 +102,25 @@ type Supervisor struct {
 	failures int
 	// nextTry is the earliest moment another start attempt is allowed.
 	nextTry time.Time
+}
+
+// Lifecycle event names passed to Hook and used as the "hook.<event>" config
+// suffix. Kept as plain strings so cmd and config agree without importing this
+// package's constants across the boundary.
+const (
+	HookPostStart  = "post-start"
+	HookPreStop    = "pre-stop"
+	HookOnIdleStop = "on-idle-stop"
+	HookOnWake     = "on-wake"
+)
+
+// fireHook dispatches a lifecycle event. Hook is expected to return promptly
+// (it runs the actual script off-thread and time-bounded), so this is safe to
+// call while holding s.mu.
+func (s *Supervisor) fireHook(event string) {
+	if s.Hook != nil {
+		s.Hook(event)
+	}
 }
 
 // veto records why an idle stop did not happen, logging only when the reason
@@ -178,9 +202,11 @@ func (s *Supervisor) tick(ctx context.Context) {
 		s.nextTry = time.Time{}
 		s.upSince = time.Now()
 		s.log().Info("engine recovered")
+		s.fireHook(HookPostStart)
 
 	case desired == DesiredStopped && up:
 		s.log().Info("desired state is stopped; stopping the engine")
+		s.fireHook(HookPreStop)
 		if err := s.Engine.Stop(ctx); err != nil {
 			s.log().Error("engine stop failed", "error", err)
 		}
@@ -273,6 +299,7 @@ func (s *Supervisor) maybeIdleStop(ctx context.Context) {
 		return
 	}
 	s.idleStopped = true
+	s.fireHook(HookOnIdleStop)
 }
 
 // Demand wakes an idle-stopped engine for an incoming connection, blocking
@@ -324,6 +351,7 @@ func (s *Supervisor) Demand(ctx context.Context) error {
 	s.upSince = time.Now()
 	// Measured, not assumed: the issue asked for the real cold-start number.
 	s.log().Info("engine cold-started on demand", "took", time.Since(began).Round(10*time.Millisecond))
+	s.fireHook(HookOnWake)
 	return nil
 }
 

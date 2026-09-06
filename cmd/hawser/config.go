@@ -40,6 +40,16 @@ empty value to clear a key. Lists are comma-separated; maps are k=v,k=v.
 		for _, k := range engineconfig.KeyHelp() {
 			fmt.Fprintf(os.Stderr, "  engine.%-24s %s\n", k.Name, k.Help)
 		}
+		fmt.Fprintf(os.Stderr, `
+Lifecycle hooks (hook.<event>) run a script on an engine event, time-bounded
+and best-effort (a failure is logged, never blocks the lifecycle). The script
+gets HAWSER_EVENT and HAWSER_STATE_DIR in its environment. Set an empty value
+to clear one. Events:
+  %s   after the engine starts (recovery or first start)
+  %s     before the engine stops on `+"`hawser stop`"+`
+  %s  after the idle timeout stops the engine
+  %s      after the engine cold-starts on demand
+`, config.KeyHookPostStart, config.KeyHookPreStop, config.KeyHookOnIdleStop, config.KeyHookOnWake)
 		fmt.Fprintf(os.Stderr, "\nExit codes: 0 ok, %d error, %d usage.\n", exitError, exitUsage)
 		fs.PrintDefaults()
 	}
