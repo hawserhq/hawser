@@ -21,6 +21,23 @@ import (
 // its RAM. "off" (the default) disables idle stops entirely.
 const KeyIdleTimeout = "idle-timeout"
 
+// Lifecycle hook keys (#70): each holds a path to an executable the supervisor
+// runs on the named engine event, time-bounded and best-effort — a failing or
+// slow hook is logged but never blocks the lifecycle. Empty (the default) means
+// no hook. HookKeys enumerates them; the supervisor reads the path for an event
+// as "hook." + event.
+const (
+	KeyHookPostStart  = "hook.post-start"   // engine started (recovery or first start)
+	KeyHookPreStop    = "hook.pre-stop"     // engine about to stop on `hawser stop`
+	KeyHookOnIdleStop = "hook.on-idle-stop" // engine stopped by the idle timeout
+	KeyHookOnWake     = "hook.on-wake"      // engine cold-started on demand
+)
+
+// HookKeys lists the hook config keys, in lifecycle order.
+func HookKeys() []string {
+	return []string{KeyHookPostStart, KeyHookPreStop, KeyHookOnIdleStop, KeyHookOnWake}
+}
+
 // path is the settings file inside the state dir.
 func path(stateDir string) string {
 	return filepath.Join(stateDir, "config.json")
@@ -79,6 +96,24 @@ var validators = map[string]func(string) (string, error){
 		}
 		return d.String(), nil
 	},
+	KeyHookPostStart:  validateHookPath,
+	KeyHookPreStop:    validateHookPath,
+	KeyHookOnIdleStop: validateHookPath,
+	KeyHookOnWake:     validateHookPath,
+}
+
+// validateHookPath accepts a path to an existing file, or empty/"off" to clear
+// the hook. Existence is checked at set time so a typo fails loudly here rather
+// than silently doing nothing when the event fires.
+func validateHookPath(v string) (string, error) {
+	v = strings.TrimSpace(v)
+	if v == "" || strings.EqualFold(v, "off") {
+		return "", nil
+	}
+	if _, err := os.Stat(v); err != nil {
+		return "", fmt.Errorf("%q is not a readable path: %w", v, err)
+	}
+	return v, nil
 }
 
 func parseIdleTimeout(v string) (time.Duration, error) {

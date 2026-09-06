@@ -85,6 +85,7 @@ func TestAcceptance(t *testing.T) {
 		{"WSLIntegrateSharesEngine", stageWSLIntegrate},
 		{"MigrateFromDesktop", stageMigrate},
 		{"EngineConfigValidatesAndApplies", stageEngineConfig},
+		{"LifecycleHooksFire", stageHooks},
 		{"IdleStopAndOnDemandWake", stageIdle},
 		{"InterruptedClientDoesNotWedgeBridge", stageInterrupt},
 		{"VsockPathServedEverything", stageVsockServed},
@@ -348,6 +349,62 @@ func stageEngineConfig(t *testing.T, s *state) {
 	if !engineUp() {
 		t.Fatal("engine did not answer after clearing engine config")
 	}
+}
+
+// stageHooks proves the lifecycle hooks (#70): configure a post-start and a
+// pre-stop script, bounce the engine through the supervisor, and confirm both
+// scripts ran. The hooks fire inside the running supervisor process, so a green
+// run exercises the real path a user gets, not a unit stub.
+func stageHooks(t *testing.T, s *state) {
+	postMarker := filepath.Join(s.workDir, "poststart.marker")
+	preMarker := filepath.Join(s.workDir, "prestop.marker")
+	os.Remove(postMarker)
+	os.Remove(preMarker)
+
+	writeScript := func(name, marker string) string {
+		p := filepath.Join(s.workDir, name)
+		// A .cmd so config-set's existence check and the supervisor's extension
+		// dispatch both apply; it just drops a marker file.
+		body := "@echo off\r\necho fired> \"" + marker + "\"\r\n"
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	postScript := writeScript("post-start.cmd", postMarker)
+	preScript := writeScript("pre-stop.cmd", preMarker)
+
+	setHook := func(key, val string) {
+		out, err := run(t, 30*time.Second, s.hawser, "config", "--state-dir", s.stateDir, "set", key, val)
+		must(t, out, err, "config set "+key)
+	}
+	setHook("hook.post-start", postScript)
+	setHook("hook.pre-stop", preScript)
+	defer setHook("hook.post-start", "")
+	defer setHook("hook.pre-stop", "")
+
+	// Bounce through the supervisor so it observes stop (pre-stop) and start
+	// (post-start) transitions and fires both hooks.
+	out, err := run(t, 3*time.Minute, s.hawser, "restart", "--state-dir", s.stateDir)
+	must(t, out, err, "hawser restart")
+
+	waitFile := func(path, which string) {
+		deadline := time.Now().Add(60 * time.Second)
+		for time.Now().Before(deadline) {
+			if _, err := os.Stat(path); err == nil {
+				return
+			}
+			time.Sleep(500 * time.Millisecond)
+		}
+		log, _ := os.ReadFile(filepath.Join(s.stateDir, "proxy-e2e.log"))
+		tail := string(log)
+		if len(tail) > 3000 {
+			tail = tail[len(tail)-3000:]
+		}
+		t.Fatalf("%s hook never ran (no marker %s)\nsupervisor log tail:\n%s", which, path, tail)
+	}
+	waitFile(preMarker, "pre-stop")
+	waitFile(postMarker, "post-start")
 }
 
 func stageHelloWorld(t *testing.T, s *state) {
