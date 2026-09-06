@@ -533,6 +533,21 @@ func stageIdle(t *testing.T, s *state) {
 		t.Errorf("status exited non-zero on an idle engine (stopped by design is not broken):\n%s", out)
 	}
 
+	// The whole point of idling is reclaiming the VM's RAM, and #82 found the
+	// health probe itself booting the stopped distro on every tick and status
+	// poll. Hammer status a few times, give a couple of supervisor ticks a
+	// chance to misbehave, then require the distro to still be Stopped.
+	for i := 0; i < 3; i++ {
+		run(t, 30*time.Second, s.hawser, "status", "--state-dir", s.stateDir, "--json")
+	}
+	time.Sleep(7 * time.Second) // > two supervisor ticks
+	list, _ := run(t, 30*time.Second, "wsl.exe", "--list", "--verbose")
+	for _, line := range strings.Split(strings.ReplaceAll(list, "\x00", ""), "\n") {
+		if strings.Contains(line, distro) && strings.Contains(line, "Running") {
+			t.Errorf("distro %q is running again while idle-stopped — a health probe booted it (#82): %s", distro, strings.TrimSpace(line))
+		}
+	}
+
 	// One docker command is the wake-up: it pays the cold start and works.
 	began := time.Now()
 	out, err = dockerE(t, s, 2*time.Minute, "version", "--format", "{{.Server.Version}}")

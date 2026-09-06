@@ -33,6 +33,7 @@ type fakeWSL struct {
 
 	// socketAlwaysUp models an engine that is already running before we start.
 	socketAlwaysUp bool
+	execs          [][]string
 	// socketUpAfter delays the socket by N checks after dockerd is launched,
 	// simulating a daemon that takes a moment to come up.
 	socketUpAfter int
@@ -58,8 +59,19 @@ func (f *fakeWSL) Import(_ context.Context, distro, dir, rootfs string) error {
 		return f.importErr
 	}
 	f.imported = append(f.imported, [3]string{distro, dir, rootfs})
-	f.distros = append(f.distros, wsl.Distro{Name: distro, State: "Stopped", Version: 2})
+	f.setState(distro, "Stopped")
 	return nil
+}
+
+// setState upserts a distro's state; callers hold f.mu.
+func (f *fakeWSL) setState(distro, state string) {
+	for i := range f.distros {
+		if f.distros[i].Name == distro {
+			f.distros[i].State = state
+			return
+		}
+	}
+	f.distros = append(f.distros, wsl.Distro{Name: distro, State: state, Version: 2})
 }
 
 func (f *fakeWSL) Unregister(_ context.Context, distro string) error {
@@ -80,6 +92,7 @@ func (f *fakeWSL) Terminate(_ context.Context, distro string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.terminated = append(f.terminated, distro)
+	f.setState(distro, "Stopped")
 	return nil
 }
 
@@ -97,18 +110,20 @@ func (f *fakeWSL) List(context.Context) ([]wsl.Distro, error) {
 func (f *fakeWSL) Exec(_ context.Context, _, _ string, args ...string) (string, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if len(args) >= 2 && args[0] == "test" && args[1] == "-S" {
+	f.execs = append(f.execs, args)
+	if len(args) >= 3 && args[0] == "sh" && strings.Contains(args[2], "_ping") {
+		const ok = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\nOK"
 		if f.socketAlwaysUp {
-			return "", nil
+			return ok, nil
 		}
-		// No socket until something launched dockerd — the same order a real
-		// machine enforces, so tests cannot accidentally skip the start path.
+		// No answering daemon until something launched dockerd — the same
+		// order a real machine enforces, so tests cannot skip the start path.
 		if len(f.started) == 0 {
 			return "", errors.New("exit status 1")
 		}
 		f.socketCalls++
 		if f.socketCalls > f.socketUpAfter {
-			return "", nil
+			return ok, nil
 		}
 		return "", errors.New("exit status 1")
 	}
@@ -124,10 +139,13 @@ func (f *fakeWSL) Exec(_ context.Context, _, _ string, args ...string) (string, 
 	return "", nil
 }
 
-func (f *fakeWSL) Start(_ context.Context, _, _ string, args ...string) (func(), error) {
+func (f *fakeWSL) Start(_ context.Context, distro, _ string, args ...string) (func(), error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.started = append(f.started, args)
+	// wsl.exe boots a stopped distro to run anything in it — model that, since
+	// the health probe's stopped-distro gate (#82) depends on it.
+	f.setState(distro, "Running")
 	return func() {}, nil
 }
 
@@ -135,6 +153,16 @@ var _ wsl.WSL = (*fakeWSL)(nil)
 
 func healthyWSL() *fakeWSL {
 	return &fakeWSL{status: wsl.Status{Installed: true, DefaultVersion: 2, Version: "2.7.8.0"}}
+}
+
+// bootedWSL is healthyWSL plus an already-registered, already-running default
+// distro — the state a supervisor finds on an installed machine. Kept apart
+// from healthyWSL because preflight refuses to INSTALL over a registered
+// distro.
+func bootedWSL() *fakeWSL {
+	w := healthyWSL()
+	w.setState(provision.DefaultDistro, "Running")
+	return w
 }
 
 // startedMatching counts fake-started commands whose joined argv contains s.
@@ -395,7 +423,7 @@ func TestStartEngineWaitsForSocket(t *testing.T) {
 }
 
 func TestStartEngineSkipsWhenAlreadyRunning(t *testing.T) {
-	w := healthyWSL()
+	w := bootedWSL()
 	w.socketAlwaysUp = true
 	p := &provision.Provisioner{WSL: w, Logger: quietLogger()}
 
@@ -649,5 +677,35 @@ func TestInstallToleratesRootfsWithoutVersionMarker(t *testing.T) {
 	}
 	if m.EngineVersion != "" {
 		t.Errorf("EngineVersion = %q, want empty", m.EngineVersion)
+	}
+}
+
+func TestEngineRunningRejectsStaleSocket(t *testing.T) {
+	// #82: a crashed dockerd leaves its socket file behind; only an answering
+	// daemon counts as running. The fake ping refuses until dockerd started.
+	w := bootedWSL() // distro booted, nothing launched, ping refuses
+	p := &provision.Provisioner{WSL: w, Logger: quietLogger()}
+	if p.EngineRunning(context.Background(), provision.Options{}) {
+		t.Error("EngineRunning true with a distro up but no daemon answering")
+	}
+}
+
+func TestEngineRunningNeverBootsAStoppedDistro(t *testing.T) {
+	// #82: wsl exec boots a stopped distro. After an idle-stop, every health
+	// probe (tick, status, tray) must answer from the host-side distro list
+	// alone — zero execs — or the idle feature's RAM reclaim is defeated.
+	w := bootedWSL()
+	w.socketAlwaysUp = true // even a would-be-healthy engine must not be probed
+	w.setState(provision.DefaultDistro, "Stopped")
+	p := &provision.Provisioner{WSL: w, Logger: quietLogger()}
+
+	if p.EngineRunning(context.Background(), provision.Options{}) {
+		t.Error("EngineRunning true for a stopped distro")
+	}
+	w.mu.Lock()
+	n := len(w.execs)
+	w.mu.Unlock()
+	if n != 0 {
+		t.Errorf("health probe ran %d exec(s) against a stopped distro; that boots it", n)
 	}
 }
