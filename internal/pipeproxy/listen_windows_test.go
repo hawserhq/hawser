@@ -73,8 +73,9 @@ func TestListenServesOverRealPipe(t *testing.T) {
 	}
 }
 
-// TestListenBinaryOverRealPipe guards the byte-mode choice: in message mode a
-// large payload would be framed and truncated, which is how image pulls break.
+// TestListenBinaryOverRealPipe guards large-payload fidelity through the pipe
+// (message mode since #57; winio presents it as a byte stream, and this test
+// is the proof that framing does not truncate bulk transfers).
 func TestListenBinaryOverRealPipe(t *testing.T) {
 	engine := newServer(t, func(c net.Conn) { io.Copy(c, c) })
 
