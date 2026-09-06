@@ -18,29 +18,56 @@ const DefaultPipeName = `\\.\pipe\docker_engine`
 // FallbackPipeName is Hawser's own pipe, used when the default is taken.
 const FallbackPipeName = `\\.\pipe\hawser_engine`
 
-// DefaultSDDL restricts the pipe to SYSTEM, local administrators, and
-// interactive users.
+// defaultSDDL builds the pipe's security descriptor: full control for SYSTEM,
+// administrators, and the OWNING USER; nobody else connects at all.
 //
 // Pipe access is equivalent to root inside the engine VM, which in turn can
-// read and write anything the automounted drives expose — the same trust
-// boundary Docker Desktop has, and the reason this is not left at the default
-// descriptor. A service running as SYSTEM would otherwise own the pipe and shut
-// the logged-in user out.
+// read and write anything the automounted drives expose. v0.2.0 granted
+// GENERIC_ALL to INTERACTIVE — a SID present in *every* interactively
+// logged-on user's token — which crossed the session boundary twice (#79):
+// another logged-on account (RDP, fast user switching) could drive this
+// user's engine, and because GA includes FILE_CREATE_PIPE_INSTANCE it could
+// even create competing server instances of the live pipe and intercept
+// docker.exe connections. Scoping to the owner's SID closes both; the grant
+// is GA because the owner legitimately both connects (client) and serves
+// (this process) — instance creation by the same user is not an escalation.
 //
-// TODO(#8): once `hawser install` creates the local "Hawser Users" group, its
-// SID replaces IU here, matching Docker's docker-users pattern so non-admin
-// developer accounts can be granted access deliberately rather than by virtue
-// of being interactive.
-const DefaultSDDL = "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;IU)"
+// TODO(#8): once `hawser install` creates the local "Hawser Users" group, a
+// GR|GW grant for that group lands here, matching Docker's docker-users
+// pattern, so OTHER accounts can be admitted deliberately with client-only
+// rights rather than by virtue of being interactive.
+func defaultSDDL() (string, error) {
+	u, err := currentUserSID()
+	if err != nil {
+		return "", fmt.Errorf("pipeproxy: resolving the current user for the pipe ACL: %w", err)
+	}
+	return "D:P(A;;GA;;;SY)(A;;GA;;;BA)(A;;GA;;;" + u + ")", nil
+}
 
-// Listen creates the named pipe. An empty sddl applies DefaultSDDL; pass a
-// custom descriptor only with a reason, since this is the security boundary.
+// currentUserSID is the SID string of the process token's user.
+func currentUserSID() (string, error) {
+	t := windows.GetCurrentProcessToken()
+	tu, err := t.GetTokenUser()
+	if err != nil {
+		return "", err
+	}
+	return tu.User.Sid.String(), nil
+}
+
+// Listen creates the named pipe. An empty sddl applies the default (SYSTEM,
+// administrators, and the owning user); pass a custom descriptor only with a
+// reason, since this is the security boundary.
 func Listen(pipeName, sddl string) (net.Listener, error) {
 	if pipeName == "" {
 		return nil, fmt.Errorf("pipeproxy: empty pipe name")
 	}
 	if sddl == "" {
-		sddl = DefaultSDDL
+		var err error
+		if sddl, err = defaultSDDL(); err != nil {
+			// Refuse rather than fall back to a wider descriptor: serving the
+			// engine to the wrong audience is worse than not serving it.
+			return nil, err
+		}
 	}
 
 	l, err := winio.ListenPipe(pipeName, &winio.PipeConfig{
