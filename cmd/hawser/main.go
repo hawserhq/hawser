@@ -29,6 +29,7 @@ func commands() []command {
 	return []command{
 		{"autostart", "start the supervisor at logon: enable, disable, status", runAutostart},
 		{"config", "list, get, or set Hawser settings (idle-timeout)", runConfig},
+		{"doctor", "diagnose the host and engine; --fix applies safe remedies", runDoctor},
 		{"install", "provision the engine distro and start it", runInstall},
 		{"migrate", "copy images and volumes from Docker Desktop into the engine", runMigrate},
 		{"proxy", "serve the docker pipe in the foreground (debug mode)", runProxy},

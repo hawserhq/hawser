@@ -113,6 +113,14 @@ func (p *Provisioner) Preflight(ctx context.Context, opts Options) (Report, erro
 	return r, nil
 }
 
+// WSLTooOld reports whether a WSL version string is older than the tested
+// minimum. Unparseable or empty input is treated as not-too-old, so callers
+// (doctor, #61) skip the check rather than guess.
+func WSLTooOld(version string) bool {
+	older, err := versionOlder(version, MinWSLVersion)
+	return err == nil && older
+}
+
 // versionOlder compares dotted numeric versions. Returns an error for input it
 // cannot parse, so callers can skip the check instead of guessing.
 func versionOlder(got, min string) (bool, error) {
