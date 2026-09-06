@@ -80,7 +80,9 @@ spike/          throwaway experiments, deleted once their issue closes
 
 Running unattended (CI runners, build agents) needs a logged-on session, because
 WSL2 cannot start from a Windows service — see
-[docs/auto-logon-runner.md](docs/auto-logon-runner.md).
+[docs/auto-logon-runner.md](docs/auto-logon-runner.md). Who can reach the engine
+and where the trust boundaries lie (the pipe ACL, `wsl-integrate`'s shared
+socket, the supply chain) is documented in [docs/security.md](docs/security.md).
 
 Two Go conventions worth stating, since they surprise people arriving from other ecosystems:
 **tests live beside the code they test** (`wsl.go` and `wsl_test.go` in the same folder — the
