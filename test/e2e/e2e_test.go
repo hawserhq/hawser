@@ -76,6 +76,7 @@ func TestAcceptance(t *testing.T) {
 		{"InstallFromPublishedRelease", stageInstall},
 		{"StartProxy", stageProxy},
 		{"DoctorReportsHealthy", stageDoctor},
+		{"DeclarativeExportAndConverge", stageDeclarative},
 		{"HelloWorld", stageHelloWorld},
 		{"BindMountReadThroughContainer", stageBindMount},
 		{"ExecInRunningContainer", stageExec},
@@ -405,6 +406,36 @@ func stageHooks(t *testing.T, s *state) {
 	}
 	waitFile(preMarker, "pre-stop")
 	waitFile(postMarker, "post-start")
+}
+
+// stageDeclarative proves the infrastructure-as-code loop (#69): export the
+// live install as a hawser.yaml, then feed it back to `install --config` and
+// confirm it converges idempotently (skips provisioning, engine stays healthy)
+// rather than erroring on the already-installed distro.
+func stageDeclarative(t *testing.T, s *state) {
+	out, err := run(t, 60*time.Second, s.hawser, "config", "--state-dir", s.stateDir, "export")
+	must(t, out, err, "config export")
+	if !strings.Contains(out, "distro: "+distro) {
+		t.Fatalf("exported YAML missing the distro:\n%s", out)
+	}
+	if !strings.Contains(out, "engine-version:") {
+		t.Fatalf("exported YAML missing the engine version:\n%s", out)
+	}
+
+	yamlPath := filepath.Join(s.workDir, "hawser.yaml")
+	if err := os.WriteFile(yamlPath, []byte(out), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Re-apply the exported file: already installed, so this must converge, not
+	// reinstall. --no-autostart keeps it from touching the registry.
+	out, err = run(t, 3*time.Minute, s.hawser, "install", "--config", yamlPath,
+		"--state-dir", s.stateDir, "--no-autostart")
+	must(t, out, err, "install --config (idempotent converge)")
+
+	if v, err := dockerE(t, s, 30*time.Second, "version", "--format", "{{.Server.Version}}"); err != nil || v == "" {
+		t.Fatalf("engine not healthy after declarative converge: %v (%s)", err, v)
+	}
 }
 
 func stageHelloWorld(t *testing.T, s *state) {

@@ -130,11 +130,52 @@ func (m *Manager) Set(ctx context.Context, name, raw string) (SetResult, error) 
 		cfg[name] = value
 	}
 
+	res, err := m.commit(ctx, cfg)
+	if err != nil {
+		return SetResult{}, err
+	}
+	res.Applied = renderValue(cfg[name])
+	return res, nil
+}
+
+// SetMany applies several engine keys in one shot: one validate, one write, one
+// engine bounce — so a declarative install with a handful of daemon.json keys
+// does not restart the engine once per key. Parsing/validation of every value
+// happens before anything is written, so a single bad value rejects the whole
+// batch. An empty value clears its key.
+func (m *Manager) SetMany(ctx context.Context, kv map[string]string) (SetResult, error) {
+	cfg, err := m.Read(ctx)
+	if err != nil {
+		return SetResult{}, err
+	}
+	for name, raw := range kv {
+		k, ok := keyByName(name)
+		if !ok {
+			return SetResult{}, unknownKeyErr(name)
+		}
+		value, clear, err := parseValue(k, raw)
+		if err != nil {
+			return SetResult{}, fmt.Errorf("engine.%s: %w", name, err)
+		}
+		if clear {
+			delete(cfg, name)
+		} else {
+			cfg[name] = value
+		}
+	}
+	return m.commit(ctx, cfg)
+}
+
+// commit validates the candidate config, writes it atomically, and bounces the
+// engine with rollback on failure — the shared tail of Set and SetMany. The
+// sequence is deliberate: validate before the live file is touched, back it up,
+// replace it, then restart; if it does not come back, restore and restart again
+// so a valid-but-bad config never leaves the engine down.
+func (m *Manager) commit(ctx context.Context, cfg map[string]any) (SetResult, error) {
 	candidate, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return SetResult{}, err
 	}
-
 	if err := m.validate(ctx, candidate); err != nil {
 		return SetResult{}, err
 	}
@@ -142,8 +183,7 @@ func (m *Manager) Set(ctx context.Context, name, raw string) (SetResult, error) 
 		return SetResult{}, err
 	}
 
-	res := SetResult{Applied: renderValue(cfg[name])}
-
+	var res SetResult
 	running := m.EngineRunning != nil && m.EngineRunning(ctx)
 	if !running || m.Restart == nil {
 		res.PendingRestart = m.Restart != nil // only "pending" if a restart is possible at all
@@ -154,7 +194,7 @@ func (m *Manager) Set(ctx context.Context, name, raw string) (SetResult, error) 
 		// The config validated but the engine did not come back. Roll back to
 		// the last-good file and bounce again; report the original failure.
 		if rbErr := m.rollback(ctx); rbErr != nil {
-			return res, fmt.Errorf("engine failed to restart with the new config (%w) "+
+			return SetResult{}, fmt.Errorf("engine failed to restart with the new config (%w) "+
 				"AND rollback failed (%v); the engine may be down — check `hawser status`", err, rbErr)
 		}
 		return SetResult{}, fmt.Errorf("engine failed to restart with the new config; "+

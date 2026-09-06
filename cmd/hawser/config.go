@@ -23,6 +23,7 @@ func runConfig(args []string) int {
 		fmt.Fprintf(os.Stderr, `usage: hawser config                    list all settings
        hawser config get <key>          print one value
        hawser config set <key> <value>  change one value
+       hawser config export             print the install as a hawser.yaml
 
 Hawser settings apply live: the supervisor re-reads them every few seconds.
 
@@ -70,11 +71,31 @@ to clear one. Events:
 	case rest[0] == "set" && len(rest) == 3:
 		return setConfig(opts, rest[1], rest[2])
 
+	case rest[0] == "export" && len(rest) == 1:
+		return exportConfig(opts)
+
 	default:
 		fmt.Fprintf(os.Stderr, "hawser: config %s: unrecognized; see `hawser config --help`\n",
 			strings.Join(rest, " "))
 		return exitUsage
 	}
+}
+
+// exportConfig emits the current install as a hawser.yaml, so an existing
+// setup round-trips into a file that reproduces it with `hawser install --config`.
+func exportConfig(opts provision.Options) int {
+	f, err := exportHawserFile(opts)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+		return exitNotFound
+	}
+	out, err := f.Marshal()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+		return exitError
+	}
+	os.Stdout.Write(out)
+	return exitOK
 }
 
 func listAllConfig(opts provision.Options) int {
