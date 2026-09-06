@@ -23,21 +23,31 @@ import (
 	"log"
 	"net"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/zcsizmadia/hawser/internal/vsockproto"
 	"golang.org/x/sys/unix"
 )
 
-// Identity is what the handshake reports; the host logs it and future
-// versions can gate features on it.
-const Identity = "hawser-agent/1"
+// Identity is what the handshake reports; the host logs it and gates features
+// on it. Bumped to /2 with mutual-auth support (#81): the host provisions and
+// requires the shared secret only against a /2 agent, so an older /1 rootfs
+// keeps working over the unauthenticated handshake instead of being refused as
+// a downgrade.
+const Identity = "hawser-agent/2"
+
+// SecretFile is where install writes the per-install auth secret (#81),
+// root-readable only. Absent on a rootfs that predates auth: the agent then
+// speaks the v1 handshake, and the host's socat fallback still works.
+const SecretFile = "/etc/hawser/agent-secret"
 
 func main() {
 	var (
-		version = flag.Bool("version", false, "print the agent identity and exit")
-		port    = flag.Uint("port", uint(vsockproto.Port), "vsock port to listen on")
-		socket  = flag.String("socket", "/var/run/docker.sock", "engine socket to relay to")
+		version    = flag.Bool("version", false, "print the agent identity and exit")
+		port       = flag.Uint("port", uint(vsockproto.Port), "vsock port to listen on")
+		socket     = flag.String("socket", "/var/run/docker.sock", "engine socket to relay to")
+		secretFile = flag.String("secret-file", SecretFile, "per-install auth secret (empty file disables auth)")
 	)
 	flag.Parse()
 	if *version {
@@ -46,12 +56,22 @@ func main() {
 	}
 	log.SetFlags(log.LstdFlags | log.LUTC)
 
-	if err := run(uint32(*port), *socket); err != nil {
+	// Missing secret is not fatal: an older provisioning has none, and the
+	// agent must still serve (unauthenticated, as before #81).
+	secret := ""
+	if b, err := os.ReadFile(*secretFile); err == nil {
+		secret = strings.TrimSpace(string(b))
+	}
+	if secret == "" {
+		log.Printf("no auth secret at %s; serving the v1 (unauthenticated) handshake", *secretFile)
+	}
+
+	if err := run(uint32(*port), *socket, secret); err != nil {
 		log.Fatalf("hawser-agent: %v", err)
 	}
 }
 
-func run(port uint32, socket string) error {
+func run(port uint32, socket, secret string) error {
 	fd, err := unix.Socket(unix.AF_VSOCK, unix.SOCK_STREAM|unix.SOCK_CLOEXEC, 0)
 	if err != nil {
 		return fmt.Errorf("socket(AF_VSOCK): %w", err)
@@ -94,7 +114,7 @@ func run(port uint32, socket string) error {
 			unix.Close(cfd)
 			continue
 		}
-		go serve(conn, socket)
+		go serve(conn, socket, secret)
 	}
 }
 
@@ -105,11 +125,11 @@ const vsockHostCID = 2
 // says nothing must not pin a goroutine and fd forever (#92).
 const handshakeTimeout = 10 * time.Second
 
-func serve(conn *vsockConn, socket string) {
+func serve(conn *vsockConn, socket, secret string) {
 	defer conn.Close()
 
 	conn.SetReadDeadline(time.Now().Add(handshakeTimeout))
-	if err := vsockproto.ServerHandshake(conn, Identity); err != nil {
+	if err := vsockproto.ServerHandshake(conn, Identity, secret); err != nil {
 		log.Printf("handshake refused: %v", err)
 		return
 	}

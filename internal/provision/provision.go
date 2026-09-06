@@ -240,6 +240,7 @@ func (p *Provisioner) StartEngine(ctx context.Context, opts Options) error {
 		// Neither the agent nor the socket share is tied to dockerd's
 		// lifetime: a supervisor that finds a healthy engine (its own
 		// restart, say) must still make sure both are up.
+		p.ensureAgentSecret(ctx, opts)
 		p.startAgent(ctx, opts)
 		p.shareEngineSocket(ctx, opts)
 		return nil
@@ -252,6 +253,7 @@ func (p *Provisioner) StartEngine(ctx context.Context, opts Options) error {
 		"sh", "-c", "dockerd >>/var/log/dockerd.log 2>&1"); err != nil {
 		return fmt.Errorf("launching dockerd: %w", err)
 	}
+	p.ensureAgentSecret(ctx, opts)
 	p.startAgent(ctx, opts)
 
 	deadline := time.Now().Add(opts.StartTimeout)
@@ -333,6 +335,70 @@ const agentStartCmd = "command -v hawser-agent >/dev/null 2>&1 || exit 0; " +
 func (p *Provisioner) startAgent(ctx context.Context, opts Options) {
 	if _, err := p.wsl().Start(ctx, opts.Distro, "root", "sh", "-c", agentStartCmd); err != nil {
 		p.logger().Debug("hawser-agent not started", "error", err)
+	}
+}
+
+// AgentSecretPath is where the host copy of the per-install agent secret lives
+// (#81); the dialer reads it to authenticate the agent.
+func AgentSecretPath(stateDir string) string {
+	return filepath.Join(stateDir, "agent-secret")
+}
+
+// agentSecretScript generates the secret inside the distro on first run and
+// prints it. Generating in-distro (from /dev/urandom) keeps the secret out of
+// any process argv; the value crosses only the wsl.exe stdout pipe, host to
+// distro, within the user's own session.
+const agentSecretScript = `f=/etc/hawser/agent-secret; ` +
+	`[ -s "$f" ] || { mkdir -p /etc/hawser && umask 077 && ` +
+	`head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$f"; }; cat "$f"`
+
+// ensureAgentSecret makes the agent's vsock handshake mutually authenticated
+// (#81): a per-install secret lives root-only in the distro and user-only on
+// the host, so a sibling distro squatting the vsock port cannot prove itself.
+// Best-effort — a failure leaves both ends on the pre-#81 handshake rather
+// than breaking the engine — and idempotent: the secret is generated once and
+// reused, so agent and dialer always agree.
+//
+// Gated on the agent supporting auth: a /1 agent (an older rootfs) would
+// answer the unauthenticated handshake, which a secret-holding host refuses as
+// a downgrade — so against such a rootfs we provision no secret and remove any
+// stale one, keeping the vsock path working rather than forcing socat.
+func (p *Provisioner) ensureAgentSecret(ctx context.Context, opts Options) {
+	hostPath := AgentSecretPath(opts.StateDir)
+
+	ver, _ := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c",
+		"hawser-agent -version 2>/dev/null || true")
+	if !strings.Contains(ver, "hawser-agent/2") {
+		// No auth-capable agent: ensure the host holds no secret, so the
+		// dialer uses the v1 handshake this agent understands.
+		os.Remove(hostPath)
+		return
+	}
+
+	out, err := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c", agentSecretScript)
+	if err != nil {
+		p.logger().Debug("agent auth secret not provisioned; using the unauthenticated handshake", "error", err)
+		return
+	}
+	secret := strings.TrimSpace(out)
+	if secret == "" {
+		return
+	}
+	if b, err := os.ReadFile(hostPath); err == nil && strings.TrimSpace(string(b)) == secret {
+		return // already mirrored
+	}
+	if err := os.MkdirAll(opts.StateDir, 0o755); err != nil {
+		p.logger().Debug("cannot mirror agent secret to host", "error", err)
+		return
+	}
+	tmp := hostPath + ".tmp"
+	if err := os.WriteFile(tmp, []byte(secret+"\n"), 0o600); err != nil {
+		p.logger().Debug("cannot write host agent secret", "error", err)
+		return
+	}
+	if err := os.Rename(tmp, hostPath); err != nil {
+		os.Remove(tmp)
+		p.logger().Debug("cannot commit host agent secret", "error", err)
 	}
 }
 

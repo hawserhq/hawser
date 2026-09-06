@@ -42,6 +42,7 @@ type fakeWSL struct {
 	// engineVersionFile is what /etc/hawser/engine-version contains; empty
 	// means the file is absent.
 	engineVersionFile string
+	agentVersion      string // hawser-agent -version output
 
 	importErr error
 	statusErr error
@@ -126,6 +127,12 @@ func (f *fakeWSL) Exec(_ context.Context, _, _ string, args ...string) (string, 
 			return ok, nil
 		}
 		return "", errors.New("exit status 1")
+	}
+	if len(args) >= 3 && args[0] == "sh" && strings.Contains(args[2], "hawser-agent -version") {
+		return f.agentVersion, nil
+	}
+	if len(args) >= 3 && args[0] == "sh" && strings.Contains(args[2], "agent-secret") {
+		return "deadbeefsecret", nil
 	}
 	if len(args) > 0 && args[0] == "tail" {
 		return "dockerd log line 1\ndockerd log line 2", nil
@@ -742,5 +749,34 @@ func TestWriteManifestIsAtomic(t *testing.T) {
 	}
 	if _, err := p.ReadManifest(opts); err != nil {
 		t.Errorf("manifest not readable after atomic write: %v", err)
+	}
+}
+
+func TestEnsureAgentSecretGatedOnAgentVersion(t *testing.T) {
+	// #81: with a /2 agent the host mirrors the secret; with a /1 agent (older
+	// rootfs) it must NOT, so the dialer keeps the v1 handshake that agent
+	// speaks instead of refusing a downgrade.
+	newFake := func(version string) *fakeWSL {
+		w := bootedWSL()
+		w.agentVersion = version
+		return w
+	}
+	for _, tc := range []struct {
+		version    string
+		wantSecret bool
+	}{
+		{"hawser-agent/2", true},
+		{"hawser-agent/1", false},
+		{"", false},
+	} {
+		w := newFake(tc.version)
+		p := &provision.Provisioner{WSL: w, Logger: quietLogger()}
+		dir := t.TempDir()
+		p.EnsureAgentSecretForTest(context.Background(), provision.Options{Distro: provision.DefaultDistro, StateDir: dir})
+		_, err := os.Stat(provision.AgentSecretPath(dir))
+		got := err == nil
+		if got != tc.wantSecret {
+			t.Errorf("agent %q: host secret present=%v, want %v", tc.version, got, tc.wantSecret)
+		}
 	}
 }

@@ -14,9 +14,9 @@ func TestHandshakeRoundTrip(t *testing.T) {
 	defer server.Close()
 
 	done := make(chan error, 1)
-	go func() { done <- ServerHandshake(server, "hawser-agent/1") }()
+	go func() { done <- ServerHandshake(server, "hawser-agent/1", "") }()
 
-	got, err := ClientHandshake(client)
+	got, err := ClientHandshake(client, "")
 	if err != nil {
 		t.Fatalf("ClientHandshake: %v", err)
 	}
@@ -34,7 +34,7 @@ func TestServerRejectsStrangerSilently(t *testing.T) {
 	defer server.Close()
 
 	done := make(chan error, 1)
-	go func() { done <- ServerHandshake(server, "v") }()
+	go func() { done <- ServerHandshake(server, "v", "") }()
 
 	// A Docker HTTP request head, i.e. what would arrive if a client skipped
 	// the handshake or the wrong service was dialed.
@@ -60,7 +60,7 @@ func TestClientRejectsNonAgentPeer(t *testing.T) {
 		io.ReadFull(server, make([]byte, len("HAWSER/1\n")))
 		server.Write([]byte("HTTP/1.1 400 Bad Request\n"))
 	}()
-	if _, err := ClientHandshake(client); err == nil {
+	if _, err := ClientHandshake(client, ""); err == nil {
 		t.Fatal("ClientHandshake accepted a non-agent banner")
 	}
 }
@@ -73,11 +73,11 @@ func TestHandshakeDoesNotEatTransparentBytes(t *testing.T) {
 	defer server.Close()
 
 	go func() {
-		ServerHandshake(server, "v1")
+		ServerHandshake(server, "v1", "")
 		server.Write([]byte("payload"))
 	}()
 
-	if _, err := ClientHandshake(client); err != nil {
+	if _, err := ClientHandshake(client, ""); err != nil {
 		t.Fatal(err)
 	}
 	buf := make([]byte, 7)
@@ -96,7 +96,7 @@ func TestHandshakeLineBounded(t *testing.T) {
 	defer server.Close()
 
 	done := make(chan error, 1)
-	go func() { done <- ServerHandshake(server, "v") }()
+	go func() { done <- ServerHandshake(server, "v", "") }()
 	go client.Write([]byte(strings.Repeat("A", 4096)))
 	if err := <-done; err == nil {
 		t.Fatal("unbounded handshake line accepted")
@@ -189,4 +189,74 @@ func TestRelayFullClosesWithoutCloseWrite(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Relay deadlocked on a transport without CloseWrite")
 	}
+}
+
+func TestMutualAuthRoundTrip(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	const secret = "s3cr3t-per-install"
+
+	done := make(chan error, 1)
+	go func() { done <- ServerHandshake(server, "hawser-agent/1", secret) }()
+
+	id, err := ClientHandshake(client, secret)
+	if err != nil {
+		t.Fatalf("ClientHandshake: %v", err)
+	}
+	if id != "hawser-agent/1" {
+		t.Errorf("identity = %q", id)
+	}
+	if err := <-done; err != nil {
+		t.Fatalf("ServerHandshake: %v", err)
+	}
+}
+
+func TestClientRejectsWrongSecret(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+
+	done := make(chan error, 1)
+	go func() {
+		err := ServerHandshake(server, "v1", "the-real-secret")
+		server.Close() // the caller closes on failure; a stranger reads no proof
+		done <- err
+	}()
+
+	if _, err := ClientHandshake(client, "a-different-secret"); err == nil {
+		t.Fatal("client accepted an agent that could not prove the secret")
+	}
+	if err := <-done; err == nil {
+		t.Fatal("server accepted a client with the wrong secret")
+	}
+}
+
+func TestSecretClientRefusesUnauthenticatedAgent(t *testing.T) {
+	// The squatter case: an agent (or impostor) that answers v1 while the host
+	// holds a secret must be refused — no silent downgrade.
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	// Server has NO secret, so it answers the plain v1 banner.
+	go func() { ServerHandshake(server, "impostor", "") }()
+
+	if _, err := ClientHandshake(client, "host-has-a-secret"); err == nil {
+		t.Fatal("secret-holding client accepted an unauthenticated agent (downgrade)")
+	}
+}
+
+func TestSecretlessClientStillTalksToSecretlessAgent(t *testing.T) {
+	// Backward compatibility: neither side has a secret (pre-#81 install).
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+
+	done := make(chan error, 1)
+	go func() { done <- ServerHandshake(server, "hawser-agent/1", "") }()
+	id, err := ClientHandshake(client, "")
+	if err != nil || id != "hawser-agent/1" {
+		t.Fatalf("v1 round-trip broke: id=%q err=%v", id, err)
+	}
+	<-done
 }
