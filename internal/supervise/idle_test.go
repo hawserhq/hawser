@@ -208,3 +208,93 @@ func TestExplicitStopClearsIdle(t *testing.T) {
 		t.Error("explicit stop left the idle marker; status would lie")
 	}
 }
+
+func TestDemandRefusesWhenDesiredStopped(t *testing.T) {
+	// #80: an explicitly stopped engine is never resurrected by traffic. The
+	// nasty path is idle-stop THEN `hawser stop` while the engine is already
+	// down: the stop clears the file but not this process's memory.
+	s, e, _, dir := idleSup(t)
+	runTicks(s, 3, 60*time.Millisecond) // idle-stop it
+	if e.Running(context.Background()) {
+		t.Fatal("precondition: engine should be idle-stopped")
+	}
+
+	// What runStop does when the engine is already down: desired=stopped,
+	// marker cleared. The in-memory idleStopped flag is the trap.
+	if err := supervise.WriteDesired(dir, supervise.DesiredStopped); err != nil {
+		t.Fatal(err)
+	}
+	if err := supervise.WriteEngineState(dir, supervise.EngineActive); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.Demand(context.Background()); err == nil {
+		t.Fatal("Demand woke an explicitly stopped engine")
+	}
+	if e.Running(context.Background()) {
+		t.Fatal("engine started despite desired=stopped")
+	}
+	if starts, _ := e.counts(); starts != 0 {
+		t.Errorf("engine start attempted %d times, want 0", starts)
+	}
+
+	// And ticks agree: nothing restarts it, nothing flaps.
+	runTicks(s, 3, 10*time.Millisecond)
+	if starts, _ := e.counts(); starts != 0 {
+		t.Errorf("tick started a stopped engine %d times", starts)
+	}
+
+	// `hawser start` (desired=running, marker poked) revives it normally.
+	if err := supervise.WriteDesired(dir, supervise.DesiredRunning); err != nil {
+		t.Fatal(err)
+	}
+	runTicks(s, 1, 0)
+	if !e.Running(context.Background()) {
+		t.Error("engine did not start after hawser start's desired=running")
+	}
+}
+
+func TestTickClearsIdleFlagOnStoppedAndDown(t *testing.T) {
+	s, e, _, dir := idleSup(t)
+	runTicks(s, 3, 60*time.Millisecond) // idle-stop
+
+	supervise.WriteDesired(dir, supervise.DesiredStopped)
+	supervise.WriteEngineState(dir, supervise.EngineActive)
+	runTicks(s, 1, 0) // the stopped-and-down branch clears the flag
+
+	// Back to running: with the flag cleared, the reconciler itself (not just
+	// Demand) must bring the engine up.
+	supervise.WriteDesired(dir, supervise.DesiredRunning)
+	runTicks(s, 1, 0)
+	if !e.Running(context.Background()) {
+		t.Error("stale idleStopped flag still suppressing the reconciler")
+	}
+}
+
+func TestDemandBacksOffAfterFailedColdStart(t *testing.T) {
+	// #89: a failing engine must not be hammered by every queued connection.
+	s, e, _, _ := idleSup(t)
+	runTicks(s, 3, 60*time.Millisecond) // idle-stop
+	e.mu.Lock()
+	e.startErr = errors.New("VHDX locked")
+	e.mu.Unlock()
+
+	if err := s.Demand(context.Background()); err == nil {
+		t.Fatal("Demand succeeded with a failing engine")
+	}
+	starts, _ := e.counts()
+	if starts != 1 {
+		t.Fatalf("first Demand made %d start attempts, want 1", starts)
+	}
+
+	// Within the backoff window, further Demands fail fast without another
+	// start attempt.
+	for i := 0; i < 4; i++ {
+		if err := s.Demand(context.Background()); err == nil {
+			t.Fatal("Demand succeeded during backoff")
+		}
+	}
+	if s2, _ := e.counts(); s2 != starts {
+		t.Errorf("Demands during backoff made %d extra start attempts", s2-starts)
+	}
+}

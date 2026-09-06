@@ -2,6 +2,8 @@ package supervise
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -185,6 +187,17 @@ func (s *Supervisor) tick(ctx context.Context) {
 		s.idleStopped = false
 		WriteEngineState(s.Config.StateDir, EngineActive)
 
+	case desired == DesiredStopped && !up:
+		// Stopped and down is the state the user asked for — but the path
+		// into it may have gone through an idle stop, leaving the in-memory
+		// flag set (#80: `hawser stop` clears the FILE, not this process's
+		// memory). Clear it here, or a later Demand would treat the engine as
+		// merely idle and resurrect what the user explicitly stopped.
+		if s.idleStopped {
+			s.idleStopped = false
+			WriteEngineState(s.Config.StateDir, EngineActive)
+		}
+
 	case desired == DesiredRunning && up:
 		// Healthy: a success observed by the loop also resets backoff, so one
 		// bad patch (a WSL update mid-flight, say) does not tax the next.
@@ -266,6 +279,13 @@ func (s *Supervisor) maybeIdleStop(ctx context.Context) {
 // until it is up; a no-op when the engine is not idle. The pipe server's
 // dialer calls this before every engine dial, so the first `docker` command
 // after an idle stop cold-starts the engine transparently.
+//
+// Two refusals, both from the v0.2.0 review: a stopped engine is the user's
+// explicit intent and is never resurrected by traffic (#80 — background
+// pollers like an IDE's Docker extension would otherwise flap it against the
+// reconciler); and a failing engine is retried on the same backoff schedule
+// the tick uses (#89 — without it, every queued connection serially paid a
+// full failed StartTimeout while holding the lock).
 func (s *Supervisor) Demand(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -273,12 +293,29 @@ func (s *Supervisor) Demand(ctx context.Context) error {
 	if !s.idleStopped && ReadEngineState(s.Config.StateDir) != EngineIdle {
 		return nil
 	}
+	if ReadDesired(s.Config.StateDir) == DesiredStopped {
+		// Stopped beats idle: clear the leftover idle state so later ticks
+		// and Demands agree, and refuse the wake.
+		s.idleStopped = false
+		WriteEngineState(s.Config.StateDir, EngineActive)
+		return errors.New("engine is stopped; run `hawser start` to use it")
+	}
+	if time.Now().Before(s.nextTry) {
+		return fmt.Errorf("engine start is backing off after %d failure(s); retrying by %s",
+			s.failures, s.nextTry.Format("15:04:05"))
+	}
 	s.log().Info("connection while idle; cold-starting the engine")
 	began := time.Now()
 	if err := s.Engine.Start(ctx); err != nil {
-		s.log().Error("cold start failed", "error", err)
+		s.failures++
+		delay := s.backoff()
+		s.nextTry = time.Now().Add(delay)
+		s.log().Error("cold start failed",
+			"error", err, "retryIn", delay, "consecutiveFailures", s.failures)
 		return err
 	}
+	s.failures = 0
+	s.nextTry = time.Time{}
 	// Cleared only after a successful start, so a second connection arriving
 	// mid-start blocks on the mutex and then sees a running engine, rather
 	// than racing ahead to dial an engine that is not up yet.
