@@ -84,6 +84,7 @@ func TestAcceptance(t *testing.T) {
 		{"ComposeStack", stageCompose},
 		{"WSLIntegrateSharesEngine", stageWSLIntegrate},
 		{"MigrateFromDesktop", stageMigrate},
+		{"EngineConfigValidatesAndApplies", stageEngineConfig},
 		{"IdleStopAndOnDemandWake", stageIdle},
 		{"InterruptedClientDoesNotWedgeBridge", stageInterrupt},
 		{"VsockPathServedEverything", stageVsockServed},
@@ -307,6 +308,45 @@ func stageDoctor(t *testing.T, s *state) {
 	// Disk should never fail on a machine that just installed the engine.
 	if status["disk"] == "fail" {
 		t.Errorf("doctor disk check failed unexpectedly\nfull report:\n%s", out)
+	}
+}
+
+// stageEngineConfig exercises the validated daemon.json surface (#68): set a
+// real engine key, confirm it lands in daemon.json and the engine bounces back
+// healthy, then clear it. The set goes through `dockerd --validate` and a
+// supervisor-cooperative restart, so a green run proves that whole chain end to
+// end against the live engine.
+func stageEngineConfig(t *testing.T, s *state) {
+	set := func(key, value string) (string, error) {
+		return run(t, 3*time.Minute, s.hawser, "config", "--state-dir", s.stateDir, "set", key, value)
+	}
+	get := func(key string) string {
+		out, err := run(t, 30*time.Second, s.hawser, "config", "--state-dir", s.stateDir, "get", key)
+		must(t, out, err, "config get "+key)
+		return strings.TrimSpace(out)
+	}
+	engineUp := func() bool {
+		out, err := dockerE(t, s, 30*time.Second, "version", "--format", "{{.Server.Version}}")
+		return err == nil && out != ""
+	}
+
+	out, err := set("engine.max-concurrent-downloads", "5")
+	must(t, out, err, "config set engine.max-concurrent-downloads 5")
+	if got := get("engine.max-concurrent-downloads"); got != "5" {
+		t.Fatalf("get after set = %q, want 5", got)
+	}
+	if !engineUp() {
+		t.Fatal("engine did not answer after applying engine config")
+	}
+
+	// Clearing with an empty value removes the key and bounces the engine again.
+	out, err = set("engine.max-concurrent-downloads", "")
+	must(t, out, err, "config set engine.max-concurrent-downloads (clear)")
+	if got := get("engine.max-concurrent-downloads"); got != "" {
+		t.Fatalf("get after clear = %q, want empty", got)
+	}
+	if !engineUp() {
+		t.Fatal("engine did not answer after clearing engine config")
 	}
 }
 
