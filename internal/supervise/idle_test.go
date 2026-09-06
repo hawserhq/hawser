@@ -298,3 +298,16 @@ func TestDemandBacksOffAfterFailedColdStart(t *testing.T) {
 		t.Errorf("Demands during backoff made %d extra start attempts", s2-starts)
 	}
 }
+
+func TestIdleVetoedByBusySignal(t *testing.T) {
+	// #72: the Busy func now folds in "an integrated distro is using the
+	// engine socket". A true from Busy (for any reason) must veto the idle
+	// stop, so work over the /mnt/wsl share is never killed mid-flight.
+	s, e, _, _ := idleSup(t)
+	s.Busy = func(context.Context) (bool, error) { return true, nil }
+
+	runTicks(s, 3, 60*time.Millisecond)
+	if _, stops := e.counts(); stops != 0 {
+		t.Error("engine idled while Busy reported in-flight work (shared socket / containers)")
+	}
+}

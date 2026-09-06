@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/zcsizmadia/hawser/internal/pipeproxy"
+	"github.com/zcsizmadia/hawser/internal/provision"
 	"github.com/zcsizmadia/hawser/internal/supervise"
 )
 
@@ -87,5 +88,20 @@ func busyProbe(dialer pipeproxy.Dialer) func(ctx context.Context) (bool, error) 
 			return false, err
 		}
 		return len(containers) > 0, nil
+	}
+}
+
+// engineBusy vetoes an idle stop when the engine is in use in any way the pipe
+// cannot see (#72): a running container, OR an active connection to the engine
+// socket from an integrated distro over the /mnt/wsl share. Either signal, or
+// an error from probing them, keeps the engine up — stopping mid-operation
+// would kill a docker build or pull running in that distro.
+func engineBusy(dialer pipeproxy.Dialer, p *provision.Provisioner, opts provision.Options) func(ctx context.Context) (bool, error) {
+	containers := busyProbe(dialer)
+	return func(ctx context.Context) (bool, error) {
+		if busy, err := containers(ctx); err != nil || busy {
+			return busy, err
+		}
+		return p.SocketBusy(ctx, opts)
 	}
 }
