@@ -507,7 +507,10 @@ func stageIdle(t *testing.T, s *state) {
 		return st.Engine, 0
 	}
 
-	// Idle within: 15s quiet + a few 3s ticks + the stop itself.
+	// Idle within: 15s quiet + a few 3s ticks + the stop itself. Nothing here
+	// touches the engine while polling — a docker call each iteration would
+	// itself reset the quiet window ("open client connections") and never let
+	// the engine idle; status reads host-side files only.
 	deadline := time.Now().Add(90 * time.Second)
 	for {
 		engine, _ := statusJSON()
@@ -515,14 +518,15 @@ func stageIdle(t *testing.T, s *state) {
 			break
 		}
 		if time.Now().After(deadline) {
-			// The supervisor logs why each idle stop was deferred; that tail
-			// is the diagnosis.
+			// The supervisor logs why each idle stop was deferred, including —
+			// when a container vetoes — the names busyProbe saw.
 			logBytes, _ := os.ReadFile(filepath.Join(s.stateDir, "proxy-e2e.log"))
 			tail := string(logBytes)
 			if len(tail) > 4000 {
 				tail = tail[len(tail)-4000:]
 			}
-			t.Fatalf("engine did not idle-stop within 90s; status reports %q\nsupervisor log tail:\n%s", engine, tail)
+			ps, _ := dockerE(t, s, 30*time.Second, "ps", "-a", "--format", "{{.Names}} {{.Status}}")
+			t.Fatalf("engine did not idle-stop within 90s; status reports %q\ncontainers (ps -a):\n%s\nsupervisor log tail:\n%s", engine, ps, tail)
 		}
 		time.Sleep(2 * time.Second)
 	}

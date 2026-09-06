@@ -150,7 +150,7 @@ flags:
 			}
 			return c.IdleTimeout
 		},
-		Busy: engineBusy(dialer, p, opts),
+		Busy: engineBusy(dialer, p, opts, log),
 	}
 	srv.Dialer = &demandDialer{sup: sup, inner: dialer}
 	go sup.Run(ctx)
