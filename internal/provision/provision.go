@@ -215,6 +215,30 @@ func (p *Provisioner) Install(ctx context.Context, opts Options) (*Manifest, err
 	return m, nil
 }
 
+// socketBusyScript counts ESTABLISHED connections to the engine socket inside
+// the distro (ss ships in the rootfs via iproute2). The listening socket is
+// state LISTEN and excluded.
+const socketBusyScript = "ss -H -x state established src " + EngineSocket + " 2>/dev/null | wc -l"
+
+// SocketBusy reports whether anything holds an active connection to the engine
+// socket right now (#72). Called only when the pipe has no clients, so a
+// positive result means a user the pipe cannot see — a docker client in an
+// integrated distro over the /mnt/wsl share — is mid-operation, and idling the
+// engine would kill its work. An error is returned so the caller can veto
+// rather than stop on an unknown.
+func (p *Provisioner) SocketBusy(ctx context.Context, opts Options) (bool, error) {
+	opts = opts.withDefaults()
+	out, err := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c", socketBusyScript)
+	if err != nil {
+		return false, err
+	}
+	n := 0
+	if _, e := fmt.Sscanf(strings.TrimSpace(out), "%d", &n); e != nil {
+		return false, fmt.Errorf("parsing socket connection count %q: %w", out, e)
+	}
+	return n > 0, nil
+}
+
 // EngineVersionFile is where the rootfs records the engine it carries.
 const EngineVersionFile = "/etc/hawser/engine-version"
 

@@ -27,9 +27,11 @@ writing %s there (DOCKER_HOST to the engine socket shared at /mnt/wsl). Takes
 effect in new login shells. Never touches a distro you did not name, and
 `+"`hawser uninstall`"+` unwires everything it wired.
 
-Note: with an idle-timeout configured, traffic through the shared socket does
-not count as bridge activity and cannot wake an idle-stopped engine — keep
-idle-timeout off, or run `+"`hawser start`"+` first, when working in-distro.
+Note: with an idle-timeout configured, in-flight work over the shared socket
+(a build or pull from the integrated distro) holds the engine up — it is never
+stopped mid-operation. But between operations the engine can still idle-stop,
+and a shared-socket client cannot wake a stopped engine on its own; run
+`+"`hawser start`"+` first (or keep idle-timeout off) for long in-distro sessions.
 
 Exit codes: 0 ok, %d error, %d usage.
 `, integrate.ProfilePath, exitError, exitUsage)
