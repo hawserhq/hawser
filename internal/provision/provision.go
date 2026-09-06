@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -16,6 +17,22 @@ import (
 // DefaultDistro is the WSL distribution Hawser imports. Deliberately distinct
 // so it never collides with a user's own Ubuntu (PLAN §04).
 const DefaultDistro = "hawser-engine"
+
+// distroNameRE bounds what a distro name may contain (#93). Names flow into
+// shells (the /mnt/wsl share/unshare scripts pass them as positional args, but
+// the unshare's rm -rf operates on a path derived from the name) and into a
+// profile-script line by wsl-integrate. Restricting to this charset — and
+// forbidding the path-traversal spellings — closes the whole class rather than
+// auditing each call site; every legitimate name (the default, a user's
+// --distro) already fits.
+var distroNameRE = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+func validateDistroName(name string) error {
+	if !distroNameRE.MatchString(name) || name == "." || name == ".." {
+		return fmt.Errorf("invalid distro name %q: use letters, digits, dot, dash, underscore", name)
+	}
+	return nil
+}
 
 // EngineSocket is where dockerd listens inside the distro.
 const EngineSocket = "/var/run/docker.sock"
@@ -137,6 +154,9 @@ func (e *PreflightError) Error() string {
 // images and volumes and silently reimporting would destroy them.
 func (p *Provisioner) Install(ctx context.Context, opts Options) (*Manifest, error) {
 	opts = opts.withDefaults()
+	if err := validateDistroName(opts.Distro); err != nil {
+		return nil, err
+	}
 	if opts.RootfsURL == "" {
 		return nil, fmt.Errorf("install: RootfsURL is required")
 	}
@@ -437,8 +457,17 @@ func (p *Provisioner) writeManifest(opts Options, m *Manifest) error {
 	if err != nil {
 		return fmt.Errorf("encoding manifest: %w", err)
 	}
-	if err := os.WriteFile(path, append(b, '\n'), 0o644); err != nil {
+	// Atomic write (#93): a crash mid-write left a truncated manifest.json,
+	// after which ReadManifest errors and the supervisor exits "no install
+	// found" until a reinstall. Temp-plus-rename means a reader sees either
+	// the old file or the whole new one, never a partial.
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, append(b, '\n'), 0o644); err != nil {
 		return fmt.Errorf("writing manifest: %w", err)
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		os.Remove(tmp)
+		return fmt.Errorf("committing manifest: %w", err)
 	}
 	return nil
 }

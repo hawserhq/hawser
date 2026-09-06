@@ -47,6 +47,7 @@ func NewRotatingWriter(path string, maxBytes int64, keep int) (*RotatingWriter, 
 func (w *RotatingWriter) open() error {
 	f, err := os.OpenFile(w.path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
+		w.f = nil // never leave a stale (closed) handle behind (#93)
 		return fmt.Errorf("opening log: %w", err)
 	}
 	st, err := f.Stat()
@@ -75,6 +76,15 @@ func (w *RotatingWriter) Write(p []byte) (int, error) {
 		}
 	}
 
+	// A prior rotation may have closed the file and failed to reopen it (#93),
+	// leaving w.f nil; a logless supervisor is a serious blind spot, so try to
+	// recover the handle on every write rather than silently discarding.
+	if w.f == nil {
+		if err := w.open(); err != nil {
+			return 0, err
+		}
+	}
+
 	n, err := w.f.Write(p)
 	w.size += int64(n)
 	return n, err
@@ -82,8 +92,11 @@ func (w *RotatingWriter) Write(p []byte) (int, error) {
 
 // rotate shifts path -> path.1 -> path.2 ... dropping the oldest.
 func (w *RotatingWriter) rotate() error {
-	if err := w.f.Close(); err != nil {
-		return err
+	// Close best-effort: a Close error must not abort rotation and strand a
+	// full log forever (#93). The handle is being replaced regardless.
+	if w.f != nil {
+		w.f.Close()
+		w.f = nil
 	}
 	// Shift from the oldest end so each rename lands on a free name.
 	os.Remove(fmt.Sprintf("%s.%d", w.path, w.keep))
