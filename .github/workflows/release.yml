@@ -50,13 +50,18 @@ jobs:
       - name: resolve version
         id: v
         shell: pwsh
+        # Values from github.event / inputs reach the shell via env, never
+        # spliced into the script (#87): a tag like v1$(...) or a quote would
+        # otherwise execute here — and this feeds a job that publishes.
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
         run: |
           if ($env:GITHUB_EVENT_NAME -eq 'release') {
             # Strip a leading v so `hawser version` reports 0.1.0, not v0.1.0.
-            $tag = '${{ github.event.release.tag_name }}'
-            $version = $tag -replace '^v', ''
-          } elseif ('${{ inputs.version }}') {
-            $version = '${{ inputs.version }}'
+            $version = $env:TAG -replace '^v', ''
+          } elseif ($env:INPUT_VERSION) {
+            $version = $env:INPUT_VERSION
           } else {
             # push / pull_request: a validation build, not a release.
             $version = '0.0.0-ci'
@@ -173,6 +178,10 @@ jobs:
       # the code, so gh has no git remote to infer the repository from and
       # fails with "not a git repository".
       - name: upload release assets
+        # TAG via env, not spliced into the command (#87): this job holds
+        # contents: write, so a crafted tag name must never reach the shell.
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber --repo "${{ github.repository }}"
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+        run: gh release upload "$TAG" dist/* --clobber --repo "$REPO"

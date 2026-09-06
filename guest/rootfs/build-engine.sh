@@ -14,33 +14,43 @@ mkdir -p /out/bin /src
 export CGO_ENABLED=0
 export GOFLAGS=-trimpath
 
-# Clone at a pinned tag and record the commit it resolved to.
+# Clone at a pinned tag AND verify the resolved commit against an expected
+# SHA (#88).
 #
-# These are annotated tags, so refs/tags/<tag> points at a tag object rather
-# than a commit and git prints "warning: refs/tags/X ... is not a commit!"
-# during a shallow clone. It is cosmetic — git peels the tag and checks out the
-# right tree — but a tag can be moved upstream, so we pin the belt and record
-# the resolved SHA as the suspenders: that SHA is what the SBOM reports.
-clone() { # repo tag dir
+# A git tag can be moved upstream and a Hub tag re-pushed; pinning the tag name
+# alone trusts a mutable reference that becomes root inside every user's engine
+# VM. The expected SHA per component lives in versions.env (<COMPONENT>_SHA);
+# the build fails loudly on mismatch. To bump a component you update tag AND
+# SHA together in one reviewed commit — the SHA is discoverable by running this
+# with the var empty, which logs the resolved value instead of failing.
+clone() { # repo tag dir expectedSHA
     git -c advice.detachedHead=false clone --depth 1 --branch "$2" "$1" "/src/$3" 2>&1 |
         grep -v 'is not a commit!' || true
     sha="$(git -C "/src/$3" rev-parse HEAD)"
+    if [ -n "$4" ] && [ "$4" != "$sha" ]; then
+        echo "FATAL: $3 tag $2 resolved to $sha, expected $4" >&2
+        echo "  (a moved tag or a compromised source; refusing to build)" >&2
+        exit 1
+    fi
+    if [ -z "$4" ]; then
+        echo "    WARNING: no expected SHA pinned for $3; resolved $sha" >&2
+    fi
     printf '%s %s %s\n' "$3" "$2" "$sha" >> /out/commits.txt
-    echo "    $3 $2 -> $sha"
+    echo "    $3 $2 -> $sha (verified)"
 }
 
 echo "--- runc $RUNC_VERSION"
-clone https://github.com/opencontainers/runc.git "$RUNC_VERSION" runc
+clone https://github.com/opencontainers/runc.git "$RUNC_VERSION" runc "${RUNC_SHA:-}"
 # runc needs cgo for libseccomp; static via the seccomp buildtag.
 (cd /src/runc && CGO_ENABLED=1 make static BUILDTAGS="seccomp" && cp runc /out/bin/)
 
 echo "--- containerd $CONTAINERD_VERSION"
-clone https://github.com/containerd/containerd.git "$CONTAINERD_VERSION" containerd
+clone https://github.com/containerd/containerd.git "$CONTAINERD_VERSION" containerd "${CONTAINERD_SHA:-}"
 (cd /src/containerd && make STATIC=1 binaries && \
     cp bin/containerd bin/containerd-shim-runc-v2 bin/ctr /out/bin/)
 
 echo "--- moby (dockerd) $MOBY_TAG"
-clone https://github.com/moby/moby.git "$MOBY_TAG" moby
+clone https://github.com/moby/moby.git "$MOBY_TAG" moby "${MOBY_SHA:-}"
 # VERSION is what `dockerd --version` reports; without it moby stamps "dev",
 # which the smoke test rejects and `hawser version` would misreport.
 # docker-proxy ships alongside dockerd and is not optional: with userland-proxy
@@ -57,7 +67,7 @@ clone https://github.com/moby/moby.git "$MOBY_TAG" moby
     done)
 
 echo "--- buildkit $BUILDKIT_VERSION"
-clone https://github.com/moby/buildkit.git "$BUILDKIT_VERSION" buildkit
+clone https://github.com/moby/buildkit.git "$BUILDKIT_VERSION" buildkit "${BUILDKIT_SHA:-}"
 # Without these ldflags buildkit reports "v0.0.0+unknown" — same trap as moby's
 # VERSION, and `hawser version` is supposed to report the truth.
 bk_rev="$(git -C /src/buildkit rev-parse HEAD)"

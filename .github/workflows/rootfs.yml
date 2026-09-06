@@ -93,6 +93,10 @@ jobs:
       # the code, so gh has no git remote to infer the repository from and
       # fails with "not a git repository".
       - name: upload release assets
+        # TAG/REPO via env, not spliced into the command (#87): this job holds
+        # contents: write.
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" out/* --clobber --repo "${{ github.repository }}"
+          TAG: ${{ github.event.release.tag_name }}
+          REPO: ${{ github.repository }}
+        run: gh release upload "$TAG" out/* --clobber --repo "$REPO"

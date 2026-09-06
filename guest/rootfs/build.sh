@@ -55,6 +55,10 @@ if [ ! -x "$engine/bin/dockerd" ]; then
       -e "CONTAINERD_VERSION=$CONTAINERD_VERSION" \
       -e "RUNC_VERSION=$RUNC_VERSION" \
       -e "BUILDKIT_VERSION=$BUILDKIT_VERSION" \
+      -e "MOBY_SHA=${MOBY_SHA:-}" \
+      -e "CONTAINERD_SHA=${CONTAINERD_SHA:-}" \
+      -e "RUNC_SHA=${RUNC_SHA:-}" \
+      -e "BUILDKIT_SHA=${BUILDKIT_SHA:-}" \
       -e "HOST_UID=$(id -u)" \
       -e "HOST_GID=$(id -g)" \
       -v "$here/build-engine.sh:/build-engine.sh:ro" \
@@ -113,7 +117,7 @@ CONF
 cp "$here/assemble.Dockerfile" "$ctx/Dockerfile"
 
 tag="hawser-rootfs:${ENGINE_VERSION}"
-docker build --build-arg "ALPINE_TAG=${ALPINE_BRANCH#v}" -t "$tag" "$ctx"
+docker build --build-arg "ALPINE_TAG=${ALPINE_BRANCH#v}" --build-arg "ALPINE_DIGEST=${ALPINE_DIGEST}" -t "$tag" "$ctx"
 
 tarball="$out/hawser-rootfs-${rootfs_version}.tar.gz"
 echo "==> exporting $tarball"
