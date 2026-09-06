@@ -3,10 +3,13 @@
 package pipeproxy
 
 import (
+	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/Microsoft/go-winio"
+	"golang.org/x/sys/windows"
 )
 
 // PipeInUse reports whether something is already serving a named pipe.
@@ -19,6 +22,15 @@ func PipeInUse(name string) bool {
 	timeout := 250 * time.Millisecond
 	conn, err := winio.DialPipe(name, &timeout)
 	if err != nil {
+		// ERROR_PIPE_BUSY (all instances busy) and a dial timeout both mean a
+		// server IS there, just not free to answer this instant — treating
+		// them as "free" (#91) made SelectPipeName pick the default pipe, then
+		// Listen fail against Docker Desktop's live pipe and the supervisor
+		// exit, instead of coexisting on the fallback. Only a genuine
+		// not-found reads as free.
+		if errors.Is(err, windows.ERROR_PIPE_BUSY) || os.IsTimeout(err) {
+			return true
+		}
 		return false
 	}
 	conn.Close()

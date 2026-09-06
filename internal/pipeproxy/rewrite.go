@@ -32,6 +32,7 @@ func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
 	clientR := bufio.NewReader(client)
 	engineR := bufio.NewReader(engine)
 
+	responsesRelayed := 0
 	for {
 		req, err := http.ReadRequest(clientR)
 		if err != nil {
@@ -70,6 +71,12 @@ func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
 		if err != nil {
 			if werr := <-bodySent; werr != nil {
 				return fmt.Errorf("forward request: %w", werr)
+			}
+			// EOF on the very first response means the engine never answered —
+			// down, or a dead socket — which must surface, not be filtered as
+			// an ordinary hang-up (#91).
+			if responsesRelayed == 0 && (errors.Is(err, io.EOF) || errors.Is(err, io.ErrUnexpectedEOF)) {
+				return fmt.Errorf("engine gave no response to %s: %w", req.URL.Path, ErrEngineUnreachable)
 			}
 			return fmt.Errorf("read response: %w", err)
 		}
@@ -115,6 +122,10 @@ func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
 				<-bodySent
 			}()
 		}
+
+		// A real response is in hand: the engine is answering, so later EOFs on
+		// this connection are ordinary hang-ups, not "engine down" (#91).
+		responsesRelayed++
 
 		trace("RSP %d ct=%s cl=%d chunked=%v hijack=%v for %s",
 			resp.StatusCode, resp.Header.Get("Content-Type"), resp.ContentLength,
@@ -165,7 +176,12 @@ func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
 			}
 			// Bytes arrived while the response still streams (a pipelined
 			// request): unusual for a docker client, but just wait the write
-			// out and loop.
+			// out and loop. Note (#91) the watchdog does not re-arm for the
+			// rest of this response — re-Peeking would need a second reader on
+			// clientR and break the single-reader invariant. Accepted: the
+			// docker CLI never pipelines, so this path is not reached in
+			// practice, and a full client disconnect still surfaces as a write
+			// error on the next response.
 			werr = <-writec
 		}
 		if werr != nil {
