@@ -48,6 +48,7 @@ func runInstall(args []string) int {
 		rootfsURL     = fs.String("rootfs-url", "", "override the rootfs URL (development)")
 		rootfsSHA     = fs.String("rootfs-sha256", "", "expected rootfs SHA-256; required with --rootfs-url")
 		asJSON        = fs.Bool("json", false, "emit the resulting manifest as JSON")
+		configPath    = fs.String("config", "", "declarative install from a hawser.yaml (see `hawser config export`)")
 	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: hawser install [flags]
@@ -70,6 +71,15 @@ flags:
 	}
 
 	log := cliLogger(*asJSON)
+
+	if *configPath != "" {
+		return runInstallFromConfig(*configPath, provision.Options{
+			Distro:   *distro,
+			StateDir: *stateDir,
+			DataDir:  *dataDir,
+			Headless: *headless,
+		}, *engineVersion, *noAutostart, log)
+	}
 
 	opts := provision.Options{
 		Distro:   *distro,
