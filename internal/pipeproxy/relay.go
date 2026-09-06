@@ -133,15 +133,29 @@ func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 
 	// Unblock Accept on cancellation — a named pipe Accept has no deadline —
 	// and drop live connections so a streaming client cannot pin shutdown.
+	// The watcher exits with Serve rather than leaking when Serve returns for
+	// a reason other than cancellation.
+	serveDone := make(chan struct{})
+	defer close(serveDone)
 	go func() {
-		<-ctx.Done()
-		l.Close()
-		s.closeActive()
+		select {
+		case <-ctx.Done():
+			l.Close()
+			s.closeActive()
+		case <-serveDone:
+		}
 	}()
 
 	for {
 		conn, err := l.Accept()
 		if err != nil {
+			// However Accept ended — cancellation or a spontaneous listener
+			// failure — no new connections are coming, and the live ones must
+			// not pin this process (#85): a wedged Serve still holds the
+			// supervisor's single-instance mutex, so a dead pipe would also
+			// block every replacement supervisor until someone kills us.
+			l.Close()
+			s.closeActive()
 			s.wg.Wait()
 			if ctx.Err() != nil {
 				return nil // shutdown, not failure
@@ -149,9 +163,14 @@ func (s *Server) Serve(ctx context.Context, l net.Listener) error {
 			return fmt.Errorf("pipeproxy: accept: %w", err)
 		}
 
+		// Tracked here, synchronously, not inside the handler goroutine: a
+		// teardown racing a just-accepted connection must still find it in
+		// the active set, or closeActive misses it and wg.Wait wedges anyway.
 		s.wg.Add(1)
+		s.track(conn)
 		go func() {
 			defer s.wg.Done()
+			defer s.untrack(conn)
 			s.handle(ctx, conn)
 		}()
 	}
@@ -167,9 +186,6 @@ func (s *Server) handle(ctx context.Context, client net.Conn) {
 		s.clients.Add(-1)
 		s.touch()
 	}()
-
-	s.track(client)
-	defer s.untrack(client)
 
 	engine, err := s.Dialer.Dial(ctx)
 	if err != nil {
