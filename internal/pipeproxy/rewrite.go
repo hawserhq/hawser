@@ -12,6 +12,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/zcsizmadia/hawser/internal/winpath"
 )
@@ -49,15 +50,72 @@ func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
 			}
 		}
 
+		// The body is forwarded eagerly regardless, so Expect: 100-continue is
+		// pure interim-response noise downstream — strip it rather than teach
+		// every layer about it (#90). Unsolicited 1xx are still handled below.
+		req.Header.Del("Expect")
+
 		trace("REQ %s %s", req.Method, req.URL.Path)
-		if err := req.Write(engine); err != nil {
-			return fmt.Errorf("forward request: %w", err)
-		}
+		// The body forwards concurrently with reading the response (#90): a
+		// daemon that rejects a large upload early (Go servers drain at most
+		// 256KB of an abandoned body) stops reading while we still stream —
+		// sequential code blocked in Write and the client saw a dropped
+		// connection instead of the daemon's 4xx. Reading in parallel salvages
+		// that response; writing a request while reading its response on one
+		// connection is ordinary HTTP.
+		bodySent := make(chan error, 1)
+		go func() { bodySent <- req.Write(engine) }()
 
 		resp, err := http.ReadResponse(engineR, req)
 		if err != nil {
+			if werr := <-bodySent; werr != nil {
+				return fmt.Errorf("forward request: %w", werr)
+			}
 			return fmt.Errorf("read response: %w", err)
 		}
+
+		// Interim 1xx responses (#90): each is a complete zero-body response;
+		// treating one as THE response desynchronized the loop — the real
+		// response was later parsed as if it answered the next request.
+		// Forward each head and keep reading; 101 is final by definition (the
+		// hijack upgrade).
+		for resp.StatusCode >= 100 && resp.StatusCode < 200 && resp.StatusCode != http.StatusSwitchingProtocols {
+			trace("RSP %d (interim) for %s", resp.StatusCode, req.URL.Path)
+			if werr := writeResponseHead(client, resp); werr != nil {
+				engine.Close() // unblock the body writer before leaving
+				<-bodySent
+				return werr
+			}
+			if resp, err = http.ReadResponse(engineR, req); err != nil {
+				engine.Close()
+				<-bodySent
+				return fmt.Errorf("read response after interim: %w", err)
+			}
+		}
+
+		// A final response in hand. Normally the body has long since been
+		// forwarded; when the daemon answered early and stopped reading, the
+		// writer may be blocked mid-body forever — the response itself is the
+		// diagnosis, so a short grace and then the connection is written off:
+		// unsent body bytes make its framing unusable for keep-alive anyway.
+		select {
+		case werr := <-bodySent:
+			if werr != nil {
+				trace("REQ body aborted by early response (%d): %v", resp.StatusCode, werr)
+				resp.Close = true // unsendable remainder: never reuse this connection
+			}
+		case <-time.After(250 * time.Millisecond):
+			trace("REQ body still streaming after early response (%d); abandoning the connection", resp.StatusCode)
+			resp.Close = true
+			// The engine side is torn down AFTER the response is relayed to
+			// the client below; deferring the close here keeps the salvaged
+			// body readable. Mark it so.
+			defer func() {
+				engine.Close()
+				<-bodySent
+			}()
+		}
+
 		trace("RSP %d ct=%s cl=%d chunked=%v hijack=%v for %s",
 			resp.StatusCode, resp.Header.Get("Content-Type"), resp.ContentLength,
 			len(resp.TransferEncoding) > 0, isHijack(resp), req.URL.Path)
