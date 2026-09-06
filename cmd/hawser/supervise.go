@@ -130,7 +130,7 @@ flags:
 	// Server and supervisor are deliberately entangled (#41): the server's
 	// traffic feeds the supervisor's idle detection, and the supervisor's
 	// Demand wakes an idle-stopped engine for the server's next connection.
-	dialer := engineDialer(targetDistro, "", log)
+	dialer := engineDialer(targetDistro, "", opts.StateDir, log)
 	srv := &pipeproxy.Server{
 		Logger:  log,
 		Handler: pipeproxy.RewriteBinds,

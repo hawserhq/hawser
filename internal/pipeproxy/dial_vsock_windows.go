@@ -34,6 +34,12 @@ type VsockDialer struct {
 	// every connection while the fallback transport does the real work.
 	Cooldown time.Duration
 
+	// Secret authenticates the agent (#81). When set, the handshake requires
+	// the agent to prove the same per-install secret, so a sibling distro
+	// squatting the vsock port while the engine is idle-stopped is rejected
+	// before any docker traffic flows. Empty keeps the pre-#81 handshake.
+	Secret string
+
 	// dialHV overrides the transport dial in tests.
 	dialHV func(ctx context.Context, vmid guid.GUID) (io.ReadWriteCloser, error)
 
@@ -150,7 +156,7 @@ func (d *VsockDialer) dialVM(ctx context.Context, vmid guid.GUID) (io.ReadWriteC
 		dc.SetDeadline(time.Now().Add(d.timeout()))
 		defer dc.SetDeadline(time.Time{})
 	}
-	if _, err := vsockproto.ClientHandshake(conn); err != nil {
+	if _, err := vsockproto.ClientHandshake(conn, d.Secret); err != nil {
 		conn.Close()
 		return nil, err
 	}
