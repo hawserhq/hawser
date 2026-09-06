@@ -309,9 +309,39 @@ func (p *Provisioner) startAgent(ctx context.Context, opts Options) {
 	}
 }
 
+// enginePing asks dockerd itself, over its socket, using only what the rootfs
+// already ships (socat): a stale socket file left by a crashed dockerd must
+// read as DOWN, not up (#82 — `test -S` said "running" forever after an
+// OOM-kill, so the supervisor never repaired and status lied).
+const enginePing = `printf 'GET /_ping HTTP/1.1\r\nHost: hawser\r\nConnection: close\r\n\r\n'` +
+	` | socat -t 2 - UNIX-CONNECT:` + EngineSocket
+
 func (p *Provisioner) engineRunning(ctx context.Context, opts Options) (bool, error) {
-	_, err := p.wsl().Exec(ctx, opts.Distro, "root", "test", "-S", EngineSocket)
-	return err == nil, err
+	// Never exec into the distro without knowing it is already running:
+	// wsl.exe BOOTS a stopped distro to run the command (#82), so a health
+	// probe against an idle-stopped engine would revive the distro/VM every
+	// few seconds and defeat the RAM reclaim idle-stop exists for. Listing is
+	// a pure host-side query.
+	distros, err := p.wsl().List(ctx)
+	if err != nil {
+		return false, err
+	}
+	alive := false
+	for _, d := range distros {
+		if d.Name == opts.Distro && strings.EqualFold(d.State, "Running") {
+			alive = true
+			break
+		}
+	}
+	if !alive {
+		return false, nil
+	}
+
+	out, err := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c", enginePing)
+	if err != nil {
+		return false, err
+	}
+	return strings.Contains(out, "200 OK"), nil
 }
 
 // Uninstall removes the distro and Hawser's own state, and nothing else.
