@@ -66,9 +66,16 @@ func (d *WSLDialer) idleTimeout() time.Duration {
 func (d *WSLDialer) relayArgs(socket string) []string {
 	args := []string{"-d", d.Distro, "-u", "root", "--exec", "socat"}
 	if t := d.idleTimeout(); t > 0 {
-		// -T is socat's inactivity timeout and applies to the half-closed
-		// state, which is exactly where a client that closed cleanly and then
-		// went away would otherwise strand it forever.
+		// -T is socat's TOTAL inactivity timeout: socat exits when no data has
+		// moved in EITHER direction for the interval, not only in the
+		// half-closed state (#91 corrected the earlier claim). The intended
+		// target is a stranded half-open relay from a vanished client, but the
+		// same timer also cuts a legitimately quiet live stream — `docker
+		// events` or `logs -f` on an idle container — after the interval. That
+		// trade-off only exists on this socat FALLBACK path; the vsock agent,
+		// which owns both ends, has no such timer. Kept generous
+		// (DefaultIdleTimeout) so the common case is unaffected, and the vsock
+		// path is what a normal install uses.
 		args = append(args, "-T", strconv.Itoa(int(t.Seconds())))
 	}
 	return append(args, "STDIO", "UNIX-CONNECT:"+socket)

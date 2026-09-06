@@ -276,11 +276,22 @@ func closeWrite(c io.ReadWriteCloser) {
 	}
 }
 
+// ErrEngineUnreachable marks a connection that never got a single response
+// from the engine — dockerd is down or its socket is dead. Unlike an ordinary
+// mid-conversation hang-up, this IS worth logging (#91): otherwise a down
+// engine looks exactly like the bridge doing nothing. filterClosed keeps it.
+var ErrEngineUnreachable = errors.New("engine unreachable")
+
 // filterClosed drops the errors that mean "the other end went away", which is
 // the normal way a docker client ends a connection, not a fault worth logging.
 func filterClosed(err error) error {
-	if err == nil ||
-		errors.Is(err, io.EOF) ||
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, ErrEngineUnreachable) {
+		return err // a down engine is a real fault, never swallowed
+	}
+	if errors.Is(err, io.EOF) ||
 		errors.Is(err, net.ErrClosed) ||
 		errors.Is(err, io.ErrClosedPipe) {
 		return nil
