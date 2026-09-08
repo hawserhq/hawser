@@ -6,16 +6,17 @@ A minimal, invisible way to run the upstream open source **Docker Engine on Wind
 No license fees, no Electron, no Kubernetes — install once, `docker ps` works forever, on
 laptops and CI runners alike.
 
-**Status: v0.2 pre-release.** Installable and working as a daily driver: install once and
+**Status: v0.3 pre-release.** Installable and working as a daily driver: install once and
 the engine starts at every logon, heals itself, and answers `docker` at the same speed as
-Docker Desktop. `doctor` and a bundled docker CLI are next (v0.3). Read [PLAN.md](PLAN.md)
-for the strategy and [ROADMAP.md](ROADMAP.md) for the schedule; the
+Docker Desktop. v0.3 adds `hawser doctor`, validated engine settings, lifecycle hooks, and
+declarative installs; a bundled docker CLI and corporate-network support are next. Read
+[PLAN.md](PLAN.md) for the strategy and [ROADMAP.md](ROADMAP.md) for the schedule; the
 [issue tracker](https://github.com/zcsizmadia/hawser/issues) is the live state.
 
-## Install (v0.2)
+## Install
 
 Requirements: Windows 11 with WSL2, and any `docker` CLI on PATH (Docker Desktop's works —
-Hawser coexists with it rather than replacing it; a bundled CLI arrives in v0.3).
+Hawser coexists with it rather than replacing it; a bundled CLI is planned for a later release).
 
 1. Download the zip for your architecture from the
    [latest release](https://github.com/zcsizmadia/hawser/releases) and verify it against
@@ -31,7 +32,7 @@ Hawser coexists with it rather than replacing it; a bundled CLI arrives in v0.3)
 volumes in it, the autostart entry, any distro integrations — and restores your previous
 docker context. Nothing else on the system is touched.
 
-## What it does today (v0.2)
+## What it does today (v0.3)
 
 - Upstream Docker Engine (Linux containers) in a dedicated WSL2 distro — the real API, byte
   for byte: compose, buildx, Testcontainers, `run -it`, bind mounts with Windows paths
@@ -41,6 +42,16 @@ docker context. Nothing else on the system is touched.
   measured at parity with Desktop), with an automatic fallback path
 - **Idle RAM answer**: `hawser config set idle-timeout 30m` stops a quiet engine and
   cold-starts it (~1 s engine start) on your next `docker` command
+- **`hawser doctor`**: diagnoses the WSL / PATH / credential-helper / supervisor quirk zoo,
+  with `--json`, `--report` (paste straight into an issue), and `--fix` for the safe subset
+- **Validated engine settings**: `hawser config set engine.<key>` edits the engine's
+  `daemon.json` (registry mirrors, logging, DNS…), checked with `dockerd --validate` before
+  it applies and rolled back if the engine will not come back
+- **Lifecycle hooks**: run your own script on post-start / pre-stop / on-idle-stop / on-wake
+  ([docs/hooks.md](docs/hooks.md))
+- **Declarative installs**: `hawser install --config hawser.yaml` (idempotent) and
+  `hawser config export` — infrastructure-as-code for a fleet
+  ([docs/declarative-install.md](docs/declarative-install.md))
 - **`hawser wsl-integrate <distro>`**: use the engine from inside your own WSL distros
 - **`hawser migrate --from-desktop`**: copy images and volumes out of Docker Desktop,
   non-destructively and resumably (`--dry-run` first)
@@ -50,11 +61,12 @@ docker context. Nothing else on the system is touched.
 - A logged-on session is required — a WSL2 platform constraint that binds every WSL-based
   engine; for CI runners see [docs/auto-logon-runner.md](docs/auto-logon-runner.md)
 
-## What's ahead (v0.3)
+## What's ahead
 
-`doctor` for the WSL/VPN quirk zoo, corporate proxy/CA support, a bundled docker CLI +
-compose + buildx, VHDX compaction, and pinned engine upgrades with rollback — tracked in the
-[v0.3 milestone](https://github.com/zcsizmadia/hawser/milestones).
+A bundled docker CLI + compose + buildx (uninstall Docker Desktop entirely), corporate
+proxy/CA trust + registry mirrors, VHDX compaction and data-dir relocation, and pinned engine
+upgrades with rollback — tracked in the
+[issue tracker](https://github.com/zcsizmadia/hawser/issues).
 
 ## What it will never be
 
@@ -71,7 +83,8 @@ cmd/hawserw/    windowless logon launcher (starts the supervisor, no console fla
 cmd/hawsertray/ optional status-light tray; shells out to the CLI, holds no logic
 internal/       implementation packages, compiler-enforced private to this module
   wsl/          every wsl.exe call, behind an interface so tests run anywhere
-  ...           provision, pipeproxy, supervise, config, migrate, integrate, tray
+  ...           provision, pipeproxy, supervise, config, migrate, integrate,
+                doctor, engineconfig, hawserfile, tray
 guest/          Linux side: rootfs build scripts, vsock agent
 docs/           operator docs, e.g. the unattended/auto-logon runner playbook
 test/e2e/       cross-package suite; the only part needing real WSL2
