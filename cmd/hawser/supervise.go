@@ -15,6 +15,7 @@ import (
 	"github.com/zcsizmadia/hawser/internal/dockerctx"
 	"github.com/zcsizmadia/hawser/internal/logging"
 	"github.com/zcsizmadia/hawser/internal/pipeproxy"
+	"github.com/zcsizmadia/hawser/internal/profile"
 	"github.com/zcsizmadia/hawser/internal/provision"
 	"github.com/zcsizmadia/hawser/internal/supervise"
 )
@@ -317,10 +318,12 @@ func runStatus(args []string) int {
 		Supervisor string `json:"supervisor"`
 		Engine     string `json:"engine"`
 		Desired    string `json:"desired"`
+		Profile    string `json:"profile,omitempty"`
 	}{
 		Supervisor: "stopped",
 		Engine:     "stopped",
 		Desired:    string(supervise.ReadDesired(opts.StateDir)),
+		Profile:    (&profile.Manager{StateDir: opts.StateDir}).Active(),
 	}
 
 	if distro, ok := resolveDistro(p, opts); ok {
@@ -349,6 +352,9 @@ func runStatus(args []string) int {
 	}
 	fmt.Printf("distro      %s\nsupervisor  %s\nengine      %s\ndesired     %s\n",
 		st.Distro, st.Supervisor, st.Engine, st.Desired)
+	if st.Profile != "" {
+		fmt.Printf("profile     %s\n", st.Profile)
+	}
 	// Exit code mirrors engine health, so scripts can gate on it directly.
 	// Idle counts as healthy: the engine is a docker command away, on purpose.
 	if st.Engine != "running" && st.Engine != "idle" {
