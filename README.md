@@ -1,6 +1,13 @@
-# Hawser
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/hawser-mark-ondark.svg">
+    <img alt="Hawser" src="assets/hawser-mark.svg" width="120" height="120">
+  </picture>
+</p>
 
-> **hawser** *(n.)* — the heavy line that moors a ship to the dock. It holds fast.
+<h1 align="center">Hawser</h1>
+
+<p align="center"><em><strong>hawser</strong> (n.) — the heavy line that moors a ship to the dock. It holds fast.</em></p>
 
 A minimal, invisible way to run the upstream open source **Docker Engine on Windows** via WSL2.
 No license fees, no Electron, no Kubernetes — install once, `docker ps` works forever, on
