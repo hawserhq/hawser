@@ -28,6 +28,7 @@ type command struct {
 func commands() []command {
 	return []command{
 		{"autostart", "start the supervisor at logon: enable, disable, status", runAutostart},
+		{"bundle", "pack the engine into a .zip for an air-gapped `install --offline`", runBundle},
 		{"config", "list, get, or set Hawser settings (idle-timeout)", runConfig},
 		{"doctor", "diagnose the host and engine; --fix applies safe remedies", runDoctor},
 		{"install", "provision the engine distro and start it", runInstall},

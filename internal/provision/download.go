@@ -98,6 +98,17 @@ func (e *ErrChecksumMismatch) Error() string {
 		e.URL, e.Expected, e.Actual)
 }
 
+// FetchRootfs downloads (or copies, for a local/file:// URL) the rootfs to dest
+// and verifies its SHA-256. Exposed so `hawser bundle` can pack a verified
+// rootfs into an air-gap archive (#75). Idempotent: a cached file at dest that
+// already matches is reused rather than refetched.
+func (p *Provisioner) FetchRootfs(ctx context.Context, url, wantSHA, dest string) error {
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	return p.fetchRootfs(ctx, url, wantSHA, dest)
+}
+
 // fetchRootfs downloads to dest and verifies its SHA-256 before returning.
 //
 // The download lands on a temporary file that is only renamed into place after
