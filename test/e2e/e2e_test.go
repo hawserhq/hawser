@@ -18,6 +18,7 @@
 package e2e
 
 import (
+	"archive/zip"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -78,6 +79,7 @@ func TestAcceptance(t *testing.T) {
 		{"DoctorReportsHealthy", stageDoctor},
 		{"DeclarativeExportAndConverge", stageDeclarative},
 		{"EngineLockReflectsInstall", stageLock},
+		{"AirGapBundlePacksRootfs", stageAirGap},
 		{"HelloWorld", stageHelloWorld},
 		{"BindMountReadThroughContainer", stageBindMount},
 		{"ExecInRunningContainer", stageExec},
@@ -543,6 +545,73 @@ func stageProfiles(t *testing.T, s *state) {
 	// Clean up: remove the profile and the setting so later stages start clean.
 	prof("delete", "vpn")
 	cfg("set", "engine.max-concurrent-downloads", "")
+}
+
+// stageAirGap proves `hawser bundle` (#75) packs a self-contained, verified
+// archive: the rootfs plus a hawser.lock. It reuses the rootfs already cached in
+// the state dir, so it does not re-download. The full offline install path is
+// verified separately (it reuses the same checksum-verified local-rootfs import
+// a networked install uses); here we assert the bundle a connected machine
+// produces is complete and self-describing.
+func stageAirGap(t *testing.T, s *state) {
+	bundlePath := filepath.Join(s.workDir, "bundle.zip")
+	out, err := run(t, 5*time.Minute, s.hawser, "bundle", "-o", bundlePath, "--state-dir", s.stateDir)
+	must(t, out, err, "hawser bundle")
+
+	zr, err := zip.OpenReader(bundlePath)
+	if err != nil {
+		t.Fatalf("bundle is not a valid zip: %v", err)
+	}
+	defer zr.Close()
+
+	var lockData []byte
+	var rootfsSize uint64
+	for _, f := range zr.File {
+		switch {
+		case f.Name == "hawser.lock":
+			rc, err := f.Open()
+			if err != nil {
+				t.Fatal(err)
+			}
+			lockData = readAll(t, rc)
+			rc.Close()
+		case strings.HasSuffix(f.Name, ".tar.gz"):
+			rootfsSize = f.UncompressedSize64
+		}
+	}
+
+	if lockData == nil {
+		t.Fatal("bundle is missing hawser.lock")
+	}
+	var lk struct {
+		EngineVersion string `json:"engineVersion"`
+		Rootfs        struct {
+			SHA256 string `json:"sha256"`
+		} `json:"rootfs"`
+	}
+	if err := json.Unmarshal(lockData, &lk); err != nil {
+		t.Fatalf("bundle lock is not valid JSON: %v\n%s", err, lockData)
+	}
+	if lk.EngineVersion == "" || len(lk.Rootfs.SHA256) != 64 {
+		t.Fatalf("bundle lock looks wrong: %+v", lk)
+	}
+	if rootfsSize < 1<<20 {
+		t.Fatalf("bundle rootfs is implausibly small (%d bytes)", rootfsSize)
+	}
+}
+
+func readAll(t *testing.T, r interface{ Read([]byte) (int, error) }) []byte {
+	t.Helper()
+	var buf []byte
+	tmp := make([]byte, 32*1024)
+	for {
+		n, err := r.Read(tmp)
+		buf = append(buf, tmp[:n]...)
+		if err != nil {
+			break
+		}
+	}
+	return buf
 }
 
 func stageHelloWorld(t *testing.T, s *state) {

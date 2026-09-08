@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 
 	"github.com/zcsizmadia/hawser/internal/autostart"
+	"github.com/zcsizmadia/hawser/internal/bundle"
 	"github.com/zcsizmadia/hawser/internal/dockerctx"
 	"github.com/zcsizmadia/hawser/internal/integrate"
 	"github.com/zcsizmadia/hawser/internal/lockfile"
@@ -51,6 +52,7 @@ func runInstall(args []string) int {
 		asJSON        = fs.Bool("json", false, "emit the resulting manifest as JSON")
 		configPath    = fs.String("config", "", "declarative install from a hawser.yaml (see `hawser config export`)")
 		locked        = fs.String("locked", "", "install the exact engine pinned in a hawser.lock (see `hawser lock`)")
+		offline       = fs.String("offline", "", "install entirely from an air-gap bundle .zip (see `hawser bundle`)")
 	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: hawser install [flags]
@@ -90,14 +92,36 @@ flags:
 		Headless: *headless,
 	}
 
-	if *locked != "" && *rootfsURL != "" {
-		fmt.Fprintln(os.Stderr, "hawser: --locked and --rootfs-url are mutually exclusive")
+	if n := boolCount(*locked != "", *rootfsURL != "", *offline != ""); n > 1 {
+		fmt.Fprintln(os.Stderr, "hawser: choose at most one of --locked, --offline, --rootfs-url")
 		return exitUsage
 	}
 
 	// An explicit URL bypasses the manifest, so it must carry its own digest:
 	// there is no code path that imports an unverified rootfs.
 	switch {
+	case *offline != "":
+		b, err := bundle.Open(*offline)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+			return exitError
+		}
+		defer b.Close()
+		l := b.Lock()
+		// Extract the bundled rootfs beside the state dir; the install below then
+		// copies it into the cache and verifies its SHA-256 — the same verified
+		// path a networked install uses, so "offline" adds no unchecked import.
+		sd := optsWithResolvedStateDir(opts).StateDir
+		extracted := filepath.Join(sd, "offline", b.RootfsName())
+		if err := b.ExtractRootfs(extracted); err != nil {
+			fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+			return exitError
+		}
+		defer os.RemoveAll(filepath.Dir(extracted))
+		opts.RootfsURL = extracted
+		opts.RootfsSHA256 = l.Rootfs.SHA256
+		opts.EngineVersion = l.EngineVersion
+		log.Info("installing offline from bundle", "path", *offline, "engine", l.EngineVersion)
 	case *locked != "":
 		l, err := lockfile.Load(*locked)
 		if err != nil {
@@ -243,6 +267,17 @@ Or make it the default for every shell:
 		fmt.Println("`hawser autostart disable` turns that off.")
 	}
 	return exitOK
+}
+
+// boolCount returns how many of its arguments are true.
+func boolCount(bs ...bool) int {
+	n := 0
+	for _, b := range bs {
+		if b {
+			n++
+		}
+	}
+	return n
 }
 
 func runUninstall(args []string) int {
