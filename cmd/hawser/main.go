@@ -33,6 +33,7 @@ func commands() []command {
 		{"install", "provision the engine distro and start it", runInstall},
 		{"lock", "write a hawser.lock pinning the exact engine (reproducible installs)", runLock},
 		{"migrate", "copy images and volumes from Docker Desktop into the engine", runMigrate},
+		{"profile", "save and switch named settings profiles (work/home)", runProfile},
 		{"proxy", "serve the docker pipe in the foreground (debug mode)", runProxy},
 		{"restart", "stop the engine, then start it", runRestart},
 		{"start", "ensure the supervisor and engine are running", runStart},

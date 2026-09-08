@@ -87,6 +87,7 @@ func TestAcceptance(t *testing.T) {
 		{"WSLIntegrateSharesEngine", stageWSLIntegrate},
 		{"MigrateFromDesktop", stageMigrate},
 		{"EngineConfigValidatesAndApplies", stageEngineConfig},
+		{"NetworkProfilesSwitchEngineConfig", stageProfiles},
 		{"LifecycleHooksFire", stageHooks},
 		{"IdleStopAndOnDemandWake", stageIdle},
 		{"InterruptedClientDoesNotWedgeBridge", stageInterrupt},
@@ -483,6 +484,65 @@ func stageLock(t *testing.T, s *state) {
 	if lk.Rootfs.SHA256 != v.Engine.RootfsSHA256 {
 		t.Errorf("lock rootfs sha %q != installed rootfs sha %q", lk.Rootfs.SHA256, v.Engine.RootfsSHA256)
 	}
+}
+
+// stageProfiles proves the headline of network profiles (#73): a profile
+// captures engine config, and switching to it actually applies that config to
+// the live engine — the thing every other tool makes you hand-toggle. It also
+// checks that `hawser status` names the active profile.
+func stageProfiles(t *testing.T, s *state) {
+	cfg := func(args ...string) (string, error) {
+		return run(t, 3*time.Minute, s.hawser, append([]string{"config", "--state-dir", s.stateDir}, args...)...)
+	}
+	prof := func(args ...string) (string, error) {
+		return run(t, 3*time.Minute, s.hawser, append([]string{"profile", "--state-dir", s.stateDir}, args...)...)
+	}
+	getDL := func() string {
+		out, err := cfg("get", "engine.max-concurrent-downloads")
+		must(t, out, err, "config get engine.max-concurrent-downloads")
+		return strings.TrimSpace(out)
+	}
+
+	// Capture a distinctive engine setting into a "vpn" profile.
+	out, err := cfg("set", "engine.max-concurrent-downloads", "7")
+	must(t, out, err, "set engine.max-concurrent-downloads 7")
+	out, err = prof("create", "vpn")
+	must(t, out, err, "profile create vpn")
+
+	// Change the live config, then switch back via the profile and confirm the
+	// profile's value was actually re-applied to the engine.
+	out, err = cfg("set", "engine.max-concurrent-downloads", "3")
+	must(t, out, err, "set engine.max-concurrent-downloads 3")
+	if got := getDL(); got != "3" {
+		t.Fatalf("precondition: expected 3, got %q", got)
+	}
+
+	out, err = prof("switch", "vpn")
+	must(t, out, err, "profile switch vpn")
+	if got := getDL(); got != "7" {
+		t.Fatalf("switch did not re-apply the profile's engine config: got %q, want 7", got)
+	}
+
+	// status names the active profile.
+	sout, err := run(t, 30*time.Second, s.hawser, "status", "--state-dir", s.stateDir, "--json")
+	must(t, sout, err, "status --json")
+	var st struct {
+		Profile string `json:"profile"`
+	}
+	if err := json.Unmarshal([]byte(sout), &st); err != nil {
+		t.Fatalf("status --json unparseable: %v\n%s", err, sout)
+	}
+	if st.Profile != "vpn" {
+		t.Errorf("status profile = %q, want vpn", st.Profile)
+	}
+
+	if out, err := prof("list"); err != nil || !strings.Contains(out, "vpn") {
+		t.Fatalf("profile list missing vpn: %v\n%s", err, out)
+	}
+
+	// Clean up: remove the profile and the setting so later stages start clean.
+	prof("delete", "vpn")
+	cfg("set", "engine.max-concurrent-downloads", "")
 }
 
 func stageHelloWorld(t *testing.T, s *state) {
