@@ -77,6 +77,7 @@ func TestAcceptance(t *testing.T) {
 		{"StartProxy", stageProxy},
 		{"DoctorReportsHealthy", stageDoctor},
 		{"DeclarativeExportAndConverge", stageDeclarative},
+		{"EngineLockReflectsInstall", stageLock},
 		{"HelloWorld", stageHelloWorld},
 		{"BindMountReadThroughContainer", stageBindMount},
 		{"ExecInRunningContainer", stageExec},
@@ -435,6 +436,52 @@ func stageDeclarative(t *testing.T, s *state) {
 
 	if v, err := dockerE(t, s, 30*time.Second, "version", "--format", "{{.Server.Version}}"); err != nil || v == "" {
 		t.Fatalf("engine not healthy after declarative converge: %v (%s)", err, v)
+	}
+}
+
+// stageLock proves `hawser lock` (#74) emits a lock that pins the same engine
+// the machine is actually running: the reproducible-install guarantee is only
+// real if the lock reflects reality, so it is cross-checked against
+// `hawser version --json`.
+func stageLock(t *testing.T, s *state) {
+	lockPath := filepath.Join(s.workDir, "hawser.lock")
+	out, err := run(t, 60*time.Second, s.hawser, "lock", "-o", lockPath)
+	must(t, out, err, "hawser lock")
+
+	b, err := os.ReadFile(lockPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var lk struct {
+		EngineVersion string `json:"engineVersion"`
+		Rootfs        struct {
+			URL    string `json:"url"`
+			SHA256 string `json:"sha256"`
+		} `json:"rootfs"`
+	}
+	if err := json.Unmarshal(b, &lk); err != nil {
+		t.Fatalf("lock is not valid JSON: %v\n%s", err, b)
+	}
+	if !strings.Contains(lk.Rootfs.URL, "rootfs") || len(lk.Rootfs.SHA256) != 64 {
+		t.Fatalf("lock rootfs looks wrong: %+v", lk.Rootfs)
+	}
+
+	vout, err := run(t, 30*time.Second, s.hawser, "version", "--state-dir", s.stateDir, "--json")
+	must(t, vout, err, "hawser version --json")
+	var v struct {
+		Engine struct {
+			Version      string `json:"version"`
+			RootfsSHA256 string `json:"rootfsSha256"`
+		} `json:"engine"`
+	}
+	if err := json.Unmarshal([]byte(vout), &v); err != nil {
+		t.Fatalf("version --json unparseable: %v\n%s", err, vout)
+	}
+	if lk.EngineVersion != v.Engine.Version {
+		t.Errorf("lock engine %q != installed engine %q", lk.EngineVersion, v.Engine.Version)
+	}
+	if lk.Rootfs.SHA256 != v.Engine.RootfsSHA256 {
+		t.Errorf("lock rootfs sha %q != installed rootfs sha %q", lk.Rootfs.SHA256, v.Engine.RootfsSHA256)
 	}
 }
 

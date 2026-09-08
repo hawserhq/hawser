@@ -65,3 +65,18 @@ docker run --rm hello-world
   logon; drop it (or set `autostart: true`) for interactive machines.
 - Flags win over the file, so one shared `hawser.yaml` can be specialized per
   host without editing it.
+
+## Pinning the engine (`hawser.lock`)
+
+`hawser.yaml` describes *what to configure*; `hawser.lock` pins *exactly which
+engine* — version, rootfs URL, and SHA-256 — so every machine runs a verified,
+identical engine:
+
+```
+hawser lock > hawser.lock            # capture this build's pinned engine
+hawser install --locked hawser.lock  # reproduce it, refusing on any checksum mismatch
+```
+
+Check both into your provisioning repo. `--locked` sets the rootfs the same way
+the embedded manifest does, so the install stays checksum-verified end to end.
+
