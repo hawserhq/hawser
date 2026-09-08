@@ -9,6 +9,14 @@
 
 <p align="center"><em><strong>hawser</strong> (n.) — the heavy line that moors a ship to the dock. It holds fast.</em></p>
 
+<p align="center">
+  <a href="https://github.com/zcsizmadia/hawser/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/zcsizmadia/hawser/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/zcsizmadia/hawser/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/zcsizmadia/hawser?include_prereleases&sort=semver&label=release&color=0a7d84"></a>
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/github/license/zcsizmadia/hawser?color=2F3B45"></a>
+  <img alt="Go" src="https://img.shields.io/github/go-mod/go-version/zcsizmadia/hawser?color=00ADD8">
+  <img alt="Platform: Windows 11 + WSL2" src="https://img.shields.io/badge/platform-Windows%2011%20%2B%20WSL2-2F3B45">
+</p>
+
 A minimal, invisible way to run the upstream open source **Docker Engine on Windows** via WSL2.
 No license fees, no Electron, no Kubernetes — install once, `docker ps` works forever, on
 laptops and CI runners alike.
