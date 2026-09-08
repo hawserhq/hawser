@@ -85,12 +85,16 @@ func logoLockup(brand string) string {
 }
 
 func main() {
-	const brand = "#2F3B45" // default: deep slate; re-color freely.
+	const (
+		brand     = "#2F3B45" // default: deep slate, for light grounds.
+		brandDark = "#CBD5DF" // light slate, for dark grounds (README dark mode).
+	)
 	must(os.MkdirAll("assets", 0o755))
 	must(os.WriteFile("assets/hawser-mark.svg", []byte(colorMark(brand)), 0o644))
+	must(os.WriteFile("assets/hawser-mark-ondark.svg", []byte(colorMark(brandDark)), 0o644))
 	must(os.WriteFile("assets/hawser-mark-mono.svg", []byte(monoMark()), 0o644))
 	must(os.WriteFile("assets/hawser-logo.svg", []byte(logoLockup(brand)), 0o644))
-	fmt.Println("wrote assets/hawser-mark.svg, hawser-mark-mono.svg, hawser-logo.svg")
+	fmt.Println("wrote assets/hawser-mark.svg, hawser-mark-ondark.svg, hawser-mark-mono.svg, hawser-logo.svg")
 }
 
 func must(err error) {
