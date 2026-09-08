@@ -23,6 +23,11 @@ type DockerCLI struct {
 	// Host selects an engine directly (docker -H <host>), e.g. the Hawser
 	// pipe. Takes precedence over Context when set.
 	Host string
+
+	// run overrides command execution; nil runs the real docker CLI. It
+	// receives the fully-resolved argv (after Host/Context prefixing). The seam
+	// exists so the JSON parsing and query logic are testable without docker.
+	run func(ctx context.Context, argv []string) (string, error)
 }
 
 func (d DockerCLI) exe() string {
@@ -44,7 +49,11 @@ func (d DockerCLI) args(rest ...string) []string {
 }
 
 func (d DockerCLI) output(ctx context.Context, rest ...string) (string, error) {
-	cmd := exec.CommandContext(ctx, d.exe(), d.args(rest...)...)
+	argv := d.args(rest...)
+	if d.run != nil {
+		return d.run(ctx, argv)
+	}
+	cmd := exec.CommandContext(ctx, d.exe(), argv...)
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &stdout, &stderr
 	if err := cmd.Run(); err != nil {

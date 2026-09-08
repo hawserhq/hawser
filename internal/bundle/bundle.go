@@ -44,48 +44,48 @@ func Create(dest string, l lockfile.Lock, rootfsPath string) error {
 	defer rootfs.Close()
 
 	// Write to a temp file and rename, so an interrupted build never leaves a
-	// half-written bundle that looks complete.
+	// half-written bundle that looks complete. One deferred cleanup covers every
+	// error path: close the file and drop the temp unless we committed.
 	tmp := dest + ".tmp"
 	out, err := os.Create(tmp)
 	if err != nil {
 		return err
 	}
-	zw := zip.NewWriter(out)
+	committed := false
+	defer func() {
+		out.Close()
+		if !committed {
+			os.Remove(tmp)
+		}
+	}()
 
+	zw := zip.NewWriter(out)
 	lw, err := zw.Create(lockEntry)
 	if err != nil {
-		out.Close()
-		os.Remove(tmp)
 		return err
 	}
 	if _, err := lw.Write(lockBytes); err != nil {
-		out.Close()
-		os.Remove(tmp)
 		return err
 	}
-
 	rw, err := zw.Create(rootfsEntryName(l))
 	if err != nil {
-		out.Close()
-		os.Remove(tmp)
 		return err
 	}
 	if _, err := io.Copy(rw, rootfs); err != nil {
-		out.Close()
-		os.Remove(tmp)
 		return fmt.Errorf("writing rootfs into bundle: %w", err)
 	}
-
 	if err := zw.Close(); err != nil {
-		out.Close()
-		os.Remove(tmp)
 		return err
 	}
+	// Close before the rename: Windows will not rename an open file.
 	if err := out.Close(); err != nil {
-		os.Remove(tmp)
 		return err
 	}
-	return os.Rename(tmp, dest)
+	if err := os.Rename(tmp, dest); err != nil {
+		return err
+	}
+	committed = true
+	return nil
 }
 
 // Bundle is an opened air-gap bundle.
