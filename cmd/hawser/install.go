@@ -13,6 +13,7 @@ import (
 	"github.com/zcsizmadia/hawser/internal/autostart"
 	"github.com/zcsizmadia/hawser/internal/dockerctx"
 	"github.com/zcsizmadia/hawser/internal/integrate"
+	"github.com/zcsizmadia/hawser/internal/lockfile"
 	"github.com/zcsizmadia/hawser/internal/logging"
 	"github.com/zcsizmadia/hawser/internal/pipeproxy"
 	"github.com/zcsizmadia/hawser/internal/provision"
@@ -49,6 +50,7 @@ func runInstall(args []string) int {
 		rootfsSHA     = fs.String("rootfs-sha256", "", "expected rootfs SHA-256; required with --rootfs-url")
 		asJSON        = fs.Bool("json", false, "emit the resulting manifest as JSON")
 		configPath    = fs.String("config", "", "declarative install from a hawser.yaml (see `hawser config export`)")
+		locked        = fs.String("locked", "", "install the exact engine pinned in a hawser.lock (see `hawser lock`)")
 	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: hawser install [flags]
@@ -88,9 +90,27 @@ flags:
 		Headless: *headless,
 	}
 
+	if *locked != "" && *rootfsURL != "" {
+		fmt.Fprintln(os.Stderr, "hawser: --locked and --rootfs-url are mutually exclusive")
+		return exitUsage
+	}
+
 	// An explicit URL bypasses the manifest, so it must carry its own digest:
 	// there is no code path that imports an unverified rootfs.
 	switch {
+	case *locked != "":
+		l, err := lockfile.Load(*locked)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+			return exitError
+		}
+		// The lock's rootfs URL + SHA-256 pin the artifact; the existing verified
+		// download refuses on any mismatch, so a tampered lock cannot install
+		// something else.
+		opts.RootfsURL = l.Rootfs.URL
+		opts.RootfsSHA256 = l.Rootfs.SHA256
+		opts.EngineVersion = l.EngineVersion
+		log.Info("installing from lockfile", "path", *locked, "engine", l.EngineVersion)
 	case *rootfsURL != "" && *rootfsSHA == "":
 		fmt.Fprintln(os.Stderr, "hawser: --rootfs-url requires --rootfs-sha256")
 		return exitUsage

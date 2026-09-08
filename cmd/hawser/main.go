@@ -31,6 +31,7 @@ func commands() []command {
 		{"config", "list, get, or set Hawser settings (idle-timeout)", runConfig},
 		{"doctor", "diagnose the host and engine; --fix applies safe remedies", runDoctor},
 		{"install", "provision the engine distro and start it", runInstall},
+		{"lock", "write a hawser.lock pinning the exact engine (reproducible installs)", runLock},
 		{"migrate", "copy images and volumes from Docker Desktop into the engine", runMigrate},
 		{"proxy", "serve the docker pipe in the foreground (debug mode)", runProxy},
 		{"restart", "stop the engine, then start it", runRestart},
