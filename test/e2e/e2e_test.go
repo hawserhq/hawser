@@ -99,6 +99,7 @@ func TestAcceptance(t *testing.T) {
 		{"IdleStopAndOnDemandWake", stageIdle},
 		{"InterruptedClientDoesNotWedgeBridge", stageInterrupt},
 		{"VsockPathServedEverything", stageVsockServed},
+		{"RemoteEngineOverMutualTLS", stageServeMTLS},
 		{"EngineSnapshotSaveAndList", stageSnapshot},
 		{"Uninstall", stageUninstall},
 		{"NothingLeftBehind", stageClean},
@@ -764,6 +765,70 @@ func stageDevContainer(t *testing.T, s *state) {
 		t.Fatalf("devcontainer exec output unexpected:\n%s", out)
 	}
 	t.Logf("Dev Containers CLI ran through the Hawser pipe")
+}
+
+// stageServeMTLS proves the remote-engine door (#123): mint the mutual-TLS
+// material, run `hawser serve --tcp` on loopback, and reach the engine with a
+// stock docker client over TCP+TLS — then confirm a client WITHOUT the signed
+// certificate is refused, which is the whole guarantee.
+func stageServeMTLS(t *testing.T, s *state) {
+	const addr = "127.0.0.1:52376"
+
+	out, err := run(t, 60*time.Second, s.hawser, "serve", "cert",
+		"--state-dir", s.stateDir, "--host", "127.0.0.1")
+	must(t, out, err, "hawser serve cert")
+
+	tlsDir := filepath.Join(s.stateDir, "tls")
+	ca := filepath.Join(tlsDir, "ca.pem")
+	cert := filepath.Join(tlsDir, "client.pem")
+	key := filepath.Join(tlsDir, "client-key.pem")
+	for _, f := range []string{ca, cert, key, filepath.Join(tlsDir, "server.pem")} {
+		if _, err := os.Stat(f); err != nil {
+			t.Fatalf("expected TLS material %s: %v", f, err)
+		}
+	}
+
+	// Run the server in the background; it serves until killed.
+	srv := exec.Command(s.hawser, "serve", "--state-dir", s.stateDir, "--tcp", addr)
+	if err := srv.Start(); err != nil {
+		t.Fatalf("starting hawser serve: %v", err)
+	}
+	defer func() {
+		if srv.Process != nil {
+			srv.Process.Kill()
+		}
+		srv.Wait()
+	}()
+
+	// Poll the TLS endpoint until the listener is up (or give up).
+	host := "tcp://" + addr
+	var verOut string
+	deadline := time.Now().Add(30 * time.Second)
+	for {
+		verOut, err = run(t, 30*time.Second, s.docker, "-H", host,
+			"--tlsverify", "--tlscacert", ca, "--tlscert", cert, "--tlskey", key,
+			"version", "--format", "{{.Server.Version}}")
+		if err == nil {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("docker over mutual TLS never succeeded: %v\n%s", err, verOut)
+		}
+		time.Sleep(time.Second)
+	}
+	if verOut == "" {
+		t.Fatalf("engine reported no version over TLS:\n%s", verOut)
+	}
+	t.Logf("reached the engine over mutual TLS; server version %s", verOut)
+
+	// The mutual half: a client that presents no certificate must be refused.
+	out, err = run(t, 20*time.Second, s.docker, "-H", host,
+		"--tlsverify", "--tlscacert", ca,
+		"version", "--format", "{{.Server.Version}}")
+	if err == nil {
+		t.Fatalf("engine answered a client with NO certificate — mutual TLS is not enforced:\n%s", out)
+	}
+	t.Logf("client without a signed certificate correctly refused")
 }
 
 func stageHelloWorld(t *testing.T, s *state) {
