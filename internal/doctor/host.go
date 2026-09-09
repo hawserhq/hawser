@@ -1,6 +1,7 @@
 package doctor
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"github.com/zcsizmadia/hawser/internal/provision"
 	"github.com/zcsizmadia/hawser/internal/supervise"
 	"github.com/zcsizmadia/hawser/internal/version"
+	"github.com/zcsizmadia/hawser/internal/vpnfingerprint"
 	"github.com/zcsizmadia/hawser/internal/wsl"
 )
 
@@ -57,6 +59,10 @@ type Facts struct {
 	// trust is on (#62).
 	Proxy         string
 	ImportHostCAs bool
+
+	// VPNs are the corporate VPN clients detected from the host's active network
+	// adapters, each with its recommended connectivity settings (#63).
+	VPNs []vpnfingerprint.Match
 }
 
 // CredHelper is one docker credential helper referenced by the CLI config, and
@@ -148,7 +154,60 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 		f.ImportHostCAs = c.ImportHostCAs
 	}
 
+	f.VPNs = vpnfingerprint.Detect(gatherAdapters(ctx))
+
 	return f
+}
+
+// gatherAdapters reads the host's network adapters via Get-NetAdapter (a
+// standard-user cmdlet, no elevation). It degrades to nil off Windows or when
+// the cmdlet is unavailable: VPN detection is advisory, so a missing reading is
+// simply "no VPN detected", never an error.
+func gatherAdapters(ctx context.Context) []vpnfingerprint.Adapter {
+	cmd := exec.CommandContext(ctx, "powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+		"Get-NetAdapter | Select-Object Name,InterfaceDescription,Status | ConvertTo-Json -Compress")
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	return parseAdapters(out)
+}
+
+// parseAdapters turns Get-NetAdapter's JSON into adapters. ConvertTo-Json emits
+// a bare object for a single adapter and an array for several, so both shapes
+// are handled. Pure, so the parsing is unit-tested without a host.
+func parseAdapters(jsonOut []byte) []vpnfingerprint.Adapter {
+	type raw struct {
+		Name                 string `json:"Name"`
+		InterfaceDescription string `json:"InterfaceDescription"`
+		Status               string `json:"Status"`
+	}
+	trimmed := bytes.TrimSpace(jsonOut)
+	if len(trimmed) == 0 {
+		return nil
+	}
+	var many []raw
+	if trimmed[0] == '[' {
+		if err := json.Unmarshal(trimmed, &many); err != nil {
+			return nil
+		}
+	} else {
+		var one raw
+		if err := json.Unmarshal(trimmed, &one); err != nil {
+			return nil
+		}
+		many = []raw{one}
+	}
+	out := make([]vpnfingerprint.Adapter, 0, len(many))
+	for _, r := range many {
+		out = append(out, vpnfingerprint.Adapter{
+			Name:        r.Name,
+			Description: r.InterfaceDescription,
+			// Get-NetAdapter reports "Up" for a connected adapter.
+			Up: r.Status == "Up",
+		})
+	}
+	return out
 }
 
 // dockerConfigPath returns the docker CLI config location, honoring DOCKER_CONFIG.
