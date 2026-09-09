@@ -67,6 +67,9 @@ docker context. Nothing else on the system is touched.
 - **Declarative installs**: `hawser install --config hawser.yaml` (idempotent) and
   `hawser config export` — infrastructure-as-code for a fleet
   ([docs/declarative-install.md](docs/declarative-install.md))
+- **Remote engine over mutual TLS**: `hawser serve --tcp` exposes the engine to a
+  teammate or CI runner, reachable only by holders of a client cert this machine's CA
+  signed — off by default ([docs/remote-engine.md](docs/remote-engine.md))
 - **`hawser wsl-integrate <distro>`**: use the engine from inside your own WSL distros
 - **`hawser migrate --from-desktop`**: copy images and volumes out of Docker Desktop,
   non-destructively and resumably (`--dry-run` first)

@@ -38,6 +38,7 @@ func commands() []command {
 		{"profile", "save and switch named settings profiles (work/home)", runProfile},
 		{"proxy", "serve the docker pipe in the foreground (debug mode)", runProxy},
 		{"restart", "stop the engine, then start it", runRestart},
+		{"serve", "expose the engine over the network with mutual TLS (`serve cert`)", runServe},
 		{"snapshot", "save/restore/list the engine state (images, containers, volumes)", runSnapshot},
 		{"start", "ensure the supervisor and engine are running", runStart},
 		{"status", "report supervisor, engine and desired state", runStatus},
