@@ -81,6 +81,9 @@ docker context. Nothing else on the system is touched.
   teammate or CI runner, reachable only by holders of a client cert this machine's CA
   signed — off by default; on the client, `hawser remote add/use` makes it docker's default
   in one command ([docs/remote-engine.md](docs/remote-engine.md))
+- **Disk hygiene**: `hawser prune` reclaims stopped containers, unused images and build cache
+  through whatever docker targets; `hawser doctor` warns below a configurable free-space
+  floor ([docs/housekeeping.md](docs/housekeeping.md))
 - **`hawser wsl-integrate <distro>`**: use the engine from inside your own WSL distros
 - **`hawser migrate --from-desktop`**: copy images and volumes out of Docker Desktop,
   non-destructively and resumably (`--dry-run` first)

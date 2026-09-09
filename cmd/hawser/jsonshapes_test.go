@@ -190,3 +190,16 @@ func TestResetShape(t *testing.T) {
 	m = roundTrip(t, resetJSON{Snapshot: "golden", EngineVersion: "29.7.2"})
 	requireKeys(t, m, "engineVersion")
 }
+
+func TestPruneShape(t *testing.T) {
+	m := roundTrip(t, pruneJSON{Steps: []pruneStepJSON{}})
+	requireKeys(t, m, "reclaimedBytes", "failed", "steps")
+	if a, ok := m["steps"].([]any); !ok || a == nil {
+		t.Errorf("steps must be an array even when empty, got %v", m["steps"])
+	}
+	s := roundTrip(t, pruneStepJSON{Name: "images", ReclaimedBytes: 5})
+	requireKeys(t, s, "name", "reclaimedBytes")
+	if _, ok := s["error"]; ok {
+		t.Error("error should be omitted on success")
+	}
+}

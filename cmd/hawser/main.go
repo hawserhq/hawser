@@ -42,6 +42,7 @@ func commands() []command {
 		{"prewarm", "pull a pinned image list ahead of need (runner warm-up, golden images)", runPrewarm},
 		{"profile", "save and switch named settings profiles (work/home)", runProfile},
 		{"proxy", "serve the docker pipe in the foreground (debug mode)", runProxy},
+		{"prune", "reclaim disk: stopped containers, unused images, build cache", runPrune},
 		{"remote", "register and switch to a remote engine served over mutual TLS", runRemote},
 		{"reset", "reset the engine to a snapshot, unconditionally (runner clean slate)", runReset},
 		{"restart", "stop the engine, then start it", runRestart},

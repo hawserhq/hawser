@@ -26,17 +26,28 @@ func checkDisk() Check {
 		detail := []string{fmt.Sprintf("  %s free of %s on %s",
 			humanBytes(d.FreeBytes), humanBytes(d.TotalBytes), d.Path)}
 
+		// The warn floor is configurable (`disk.warn-below`, #145) so a runner
+		// with a small disk is flagged before pulls start failing; fail stays fixed.
+		warn := uint64(diskWarnBytes)
+		if f.DiskWarnBelow > 0 {
+			warn = f.DiskWarnBelow
+			detail = append(detail, fmt.Sprintf("  warn floor: %s (disk.warn-below)", humanBytes(warn)))
+		}
+
 		switch {
 		case d.FreeBytes < diskFailBytes:
 			r := result(c, Fail, fmt.Sprintf("only %s free for engine data", humanBytes(d.FreeBytes)))
 			r.Detail = detail
-			r.Remedy = "free space on that volume, or move the engine data with " +
-				"`--data-dir` on install; pulls and builds fail when it runs out."
+			r.Remedy = "free space on that volume (`hawser prune --all --build-cache` reclaims " +
+				"engine disk), or move the engine data with `--data-dir` on install; pulls " +
+				"and builds fail when it runs out."
 			return r
-		case d.FreeBytes < diskWarnBytes:
-			r := result(c, Warn, fmt.Sprintf("%s free for engine data (getting low)", humanBytes(d.FreeBytes)))
+		case d.FreeBytes < warn:
+			r := result(c, Warn, fmt.Sprintf("%s free for engine data (below the %s floor)",
+				humanBytes(d.FreeBytes), humanBytes(warn)))
 			r.Detail = detail
-			r.Remedy = "consider freeing space; large images or builds may exhaust it."
+			r.Remedy = "reclaim space with `hawser prune` (add --all --build-cache for the full " +
+				"sweep); large images or builds may exhaust it."
 			return r
 		default:
 			return result(c, OK, fmt.Sprintf("%s free for engine data", humanBytes(d.FreeBytes)))

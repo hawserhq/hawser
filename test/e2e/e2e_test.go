@@ -95,6 +95,7 @@ func TestAcceptance(t *testing.T) {
 		{"DevContainerUpThroughPipe", stageDevContainer},
 		{"DockerCLIBundleInstalls", stageDockerCLIBundle},
 		{"GPUPassthroughIfPresent", stageGPU},
+		{"PruneReclaimsAndReports", stagePrune},
 		{"WSLIntegrateSharesEngine", stageWSLIntegrate},
 		{"MigrateFromDesktop", stageMigrate},
 		{"EngineConfigValidatesAndApplies", stageEngineConfig},
@@ -1047,6 +1048,31 @@ func stageRunnerCheck(t *testing.T, s *state) {
 		t.Errorf("exit code disagrees with the verdict: ready=%v err=%v", res.Ready, err)
 	}
 	t.Logf("runner check: ready=%v, %d findings", res.Ready, len(res.Findings))
+}
+
+// stagePrune proves `hawser prune` (#145) runs against the suite's engine and
+// reports per-step results. Earlier stages leave stopped containers and
+// dangling layers behind, so there is usually something to reclaim — but the
+// assertion is on shape and success, not a byte count. Tagged images survive
+// (no --all), so later stages keep hello-world and alpine.
+func stagePrune(t *testing.T, s *state) {
+	out, err := runEnv(t, s.dockerEnv(), 3*time.Minute, s.hawser, "prune", "--json", "--build-cache")
+	must(t, out, err, "hawser prune")
+	var res struct {
+		ReclaimedBytes int64 `json:"reclaimedBytes"`
+		Failed         int   `json:"failed"`
+		Steps          []struct {
+			Name  string `json:"name"`
+			Error string `json:"error"`
+		} `json:"steps"`
+	}
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("prune --json is not JSON: %v\n%s", err, out)
+	}
+	if res.Failed != 0 || len(res.Steps) != 3 {
+		t.Fatalf("prune result unexpected: %+v", res)
+	}
+	t.Logf("prune reclaimed %d bytes over %d steps", res.ReclaimedBytes, len(res.Steps))
 }
 
 func stageHelloWorld(t *testing.T, s *state) {

@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -65,6 +66,12 @@ func NetworkKeys() []string { return []string{KeyProxy, KeyNoProxy, KeyImportHos
 // visible and restarts the engine.
 const KeyGPU = "gpu"
 
+// KeyDiskWarnBelow is the free-space floor on the engine data volume under
+// which `hawser doctor` warns (#145) — a size such as 10GB or 8GiB. Empty means
+// the built-in 5 GiB. Runners with small disks raise it so a full volume is
+// flagged before pulls start failing.
+const KeyDiskWarnBelow = "disk.warn-below"
+
 // path is the settings file inside the state dir.
 func path(stateDir string) string {
 	return filepath.Join(stateDir, "config.json")
@@ -83,6 +90,8 @@ type Config struct {
 	ImportHostCAs bool
 	// GPU installs the NVIDIA CDI spec so containers can use the GPU (#83).
 	GPU bool
+	// DiskWarnBelow is the doctor free-space floor in bytes; 0 means default.
+	DiskWarnBelow uint64
 }
 
 // Load parses the settings file. A missing file is the default configuration,
@@ -106,6 +115,13 @@ func Load(stateDir string) (Config, error) {
 	c.NoProxy = raw[KeyNoProxy]
 	c.ImportHostCAs = raw[KeyImportHostCAs] == "on"
 	c.GPU = raw[KeyGPU] == "on"
+	if v := strings.TrimSpace(raw[KeyDiskWarnBelow]); v != "" {
+		n, err := parseSize(v)
+		if err != nil {
+			return Config{}, fmt.Errorf("config %s: %w", KeyDiskWarnBelow, err)
+		}
+		c.DiskWarnBelow = n
+	}
 	return c, nil
 }
 
@@ -146,6 +162,7 @@ var validators = map[string]func(string) (string, error){
 	KeyNoProxy:        func(v string) (string, error) { return strings.TrimSpace(v), nil },
 	KeyImportHostCAs:  validateOnOff,
 	KeyGPU:            validateOnOff,
+	KeyDiskWarnBelow:  validateSize,
 }
 
 // validateProxy accepts an http(s) URL, or empty to clear.
@@ -232,6 +249,8 @@ func defaultFor(key string) string {
 	switch key {
 	case KeyIdleTimeout, KeyAudit, KeyImportHostCAs, KeyGPU:
 		return "off"
+	case KeyDiskWarnBelow:
+		return "5GiB"
 	}
 	return ""
 }
@@ -281,4 +300,46 @@ func All(stateDir string) (map[string]string, error) {
 		}
 	}
 	return raw, nil
+}
+
+// validateSize accepts a human size (10GB, 8GiB, 512MB) or empty to clear,
+// storing the trimmed spelling the user wrote.
+func validateSize(v string) (string, error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "", nil
+	}
+	if _, err := parseSize(v); err != nil {
+		return "", err
+	}
+	return v, nil
+}
+
+var sizeUnits = map[string]float64{
+	"b": 1, "kb": 1e3, "mb": 1e6, "gb": 1e9, "tb": 1e12,
+	"kib": 1 << 10, "mib": 1 << 20, "gib": 1 << 30, "tib": 1 << 40,
+}
+
+// parseSize turns "10GB" / "8GiB" / "512MB" into bytes (decimal or binary
+// units, case-insensitive). A bare number is refused: a floor without a unit is
+// a typo waiting to be 10 bytes.
+func parseSize(s string) (uint64, error) {
+	s = strings.TrimSpace(s)
+	i := 0
+	for i < len(s) && (s[i] >= '0' && s[i] <= '9' || s[i] == '.') {
+		i++
+	}
+	num, unit := s[:i], strings.ToLower(strings.TrimSpace(s[i:]))
+	if num == "" || unit == "" {
+		return 0, fmt.Errorf("%q is not a size (try 10GB or 8GiB)", s)
+	}
+	f, err := strconv.ParseFloat(num, 64)
+	if err != nil || f < 0 {
+		return 0, fmt.Errorf("%q is not a size (try 10GB or 8GiB)", s)
+	}
+	mult, ok := sizeUnits[unit]
+	if !ok {
+		return 0, fmt.Errorf("%q has an unknown unit %q (B, kB, MB, GB, TB, KiB, MiB, GiB, TiB)", s, unit)
+	}
+	return uint64(f * mult), nil
 }
