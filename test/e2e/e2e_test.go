@@ -96,6 +96,7 @@ func TestAcceptance(t *testing.T) {
 		{"IdleStopAndOnDemandWake", stageIdle},
 		{"InterruptedClientDoesNotWedgeBridge", stageInterrupt},
 		{"VsockPathServedEverything", stageVsockServed},
+		{"EngineSnapshotSaveAndList", stageSnapshot},
 		{"Uninstall", stageUninstall},
 		{"NothingLeftBehind", stageClean},
 		{"DockerDesktopStillWorks", stageDesktopIntact},
@@ -657,6 +658,38 @@ func stageAudit(t *testing.T, s *state) {
 		if err := json.Unmarshal([]byte(line), &ev); err != nil || ev.Action == "" || ev.Time == "" {
 			t.Fatalf("audit line is not a valid event: %q (%v)", line, err)
 		}
+	}
+}
+
+// stageSnapshot exercises `hawser snapshot` (#122): a real `wsl --export` of the
+// engine distro with a recorded checksum, listed and deleted. The full restore
+// (unregister + re-import) is destructive and verified separately on a throwaway
+// distro; here we prove save/list/delete against the live engine near the end of
+// the run, where the export's brief engine bounce disturbs nothing (Uninstall is
+// next). Flags come before the subcommand, as the CLI expects.
+func stageSnapshot(t *testing.T, s *state) {
+	out, err := run(t, 3*time.Minute, s.hawser, "snapshot", "--state-dir", s.stateDir, "--force", "save", "e2e")
+	must(t, out, err, "snapshot save")
+
+	out, err = run(t, 30*time.Second, s.hawser, "snapshot", "--state-dir", s.stateDir, "list")
+	must(t, out, err, "snapshot list")
+	if !strings.Contains(out, "e2e") {
+		t.Fatalf("snapshot list missing the saved snapshot:\n%s", out)
+	}
+
+	// The archive and its checksum sidecar are on disk.
+	if _, err := os.Stat(filepath.Join(s.stateDir, "snapshots", "e2e.tar")); err != nil {
+		t.Errorf("snapshot archive not written: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(s.stateDir, "snapshots", "e2e.json")); err != nil {
+		t.Errorf("snapshot metadata not written: %v", err)
+	}
+
+	out, err = run(t, 30*time.Second, s.hawser, "snapshot", "--state-dir", s.stateDir, "delete", "e2e")
+	must(t, out, err, "snapshot delete")
+	out, _ = run(t, 30*time.Second, s.hawser, "snapshot", "--state-dir", s.stateDir, "list")
+	if strings.Contains(out, "e2e") {
+		t.Errorf("snapshot still listed after delete:\n%s", out)
 	}
 }
 

@@ -18,8 +18,9 @@ func (f *fake) Import(_ context.Context, distro, _, _ string) error {
 	f.distros = append(f.distros, wsl.Distro{Name: distro, State: "Stopped", Version: 2})
 	return nil
 }
-func (f *fake) Unregister(context.Context, string) error { return nil }
-func (f *fake) Terminate(context.Context, string) error  { return nil }
+func (f *fake) Export(context.Context, string, string) error { return nil }
+func (f *fake) Unregister(context.Context, string) error     { return nil }
+func (f *fake) Terminate(context.Context, string) error      { return nil }
 func (f *fake) List(context.Context) ([]wsl.Distro, error) {
 	return f.distros, nil
 }

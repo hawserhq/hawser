@@ -116,6 +116,16 @@ func (l *Local) Import(ctx context.Context, distro, installDir, rootfsPath strin
 	return err
 }
 
+// Export writes a distro's filesystem to a tarball. wsl terminates the distro
+// as needed for a consistent export.
+func (l *Local) Export(ctx context.Context, distro, tarPath string) error {
+	if distro == "" || tarPath == "" {
+		return fmt.Errorf("wsl: Export needs distro and tarPath")
+	}
+	_, err := l.run(ctx, "--export", distro, tarPath)
+	return err
+}
+
 // Unregister removes a distro and deletes its VHDX. Irreversible.
 func (l *Local) Unregister(ctx context.Context, distro string) error {
 	if distro == "" {

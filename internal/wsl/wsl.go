@@ -11,6 +11,10 @@ type WSL interface {
 	Status(ctx context.Context) (Status, error)
 	// Import registers a distro from a rootfs tarball (wsl --import, version 2).
 	Import(ctx context.Context, distro, installDir, rootfsPath string) error
+	// Export writes a distro's filesystem to a tarball (wsl --export), for
+	// engine snapshots. The distro should be stopped for a consistent image;
+	// wsl handles terminating it.
+	Export(ctx context.Context, distro, tarPath string) error
 	// Unregister removes a distro and its VHDX (wsl --unregister).
 	Unregister(ctx context.Context, distro string) error
 	// Terminate stops a running distro (wsl --terminate).
