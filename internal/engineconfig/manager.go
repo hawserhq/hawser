@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -164,6 +165,49 @@ func (m *Manager) SetMany(ctx context.Context, kv map[string]string) (SetResult,
 		}
 	}
 	return m.commit(ctx, cfg)
+}
+
+// ApplyDefaults writes every entry of Defaults whose key is absent from
+// daemon.json, validating the result with dockerd like any other change, and
+// returns the keys it added. It never restarts the engine: the caller runs it
+// right before dockerd launches, which is when a default can land for free.
+// Keys the user has set (to any value) are left alone.
+func (m *Manager) ApplyDefaults(ctx context.Context) ([]string, error) {
+	cfg, err := m.Read(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var added []string
+	for name, raw := range Defaults {
+		if _, set := cfg[name]; set {
+			continue
+		}
+		k, ok := keyByName(name)
+		if !ok {
+			return nil, unknownKeyErr(name)
+		}
+		value, clear, err := parseValue(k, raw)
+		if err != nil || clear {
+			return nil, fmt.Errorf("engine.%s default %q: %v", name, raw, err)
+		}
+		cfg[name] = value
+		added = append(added, name)
+	}
+	if len(added) == 0 {
+		return nil, nil
+	}
+	sort.Strings(added)
+	candidate, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return nil, err
+	}
+	if err := m.validate(ctx, candidate); err != nil {
+		return nil, err
+	}
+	if err := m.writeDaemon(ctx, candidate); err != nil {
+		return nil, err
+	}
+	return added, nil
 }
 
 // commit validates the candidate config, writes it atomically, and bounces the

@@ -51,6 +51,19 @@ func isUNC(p string) bool {
 	return len(p) >= 2 && isSep(p[0]) && isSep(p[1])
 }
 
+// EngineSocket is where dockerd listens inside the engine distro; a Windows
+// named pipe bind-mounted into a Linux container can only mean this.
+const EngineSocket = "/var/run/docker.sock"
+
+// isPipe reports whether the path names a Windows named pipe (\\.\pipe\name,
+// also spelled //./pipe/name by tools that speak forward slashes).
+func isPipe(p string) bool {
+	if !isUNC(p) || len(p) < 8 || p[2] != '.' || !isSep(p[3]) {
+		return false
+	}
+	return strings.EqualFold(p[4:8], "pipe") && len(p) > 8 && isSep(p[8])
+}
+
 // toSlash normalizes separators without path/filepath, whose behavior is
 // host-dependent — these rules must mean the same thing on every platform.
 func toSlash(p string) string { return strings.ReplaceAll(p, `\`, "/") }
@@ -62,9 +75,19 @@ func toSlash(p string) string { return strings.ReplaceAll(p, `\`, "/") }
 //
 // Paths that are already POSIX (/mnt/c/src, /app) are returned unchanged, so
 // translation is idempotent and users who already speak WSL are not punished.
+//
+// A Windows named pipe (\\.\pipe\docker_engine, //./pipe/hawser_engine) maps to
+// the engine's own socket, /var/run/docker.sock: that is what Docker Desktop
+// does for its pipe, and what Testcontainers' Ryuk, docker-in-docker helpers and
+// `-v //./pipe/docker_engine:/var/run/docker.sock` expect. Whatever pipe the
+// caller named, the container is being created through this engine, so this
+// engine's socket is the only thing the mount can mean (#164).
 func ToWSL(path string) (string, error) {
 	if path == "" {
 		return "", fmt.Errorf("empty path")
+	}
+	if isPipe(path) {
+		return EngineSocket, nil
 	}
 	if isUNC(path) {
 		return "", &ErrUNC{Path: path}

@@ -30,6 +30,8 @@ const (
 	KindStringMap
 	// KindInt is an integer.
 	KindInt
+	// KindBool is true/false.
+	KindBool
 )
 
 // Key is one allowlisted daemon.json setting. Name is both the CLI suffix and
@@ -52,6 +54,23 @@ var keys = []Key{
 	{"log-opts", KindStringMap, "logging driver options, e.g. max-size=10m,max-file=3"},
 	{"max-concurrent-downloads", KindInt, "parallel layer pulls per image"},
 	{"max-concurrent-uploads", KindInt, "parallel layer pushes per image"},
+	{"userland-proxy", KindBool, "relay published ports through docker-proxy instead of iptables NAT (Hawser defaults this to false: NAT is what makes -p ports reachable from Windows under mirrored networking)"},
+}
+
+// Defaults are the daemon.json keys Hawser has an opinion about on an engine
+// that does not (the key is absent). They are written before dockerd launches,
+// so an install that predates a default still gets it, and a key the user set
+// explicitly -- `hawser config set engine.<key>` -- is never overridden.
+//
+// userland-proxy=false: with the proxy on, a connection from Windows to a
+// published port is DNAT'd to the container and, under mirrored networking,
+// arrives with a 127.0.0.1 source -- so the container answers into its own
+// loopback and the connection hangs (#163). With the proxy off, dockerd installs
+// the LOCAL-source MASQUERADE that makes that return path work. Mirrored
+// networking is what `hawser doctor` itself recommends for VPNs, so this is the
+// configuration Hawser has to be correct in.
+var Defaults = map[string]string{
+	"userland-proxy": "false",
 }
 
 func keyByName(name string) (Key, bool) {
@@ -124,6 +143,12 @@ func parseValue(k Key, raw string) (value any, clear bool, err error) {
 			return nil, false, fmt.Errorf("%q is negative", raw)
 		}
 		return n, false, nil
+	case KindBool:
+		b, convErr := strconv.ParseBool(raw)
+		if convErr != nil {
+			return nil, false, fmt.Errorf("%q is not true or false", raw)
+		}
+		return b, false, nil
 	default:
 		return nil, false, fmt.Errorf("unhandled kind for %s", k.Name)
 	}

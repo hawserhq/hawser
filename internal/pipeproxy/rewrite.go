@@ -373,7 +373,10 @@ func translateHostConfig(body map[string]any) (bool, error) {
 				continue
 			}
 			// Only bind mounts name a host path; a volume's Source is a name.
-			if t, _ := mount["Type"].(string); t != "bind" {
+			// An npipe mount (`--mount type=npipe,src=\\.\pipe\docker_engine`)
+			// is the Windows spelling of "bind me the engine socket" (#164).
+			t, _ := mount["Type"].(string)
+			if t != "bind" && t != "npipe" {
 				continue
 			}
 			src, ok := mount["Source"].(string)
@@ -383,6 +386,10 @@ func translateHostConfig(body map[string]any) (bool, error) {
 			translated, err := winpath.ToWSL(src)
 			if err != nil {
 				return false, err
+			}
+			if t == "npipe" {
+				mount["Type"] = "bind"
+				changed = true
 			}
 			if translated != src {
 				mount["Source"] = translated
