@@ -116,3 +116,22 @@ type traceJSON struct {
 	Containers []string       `json:"containers"`
 	Note       string         `json:"note,omitempty"`
 }
+
+// healthcheckJSON is `hawser healthcheck --json` (#146). ready is the verdict
+// the exit code carries (0 ready, 1 not, 3 not installed); reason always says
+// why, in words a runner log can show.
+type healthcheckJSON struct {
+	Installed  bool   `json:"installed"`
+	Supervisor string `json:"supervisor"` // running | stopped
+	Engine     string `json:"engine"`     // running | idle | stopped
+	Ready      bool   `json:"ready"`
+	Reason     string `json:"reason"`
+}
+
+// logLineJSON is one line of `hawser logs --json` (#146): the same envelope for
+// every source so a log shipper needs one pipeline. line is the raw record; a
+// shipper that wants dockerd's logfmt or the audit JSON parses it further.
+type logLineJSON struct {
+	Source string `json:"source"` // supervisor | dockerd | audit
+	Line   string `json:"line"`
+}
