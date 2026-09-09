@@ -235,6 +235,34 @@ post-start hook), through whatever docker currently targets:
 - The list file: one reference per line, `#` comments and blank lines ignored,
   duplicates dropped. Digest pins encouraged.
 
+## `hawser runner check --json`
+
+One verdict on whether an unattended host will bring the engine back after a
+reboot (see [auto-logon-runner.md](auto-logon-runner.md)):
+
+```json
+{
+  "ready": false,
+  "findings": [
+    { "name": "autologon", "status": "ok", "summary": "auto-logon is configured" },
+    { "name": "autologon-account", "status": "ok", "summary": "auto-logon uses this account" },
+    { "name": "autologon-password", "status": "warn",
+      "summary": "the auto-logon password is stored in clear text in the registry (Winlogon\\DefaultPassword)",
+      "remedy": "use Sysinternals Autologon, which stores it as an LSA secret, then delete the DefaultPassword registry value (docs/auto-logon-runner.md §3)." },
+    { "name": "autostart", "status": "fail", "summary": "no logon autostart; the session will start but the supervisor will not",
+      "remedy": "run `hawser autostart enable` as the auto-logon account (needs hawserw.exe beside hawser.exe)." },
+    { "name": "supervisor", "status": "ok", "summary": "supervisor is running" },
+    { "name": "engine", "status": "ok", "summary": "engine is running" }
+  ]
+}
+```
+
+- `ready` is the exit code's verdict: **`0` ready (warnings allowed), `1` not
+  ready, `3` not installed**. `findings` is always an array; `status` is `ok` |
+  `warn` | `fail`; `remedy` is omitted when `ok`.
+- Read-only and unelevated. The auto-logon account is **compared, never
+  printed**, and the password value is probed for existence only.
+
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and

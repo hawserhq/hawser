@@ -1,6 +1,9 @@
 package main
 
-import "github.com/zcsizmadia/hawser/internal/remote"
+import (
+	"github.com/zcsizmadia/hawser/internal/remote"
+	"github.com/zcsizmadia/hawser/internal/runner"
+)
 
 // The --json shapes: the CLI contract that machine consumers — the VS Code
 // extension, CI scripts, fleet tooling — depend on (#137). They are named types
@@ -152,4 +155,12 @@ type prewarmImageJSON struct {
 	OK     bool   `json:"ok"`
 	Millis int64  `json:"ms"`
 	Error  string `json:"error,omitempty"`
+}
+
+// runnerCheckJSON is `hawser runner check --json` (#150). ready is the verdict
+// the exit code carries (0 ready — warnings allowed — 1 not ready, 3 not
+// installed); findings is always an array, each with a remedy when not ok.
+type runnerCheckJSON struct {
+	Ready    bool             `json:"ready"`
+	Findings []runner.Finding `json:"findings"`
 }

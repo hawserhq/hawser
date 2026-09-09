@@ -44,6 +44,7 @@ func commands() []command {
 		{"proxy", "serve the docker pipe in the foreground (debug mode)", runProxy},
 		{"remote", "register and switch to a remote engine served over mutual TLS", runRemote},
 		{"restart", "stop the engine, then start it", runRestart},
+		{"runner", "runner check: verify auto-logon, autostart, supervisor and engine on an unattended host", runRunner},
 		{"serve", "expose the engine over the network with mutual TLS (`serve cert`)", runServe},
 		{"snapshot", "save/restore/list the engine state (images, containers, volumes)", runSnapshot},
 		{"start", "ensure the supervisor and engine are running", runStart},

@@ -12,6 +12,7 @@ import (
 	"github.com/zcsizmadia/hawser/internal/dockercli"
 	"github.com/zcsizmadia/hawser/internal/provision"
 	"github.com/zcsizmadia/hawser/internal/remote"
+	"github.com/zcsizmadia/hawser/internal/runner"
 	"github.com/zcsizmadia/hawser/internal/supervise"
 	"github.com/zcsizmadia/hawser/internal/version"
 	"github.com/zcsizmadia/hawser/internal/vpnfingerprint"
@@ -75,6 +76,10 @@ type Facts struct {
 	// Remotes are the registered remote engines (#138), so checkContext can tell
 	// "docker is on a remote we know" from "docker is aimed somewhere odd".
 	Remotes []remote.Info
+
+	// Runner is the unattended-host setup (#150): auto-logon, autostart,
+	// supervisor, engine. Its account fields are compared, never rendered.
+	Runner runner.Facts
 }
 
 // GPUStatus describes GPU passthrough (#83): whether it is turned on in config,
@@ -208,6 +213,20 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 	f.CLI = gatherCLIStatus(stateDir)
 	// Best-effort: an unreadable remotes dir means "no remotes", not a failure.
 	f.Remotes, _ = (&remote.Manager{StateDir: stateDir}).List()
+
+	// Runner readiness (#150). The Winlogon read is a plain HKLM query (no
+	// elevation) and the rest reuses facts already gathered above.
+	f.Runner = runner.Facts{
+		AutostartRegistered: opts.AutostartConfigured,
+		SupervisorRunning:   f.SupervisorHeld,
+		Engine:              runnerEngineState(f),
+	}
+	if w, err := runner.ReadWinlogon(); err == nil {
+		f.Runner.AutoLogonConfigured = w.Configured()
+		f.Runner.AutoLogonUser, f.Runner.AutoLogonDomain = w.DefaultUserName, w.DefaultDomainName
+		f.Runner.PlaintextPassword = w.HasDefaultPassword
+	}
+	f.Runner.CurrentUser, f.Runner.CurrentDomain = runner.CurrentAccount()
 
 	return f
 }

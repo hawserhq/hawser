@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/zcsizmadia/hawser/internal/hawserfile"
+	"github.com/zcsizmadia/hawser/internal/runner"
 	"github.com/zcsizmadia/hawser/internal/snapshot"
 )
 
@@ -164,5 +165,18 @@ func TestPrewarmShape(t *testing.T) {
 	requireKeys(t, img, "ref", "ok", "ms")
 	if _, ok := img["error"]; ok {
 		t.Error("error should be omitted for a successful pull")
+	}
+}
+
+func TestRunnerCheckShape(t *testing.T) {
+	m := roundTrip(t, runnerCheckJSON{Ready: true, Findings: []runner.Finding{}})
+	requireKeys(t, m, "ready", "findings")
+	if a, ok := m["findings"].([]any); !ok || a == nil {
+		t.Errorf("findings must be an array even when empty, got %v", m["findings"])
+	}
+	f := roundTrip(t, runner.Finding{Name: "autologon", Status: runner.OK, Summary: "s"})
+	requireKeys(t, f, "name", "status", "summary")
+	if _, ok := f["remedy"]; ok {
+		t.Error("remedy should be omitted when empty")
 	}
 }
