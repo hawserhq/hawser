@@ -67,6 +67,31 @@ hawser config set network.import-host-cas on
 hawser restart
 ```
 
+## Published ports under mirrored networking
+
+Mirrored networking changes how `docker run -p` has to be plumbed, and Hawser
+sets the engine up for it: `engine.userland-proxy` defaults to **false**, so
+published ports are plain iptables NAT.
+
+With the userland proxy on (dockerd's own default), a connection from Windows to
+`127.0.0.1:<port>` is DNAT'd into the container with its loopback source address
+intact — the container answers into its own loopback and the connection hangs,
+while `docker ps`, logs and everything else look perfectly healthy (#163).
+Turning the proxy off makes dockerd install the `MASQUERADE` rule that fixes the
+return path.
+
+Hawser applies the default to installs that predate it, on the next engine
+start, and never overrides a value you set yourself:
+
+```
+hawser config get engine.userland-proxy     # false
+hawser config set engine.userland-proxy on  # your choice wins from then on
+```
+
+The one thing the userland proxy still does better is publishing on an address
+the NAT path cannot see; if you need that, turn it back on and reach containers
+by their IP instead.
+
 ## Why advisory, not automatic
 
 `hawser doctor` names the VPN and shows the exact settings rather than applying

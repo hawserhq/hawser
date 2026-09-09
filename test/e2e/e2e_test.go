@@ -21,6 +21,8 @@ import (
 	"archive/zip"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -34,6 +36,8 @@ const (
 	pipeName = `\\.\pipe\hawser-e2e-suite`
 	// dockerHost matches pipeName in the form the docker CLI wants.
 	dockerHost = "npipe:////./pipe/hawser-e2e-suite"
+	// dockerPipePath is the same pipe as a path, for `docker run -v`.
+	dockerPipePath = "//./pipe/hawser-e2e-suite"
 )
 
 // state carries everything the ordered stages share.
@@ -88,6 +92,11 @@ func TestAcceptance(t *testing.T) {
 		{"AuditLogRecordsCalls", stageAudit},
 		{"HostCAsImportedIntoEngine", stageHostCAs},
 		{"BindMountReadThroughContainer", stageBindMount},
+		{"PublishedPortReachableFromWindows", stagePublishedPort},
+		{"EnginePipeMountsAsDockerSocket", stageSocketMount},
+		{"TestcontainersAgainstTheEngine", stageTestcontainers},
+		{"ActRunsAWorkflowLocally", stageAct},
+		{"GitLabPipelineRunsLocally", stageGitLabCILocal},
 		{"ExecInRunningContainer", stageExec},
 		{"StdinPipeIntoContainer", stageStdinPipe},
 		{"LogsFollowStreams", stageLogsFollow},
@@ -1098,6 +1107,161 @@ func stageBindMount(t *testing.T, s *state) {
 	must(t, out, err, "bind mount read")
 	if !strings.Contains(out, proof) {
 		t.Errorf("container read %q, want %q — path translation or automount broke", out, proof)
+	}
+}
+
+// stagePublishedPort proves `docker run -p` is reachable from Windows. It is
+// the check that would have caught the userland-proxy trap: with docker-proxy
+// relaying, a connection from the Windows side arrives in the container with a
+// 127.0.0.1 source under mirrored networking and the reply never returns, so
+// `curl localhost:<port>` hangs while everything else looks healthy.
+func stagePublishedPort(t *testing.T, s *state) {
+	const port = "58080"
+	if out, err := dockerE(t, s, 3*time.Minute, "run", "-d", "--name", "e2e-port",
+		"-p", port+":80", "nginx:alpine"); err != nil {
+		t.Fatalf("starting nginx: %v\n%s", err, out)
+	}
+	defer dockerE(t, s, time.Minute, "rm", "-f", "e2e-port")
+
+	// nginx needs a moment; poll rather than sleep a fixed amount.
+	client := &http.Client{Timeout: 5 * time.Second}
+	deadline := time.Now().Add(90 * time.Second)
+	var lastErr error
+	for time.Now().Before(deadline) {
+		resp, err := client.Get("http://127.0.0.1:" + port + "/")
+		if err == nil {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				if !strings.Contains(string(body), "nginx") {
+					t.Errorf("published port answered, but not with nginx: %q", body)
+				}
+				return
+			}
+			lastErr = fmt.Errorf("status %d", resp.StatusCode)
+		} else {
+			lastErr = err
+		}
+		time.Sleep(2 * time.Second)
+	}
+	t.Fatalf("published port %s never answered from Windows: %v "+
+		"(engine.userland-proxy must be false for -p to work under mirrored networking)", port, lastErr)
+}
+
+// stageSocketMount proves the engine's own pipe can be mounted as
+// /var/run/docker.sock, which is how Testcontainers' Ryuk, docker-in-docker
+// helpers and CI images that talk to "the local engine" are wired (#144). The
+// proxy maps the Windows pipe to the engine's socket inside the distro; without
+// that, the daemon sees a UNC path it cannot bind-mount.
+func stageSocketMount(t *testing.T, s *state) {
+	out, err := dockerE(t, s, 3*time.Minute, "run", "--rm",
+		"-v", dockerPipePath+":/var/run/docker.sock",
+		"docker:cli", "version", "--format", "{{.Server.Version}}")
+	must(t, out, err, "docker CLI in a container through the mounted engine socket")
+	if !strings.Contains(out, "29.") {
+		t.Errorf("containerized docker CLI reported server %q, want an engine version", out)
+	}
+}
+
+// stageTestcontainers runs the Testcontainers acceptance module (a separate Go
+// module so its dependency tree stays out of hawser's) against the suite's
+// engine (#144). Testcontainers is the single best proxy for "does this engine
+// behave like Docker Desktop": it maps a published port and polls it from the
+// host, and its Ryuk reaper mounts the engine's own docker socket.
+func stageTestcontainers(t *testing.T, s *state) {
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("go not on PATH; cannot run the Testcontainers module")
+	}
+	// The suite runs with test/e2e as its working directory.
+	dir, err := filepath.Abs("testcontainers")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
+		t.Skipf("no Testcontainers module at %s", dir)
+	}
+	cmd := exec.Command(goBin, "test", "-tags", "e2e", "-count=1", "-timeout", "10m", ".")
+	cmd.Dir = dir
+	cmd.Env = append(s.dockerEnv(), "DOCKER_HOST="+dockerHost)
+	out, err := cmd.CombinedOutput()
+	must(t, string(out), err, "go test (testcontainers module)")
+	t.Logf("Testcontainers passed against the engine:\n%s", strings.TrimSpace(string(out)))
+}
+
+// stageAct runs a two-job GitHub Actions workflow with `act` against the engine
+// (#144): a container job with a service container, and a job that uses the
+// docker CLI inside the runner image. act talks to DOCKER_HOST directly, so it
+// exercises container creation, networking between containers, and volume
+// mounts of the workspace — the three things a local CI runner needs.
+func stageAct(t *testing.T, s *state) {
+	actBin, err := exec.LookPath("act")
+	if err != nil {
+		t.Skip("act not on PATH; install nektos/act to exercise this")
+	}
+	ws := filepath.Join(s.workDir, "actws")
+	wf := filepath.Join(ws, ".github", "workflows")
+	if err := os.MkdirAll(wf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const workflow = `name: build
+on: [push]
+jobs:
+  container-job:
+    runs-on: ubuntu-latest
+    container: alpine:3.20
+    services:
+      redis:
+        image: redis:7-alpine
+    steps:
+      - run: apk add --no-cache redis
+      - run: redis-cli -h redis ping
+`
+	if err := os.WriteFile(filepath.Join(wf, "build.yml"), []byte(workflow), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := append(s.dockerEnv(), "DOCKER_HOST="+dockerHost)
+	out, err := runEnv(t, env, 10*time.Minute, actBin, "-W", wf, "-j", "container-job",
+		"-P", "ubuntu-latest=catthehacker/ubuntu:act-22.04")
+	must(t, out, err, "act -j container-job")
+	if !strings.Contains(out, "PONG") {
+		t.Errorf("the service container never answered; act output:\n%s", out)
+	}
+}
+
+// stageGitLabCILocal runs a GitLab pipeline through gitlab-ci-local against the
+// engine (#144). `gitlab-runner exec` was removed in 17.0, so this is the only
+// way to prove a GitLab-shaped pipeline locally without a GitLab instance.
+func stageGitLabCILocal(t *testing.T, s *state) {
+	bin, err := exec.LookPath("gitlab-ci-local")
+	if err != nil {
+		t.Skip("gitlab-ci-local not on PATH; npm i -g gitlab-ci-local to exercise this")
+	}
+	// It rsyncs the working tree into the job's build dir, through bash — on
+	// Windows that means rsync must be on PATH or every job fails at setup.
+	if _, err := exec.LookPath("rsync"); err != nil {
+		t.Skip("gitlab-ci-local needs rsync on PATH (MSYS2/Cygwin provides one)")
+	}
+	ws := filepath.Join(s.workDir, "glws")
+	if err := os.MkdirAll(ws, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const pipeline = `stages: [test]
+
+unit:
+  stage: test
+  image: alpine:3.20
+  script:
+    - echo gitlab-ci-local-ok
+`
+	if err := os.WriteFile(filepath.Join(ws, ".gitlab-ci.yml"), []byte(pipeline), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	env := append(s.dockerEnv(), "DOCKER_HOST="+dockerHost)
+	out, err := runEnv(t, env, 10*time.Minute, bin, "--cwd", ws, "unit")
+	must(t, out, err, "gitlab-ci-local unit")
+	if !strings.Contains(out, "gitlab-ci-local-ok") {
+		t.Errorf("the job did not run its script:\n%s", out)
 	}
 }
 

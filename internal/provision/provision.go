@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zcsizmadia/hawser/internal/engineconfig"
 	"github.com/zcsizmadia/hawser/internal/gpu"
 	"github.com/zcsizmadia/hawser/internal/winpath"
 	"github.com/zcsizmadia/hawser/internal/wsl"
@@ -337,6 +338,21 @@ func (p *Provisioner) applyNetwork(ctx context.Context, opts Options) {
 	}
 }
 
+// applyEngineDefaults lands engineconfig.Defaults in the distro's daemon.json
+// for keys the user has not set. Runs before dockerd launches; see Defaults for
+// why each one exists.
+func (p *Provisioner) applyEngineDefaults(ctx context.Context, opts Options) {
+	m := &engineconfig.Manager{WSL: p.wsl(), Distro: opts.Distro}
+	added, err := m.ApplyDefaults(ctx)
+	if err != nil {
+		p.logger().Warn("engine defaults not applied", "err", err)
+		return
+	}
+	for _, k := range added {
+		p.logger().Info("engine default applied", "key", "engine."+k, "value", engineconfig.Defaults[k])
+	}
+}
+
 // applyGPU writes or removes the NVIDIA CDI spec in the distro (#83), so a
 // container started with `--device nvidia.com/gpu=all` gets the WSL GPU mounts.
 // Best-effort, like applyNetwork: a spec-write failure logs but never blocks the
@@ -435,6 +451,12 @@ func (p *Provisioner) StartEngine(ctx context.Context, opts Options) error {
 	// GPU CDI spec, likewise applied before launch so the engine picks it up on
 	// startup and a rootfs re-import keeps GPU access (#83).
 	p.applyGPU(ctx, opts)
+
+	// Engine defaults Hawser holds an opinion on (engineconfig.Defaults), for
+	// installs whose daemon.json predates them. Only absent keys are written,
+	// and only after `dockerd --validate` accepts the result; a failure here
+	// is logged, not fatal -- the engine must still come up.
+	p.applyEngineDefaults(ctx, opts)
 
 	p.logger().Info("starting dockerd", "distro", opts.Distro)
 	// Output goes to a log inside the distro; the caller gets it via

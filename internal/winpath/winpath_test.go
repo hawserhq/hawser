@@ -76,6 +76,25 @@ func TestToWSLRejectsUNC(t *testing.T) {
 	}
 }
 
+func TestToWSLMapsPipesToEngineSocket(t *testing.T) {
+	for _, in := range []string{`\\.\pipe\docker_engine`, "//./pipe/hawser_engine", `\\.\PIPE\anything`} {
+		got, err := winpath.ToWSL(in)
+		if err != nil {
+			t.Errorf("ToWSL(%q) error: %v", in, err)
+			continue
+		}
+		if got != winpath.EngineSocket {
+			t.Errorf("ToWSL(%q) = %q, want %q", in, got, winpath.EngineSocket)
+		}
+	}
+	// A share on a host that happens to be called "." is still a share.
+	for _, in := range []string{`\\.\share\x`, `\\pipe\x`, `\\.\pipe`} {
+		if _, err := winpath.ToWSL(in); err == nil {
+			t.Errorf("ToWSL(%q) succeeded, want ErrUNC", in)
+		}
+	}
+}
+
 func TestToWSLEmpty(t *testing.T) {
 	if _, err := winpath.ToWSL(""); err == nil {
 		t.Error("ToWSL(\"\") succeeded, want error")
@@ -109,6 +128,10 @@ func TestTranslateBind(t *testing.T) {
 		{"drive root", `C:\:/app`, "/mnt/c:/app"},
 		// Linux-style host path passed through.
 		{"posix host path", "/home/user/src:/app", "/home/user/src:/app"},
+		// The engine pipe, as Testcontainers' Ryuk and `-v //./pipe/docker_engine:
+		// /var/run/docker.sock` name it: it means the engine's own socket.
+		{"engine pipe forward", "//./pipe/hawser_engine:/var/run/docker.sock", "/var/run/docker.sock:/var/run/docker.sock"},
+		{"engine pipe backslash", `\\.\pipe\docker_engine:/var/run/docker.sock:ro`, "/var/run/docker.sock:/var/run/docker.sock:ro"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -96,6 +96,10 @@ docker context. Nothing else on the system is touched.
 - A logged-on session is required — a WSL2 platform constraint that binds every WSL-based
   engine; for CI runners see [docs/auto-logon-runner.md](docs/auto-logon-runner.md), and
   `hawser runner check` verifies the setup in one verdict
+- **CI runners**: GitHub Actions via
+  [setup-hawser](https://github.com/zcsizmadia/setup-hawser), GitLab shell or docker
+  executor, Testcontainers (Ryuk included), and local pipeline runs with `act` or
+  `gitlab-ci-local` — [docs/ci-runners.md](docs/ci-runners.md)
 
 ## What's ahead
 
