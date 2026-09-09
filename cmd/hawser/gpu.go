@@ -104,11 +104,32 @@ Checked for %s and %s inside %q and did not find them. That means one of:
 		return exitError
 	}
 
+	// Which spelling works depends on the rootfs: `--gpus all` needs
+	// nvidia-cdi-hook present when dockerd starts (rootfs 29.7.2-4+, #139);
+	// `--device nvidia.com/gpu=all` works on every rootfs.
+	if p.GPUHookInstalled(ctx, opts) {
+		fmt.Printf(`GPU access enabled. Run a container against it:
+
+  docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+
+` + "`--gpus all`" + ` (and VS Code Dev Containers' "hostRequirements": {"gpu": true}) route
+to the CDI spec; ` + "`--device nvidia.com/gpu=all`" + ` works as well. If the engine was
+already running before this rootfs gained nvidia-cdi-hook, ` + "`hawser restart`" + ` once.
+
+Prefer glibc CUDA base images (nvidia/cuda, ubuntu); the driver libraries are
+injected via LD_LIBRARY_PATH, which musl images honor too, but nvidia/cuda is
+the best-tested path.
+`)
+		return exitOK
+	}
 	fmt.Printf(`GPU access enabled. Run a container against it:
 
   docker run --rm --device nvidia.com/gpu=all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 
 (Compose: add a device with driver "cdi" and id "nvidia.com/gpu=all".)
+
+This rootfs predates nvidia-cdi-hook, so ` + "`docker run --gpus all`" + ` is not routed
+to the GPU here; a rootfs of 29.7.2-4 or later adds it (reinstall to pick it up).
 
 Prefer glibc CUDA base images (nvidia/cuda, ubuntu); the driver libraries are
 injected via LD_LIBRARY_PATH, which musl images honor too, but nvidia/cuda is

@@ -42,12 +42,19 @@ func TestCDISpecIsValidYAMLWithRequiredFields(t *testing.T) {
 	if spec.Kind != "nvidia.com/gpu" {
 		t.Errorf("kind = %q, want nvidia.com/gpu", spec.Kind)
 	}
-	if len(spec.Devices) != 1 || spec.Devices[0].Name != "all" {
-		t.Fatalf("expected a single device named 'all', got %+v", spec.Devices)
+	// "all" is the documented device; "0" aliases it so `--gpus device=0` and
+	// count-style requests resolve (#139). Every device must inject /dev/dxg.
+	names := map[string]bool{}
+	for _, d := range spec.Devices {
+		names[d.Name] = true
+		if len(d.ContainerEdits.DeviceNodes) == 0 || d.ContainerEdits.DeviceNodes[0].Path != DxgDevice {
+			t.Errorf("device %q must inject %s", d.Name, DxgDevice)
+		}
 	}
-	if len(spec.Devices[0].ContainerEdits.DeviceNodes) == 0 ||
-		spec.Devices[0].ContainerEdits.DeviceNodes[0].Path != DxgDevice {
-		t.Errorf("device must inject %s", DxgDevice)
+	for _, want := range []string{"all", "0"} {
+		if !names[want] {
+			t.Errorf("spec is missing device %q (have %v)", want, names)
+		}
 	}
 
 	// The hookless design is the whole point on musl: no hooks, and the loader

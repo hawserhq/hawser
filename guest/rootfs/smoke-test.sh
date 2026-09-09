@@ -33,6 +33,7 @@ echo "==> expected files"
 # first rootfs release imported fine and then failed at startup.
 for f in usr/local/bin/dockerd usr/local/bin/docker-proxy usr/local/bin/containerd \
          usr/local/bin/runc usr/local/bin/buildkitd usr/local/bin/hawser-agent \
+         usr/local/bin/nvidia-cdi-hook \
          etc/docker/daemon.json etc/wsl.conf \
          etc/hawser/engine-version etc/hawser/agent-version etc/hawser/commits; do
     test -e "$work/$f" || { echo "missing $f"; exit 1; }
@@ -67,6 +68,10 @@ echo "==> binaries execute and report the pinned versions"
 "$work/usr/local/bin/buildkitd" --version
 "$work/usr/local/bin/buildkitd" --version | grep -q "${BUILDKIT_VERSION#v}" \
     || { echo "buildkitd version does not match $BUILDKIT_VERSION"; exit 1; }
+# The one glibc binary (#139): static, so it runs here on the Debian-based CI
+# host exactly as it will on the Alpine engine. It only has to exist and start
+# — its presence is what routes `docker run --gpus all` to the CDI spec.
+"$work/usr/local/bin/nvidia-cdi-hook" --version
 
 echo "==> hawser-agent identity matches what the rootfs declares"
 "$work/usr/local/bin/hawser-agent" -version

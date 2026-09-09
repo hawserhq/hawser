@@ -48,6 +48,7 @@ JSON
   pkg "containerd" "$CONTAINERD_VERSION" "https://github.com/containerd/containerd.git" "Apache-2.0"
   pkg "runc" "$RUNC_VERSION" "https://github.com/opencontainers/runc.git" "Apache-2.0"
   pkg "buildkit" "$BUILDKIT_VERSION" "https://github.com/moby/buildkit.git" "Apache-2.0"
+  pkg "nvidia-cdi-hook" "$NVIDIA_CDI_HOOK_VERSION" "https://github.com/NVIDIA/nvidia-container-toolkit.git" "Apache-2.0"
   pkg "go" "$GO_VERSION" "https://go.dev/dl/" "BSD-3-Clause"
   # The agent is versioned by this repository itself; the rootfs revision is
   # its packaging version, and the git remote is its provenance.

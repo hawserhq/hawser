@@ -82,13 +82,51 @@ docker run --rm \
   sh -c "go build -trimpath -ldflags '-s -w' -o /out/hawser-agent ./guest/agent \
          && chown $(id -u):$(id -g) /out/hawser-agent"
 
+echo "==> building nvidia-cdi-hook $NVIDIA_CDI_HOOK_VERSION (#139)"
+# The one glibc binary in the rootfs. Its presence when dockerd starts is what
+# makes moby route `docker run --gpus all` to the CDI spec that
+# `hawser enable-gpu` installs; the spec is hookless, so this binary is never
+# executed for GPU injection — it only has to exist and start. It cannot be
+# built on musl (go-nvml's dlopen shim uses glibc-only RTLD flags), so it is
+# built in the pinned golang Debian image as a static glibc binary, which runs
+# on Alpine. Pinned by tag AND commit like every other component (#88).
+hook_out="$work/hook"
+mkdir -p "$hook_out"
+docker run --rm \
+  -v "$hook_out:/out" \
+  -e "HOOK_TAG=$NVIDIA_CDI_HOOK_VERSION" \
+  -e "HOOK_SHA=${NVIDIA_CDI_HOOK_SHA:-}" \
+  -e "HOST_UID=$(id -u)" \
+  -e "HOST_GID=$(id -g)" \
+  "golang:${GO_VERSION}-bookworm" \
+  sh -euc '
+    git -c advice.detachedHead=false clone --depth 1 --branch "$HOOK_TAG" \
+      https://github.com/NVIDIA/nvidia-container-toolkit.git /src/toolkit >/dev/null 2>&1
+    sha="$(git -C /src/toolkit rev-parse HEAD)"
+    if [ -n "$HOOK_SHA" ] && [ "$HOOK_SHA" != "$sha" ]; then
+      echo "FATAL: nvidia-container-toolkit $HOOK_TAG resolved to $sha, expected $HOOK_SHA" >&2
+      echo "  (a moved tag or a compromised source; refusing to build)" >&2
+      exit 1
+    fi
+    [ -n "$HOOK_SHA" ] || echo "    WARNING: no expected SHA pinned for nvidia-cdi-hook; resolved $sha" >&2
+    cd /src/toolkit
+    CGO_ENABLED=1 go build -trimpath \
+      -ldflags "-s -w -linkmode external -extldflags -static -X github.com/NVIDIA/nvidia-container-toolkit/internal/info.version=${HOOK_TAG#v}" \
+      -o /out/nvidia-cdi-hook ./cmd/nvidia-cdi-hook 2>&1 | grep -v "statically linked applications" || true
+    [ -x /out/nvidia-cdi-hook ] || { echo "nvidia-cdi-hook build produced no binary" >&2; exit 1; }
+    /out/nvidia-cdi-hook --version
+    printf "nvidia-container-toolkit %s %s\n" "$HOOK_TAG" "$sha" > /out/commit.txt
+    chown -R "$HOST_UID:$HOST_GID" /out'
+
 echo "==> assembling rootfs"
 # Everything the image needs, staged as a build context.
 ctx="$work/ctx"
 mkdir -p "$ctx/bin"
 cp "$engine/bin/"* "$ctx/bin/"
 cp "$agent_out/hawser-agent" "$ctx/bin/"
+cp "$hook_out/nvidia-cdi-hook" "$ctx/bin/"
 cp "$engine/commits.txt" "$ctx/commits"
+cat "$hook_out/commit.txt" >> "$ctx/commits"
 printf '%s\n' "$ENGINE_VERSION" > "$ctx/engine-version"
 # The agent states its own identity (static linux binary, runnable right
 # here); asking it beats duplicating the constant in shell.
