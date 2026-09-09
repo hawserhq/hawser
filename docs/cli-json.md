@@ -263,6 +263,21 @@ reboot (see [auto-logon-runner.md](auto-logon-runner.md)):
 - Read-only and unelevated. The auto-logon account is **compared, never
   printed**, and the password value is probed for existence only.
 
+## `hawser reset --to <snapshot> --json`
+
+The runner's clean slate — `snapshot restore` with the interactive guards
+implied (no `--yes`, no running-container check):
+
+```json
+{ "snapshot": "golden", "engineVersion": "29.7.2", "ms": 6840 }
+```
+
+- `ms` is the whole cycle — verify the archive, unregister, import, engine back
+  — the number a clean-slate budget is measured against.
+- `engineVersion` is the snapshot's recorded engine, omitted when unknown.
+- Exit `3` when the snapshot does not exist or nothing is installed; `1` when
+  the restore failed (the engine is brought back best-effort either way).
+
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and

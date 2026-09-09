@@ -719,6 +719,28 @@ func stageSnapshot(t *testing.T, s *state) {
 		t.Errorf("snapshot metadata not written: %v", err)
 	}
 
+	// `hawser reset --to` (#142): the runner's clean slate. Resetting to the
+	// snapshot just taken is non-destructive in effect and exercises the whole
+	// path — verify, unregister, import, engine back — with a real timing that
+	// the log records for the fast-restore follow-up.
+	out, err = run(t, 5*time.Minute, s.hawser, "reset", "--state-dir", s.stateDir, "--json", "--to", "e2e")
+	must(t, out, err, "hawser reset --to e2e")
+	// Supervisor log lines may precede the JSON on the combined stream.
+	if i := strings.Index(out, "{"); i >= 0 {
+		out = out[i:]
+	}
+	var rs struct {
+		Snapshot string `json:"snapshot"`
+		Millis   int64  `json:"ms"`
+	}
+	if err := json.Unmarshal([]byte(out), &rs); err != nil || rs.Snapshot != "e2e" {
+		t.Fatalf("reset --json unexpected (%v):\n%s", err, out)
+	}
+	if v, err := dockerE(t, s, 2*time.Minute, "version", "--format", "{{.Server.Version}}"); err != nil || v == "" {
+		t.Fatalf("engine did not answer after reset: %v\n%s", err, v)
+	}
+	t.Logf("reset to snapshot in %d ms; engine answering", rs.Millis)
+
 	out, err = run(t, 30*time.Second, s.hawser, "snapshot", "--state-dir", s.stateDir, "delete", "e2e")
 	must(t, out, err, "snapshot delete")
 	out, _ = run(t, 30*time.Second, s.hawser, "snapshot", "--state-dir", s.stateDir, "list")
