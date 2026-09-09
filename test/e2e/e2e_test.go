@@ -90,6 +90,7 @@ func TestAcceptance(t *testing.T) {
 		{"StdinPipeIntoContainer", stageStdinPipe},
 		{"LogsFollowStreams", stageLogsFollow},
 		{"ComposeStack", stageCompose},
+		{"DevContainerUpThroughPipe", stageDevContainer},
 		{"WSLIntegrateSharesEngine", stageWSLIntegrate},
 		{"MigrateFromDesktop", stageMigrate},
 		{"EngineConfigValidatesAndApplies", stageEngineConfig},
@@ -717,6 +718,52 @@ func stageHostCAs(t *testing.T, s *state) {
 		t.Fatalf("no host CA certificates imported into the engine (got %q)", out)
 	}
 	t.Logf("engine now trusts %s imported host CA certificate(s)", out)
+}
+
+// stageDevContainer proves the Dev Containers CLI works against the Hawser
+// engine with no shim (#67): `devcontainer up` builds and starts a container —
+// including a Windows-path workspace bind mount the bridge rewrites — and
+// `devcontainer exec` runs a command inside it. Skipped when the CLI is not
+// installed (it needs Node + @devcontainers/cli), so CI without them is fine.
+func stageDevContainer(t *testing.T, s *state) {
+	dc, err := exec.LookPath("devcontainer")
+	if err != nil {
+		t.Skip("devcontainer CLI not on PATH; install @devcontainers/cli to exercise this")
+	}
+	ws := filepath.Join(s.workDir, "dcws")
+	if err := os.MkdirAll(filepath.Join(ws, ".devcontainer"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(ws, ".devcontainer", "devcontainer.json"),
+		[]byte(`{"image":"alpine:3.20","runArgs":["--label","hawser-dc-e2e"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// devcontainer shells out to docker; point both at the suite's engine.
+	env := append(os.Environ(),
+		"DOCKER_HOST="+dockerHost,
+		"PATH="+filepath.Dir(s.docker)+string(os.PathListSeparator)+os.Getenv("PATH"),
+	)
+	defer func() { // best-effort teardown of the dev container
+		ids, _ := dockerE(t, s, 30*time.Second, "ps", "-aq", "--filter", "label=hawser-dc-e2e")
+		for _, id := range strings.Fields(ids) {
+			dockerE(t, s, 30*time.Second, "rm", "-f", id)
+		}
+	}()
+
+	out, err := runEnv(t, env, 5*time.Minute, dc, "up", "--workspace-folder", ws)
+	must(t, out, err, "devcontainer up")
+	if !strings.Contains(out, `"outcome":"success"`) {
+		t.Fatalf("devcontainer up did not succeed:\n%s", out)
+	}
+
+	out, err = runEnv(t, env, 2*time.Minute, dc, "exec", "--workspace-folder", ws,
+		"sh", "-c", "echo dc-exec-ok && cat /etc/alpine-release")
+	must(t, out, err, "devcontainer exec")
+	if !strings.Contains(out, "dc-exec-ok") {
+		t.Fatalf("devcontainer exec output unexpected:\n%s", out)
+	}
+	t.Logf("Dev Containers CLI ran through the Hawser pipe")
 }
 
 func stageHelloWorld(t *testing.T, s *state) {
