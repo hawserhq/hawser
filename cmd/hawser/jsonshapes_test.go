@@ -117,3 +117,28 @@ func TestHawserfileJSONMirrorsYAML(t *testing.T) {
 		}
 	}
 }
+
+func TestTraceShape(t *testing.T) {
+	m := roundTrip(t, traceJSON{Command: []string{"x"}, Actions: map[string]int{}, Images: []string{}, Containers: []string{}})
+	requireKeys(t, m, "command", "exitCode", "ms", "events", "actions", "images", "containers")
+	if _, ok := m["note"]; ok {
+		t.Error("note should be omitted when empty")
+	}
+	for _, k := range []string{"images", "containers"} {
+		if a, ok := m[k].([]any); !ok || a == nil {
+			t.Errorf("%s must be an array even when empty, got %v", k, m[k])
+		}
+	}
+}
+
+func TestRemoteShapes(t *testing.T) {
+	m := roundTrip(t, remoteListJSON{Current: "local", Remotes: []remoteEntryJSON{}})
+	requireKeys(t, m, "current", "remotes")
+	if a, ok := m["remotes"].([]any); !ok || a == nil {
+		t.Errorf("remotes must be an array even when empty, got %v", m["remotes"])
+	}
+	e := roundTrip(t, remoteEntryJSON{Current: true})
+	// The embedded remote.Info flattens: its keys sit beside current.
+	requireKeys(t, e, "name", "host", "added", "certNotAfter", "dir", "current")
+	requireKeys(t, roundTrip(t, remoteTestJSON{}), "name", "serverVersion", "ms")
+}
