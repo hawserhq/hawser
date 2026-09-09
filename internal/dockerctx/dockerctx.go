@@ -190,3 +190,70 @@ func (m *Manager) Remove(ctx context.Context, restoreTo string) error {
 	_, err = m.run(ctx, "context", "rm", Name)
 	return err
 }
+
+// The remote-engine contexts (#138): the same operations for an arbitrary
+// context name, so `hawser remote` can back hawser-<name> with TLS material.
+
+// ExistsNamed reports whether a context is defined.
+func (m *Manager) ExistsNamed(ctx context.Context, name string) (bool, error) {
+	out, err := m.run(ctx, "context", "ls", "--format", "{{.Name}}")
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if strings.TrimSpace(line) == name {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// CreateTLS creates a context for a mutual-TLS endpoint, or updates it when it
+// already exists. The --docker key=value form carries the certificate paths;
+// docker copies the files into its own metadata store, so the sources may move
+// afterwards without breaking the context.
+func (m *Manager) CreateTLS(ctx context.Context, name, description, host, caPath, certPath, keyPath string) error {
+	if err := m.Available(ctx); err != nil {
+		return err
+	}
+	spec := fmt.Sprintf("host=%s,ca=%s,cert=%s,key=%s", host, caPath, certPath, keyPath)
+	exists, err := m.ExistsNamed(ctx, name)
+	if err != nil {
+		return err
+	}
+	if exists {
+		_, err = m.run(ctx, "context", "update", name, "--docker", spec)
+		return err
+	}
+	_, err = m.run(ctx, "context", "create", name, "--description", description, "--docker", spec)
+	return err
+}
+
+// UseNamed selects a context as the default.
+func (m *Manager) UseNamed(ctx context.Context, name string) error {
+	_, err := m.run(ctx, "context", "use", name)
+	return err
+}
+
+// RemoveNamed deletes a context, switching to restoreTo first when it is the
+// current one (docker refuses to remove the context in use). A context that
+// does not exist is success: the caller asked for a state.
+func (m *Manager) RemoveNamed(ctx context.Context, name, restoreTo string) error {
+	if err := m.Available(ctx); err != nil {
+		return err
+	}
+	exists, err := m.ExistsNamed(ctx, name)
+	if err != nil || !exists {
+		return err
+	}
+	if current, err := m.Current(ctx); err == nil && current == name {
+		if restoreTo == "" {
+			restoreTo = "default"
+		}
+		if _, err := m.run(ctx, "context", "use", restoreTo); err != nil {
+			return fmt.Errorf("restoring context %q: %w", restoreTo, err)
+		}
+	}
+	_, err = m.run(ctx, "context", "rm", name)
+	return err
+}

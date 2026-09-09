@@ -129,8 +129,27 @@ from the request line only, never the body.
 The resulting install manifest: `{ "distro", "dataDir", "rootfsUrl",
 "rootfsSha256", "engineVersion", "installedAt", "wslVersion" }`.
 
-## Not yet JSON
+## `hawser remote … --json`
 
-`hawser remote` (#138) will ship with `--json` from the start. Anything else
-that gains state reporting must gain `--json` in the same change and be added
-here.
+- `remote --json` (list) →
+
+  ```json
+  {
+    "current": "desktop",
+    "remotes": [
+      { "name": "desktop", "host": "tcp://my-desktop.corp:2376", "added": "…",
+        "certNotAfter": "2028-09-09T16:00:00Z", "dir": "C:\\...\\remotes\\desktop", "current": true }
+    ]
+  }
+  ```
+
+  `current` is `"local"` when docker is on the `hawser` context, a remote's name
+  when on `hawser-<name>`, and `""` when docker is on some other context
+  entirely. `remotes` is always an array.
+- `remote test <name> --json` → `{ "name", "serverVersion", "ms" }`. Exits `1`
+  when the remote does not answer, `3` when no such remote.
+
+## The rule for new commands
+
+Anything that gains state reporting must gain `--json` in the same change and
+be added here; its shape goes in `cmd/hawser/jsonshapes.go` with a test.

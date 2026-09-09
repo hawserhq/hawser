@@ -1,5 +1,7 @@
 package main
 
+import "github.com/zcsizmadia/hawser/internal/remote"
+
 // The --json shapes: the CLI contract that machine consumers — the VS Code
 // extension, CI scripts, fleet tooling — depend on (#137). They are named types
 // so jsonshapes_test.go can pin every key. Changes are additive only; exit codes
@@ -77,4 +79,25 @@ type snapshotRestoredJSON struct {
 
 type snapshotDeletedJSON struct {
 	Deleted string `json:"deleted"`
+}
+
+// remoteListJSON is `hawser remote list --json` (#138). current is "local" when
+// docker is on the hawser context, a remote's name when on hawser-<name>, and ""
+// when docker is on some other context entirely.
+type remoteListJSON struct {
+	Current string            `json:"current"`
+	Remotes []remoteEntryJSON `json:"remotes"`
+}
+
+// remoteEntryJSON is a registered remote plus whether docker is on it now.
+type remoteEntryJSON struct {
+	remote.Info
+	Current bool `json:"current"`
+}
+
+// remoteTestJSON is `hawser remote test <name> --json`.
+type remoteTestJSON struct {
+	Name          string `json:"name"`
+	ServerVersion string `json:"serverVersion"`
+	Millis        int64  `json:"ms"`
 }

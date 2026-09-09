@@ -62,20 +62,43 @@ from any interface, or a specific address (e.g. `192.168.1.5:2376`) to limit it.
 ## Connecting a client
 
 Copy `ca.pem`, `client.pem`, and `client-key.pem` to the client machine, into a
-directory of their own, then:
+directory of their own, then register the remote — one command:
 
-**PowerShell**
+```
+hawser remote --host tcp://my-desktop.corp:2376 --certs C:\path\to\certs add desktop
+hawser remote test desktop          # engine version + round-trip time
+hawser remote use desktop           # plain `docker` now targets the remote
+hawser remote use local             # ...and back to the local engine
+```
+
+`add` validates the certificates (a wrong file fails here, not on first
+connect), copies them under Hawser's state dir with the key at 0600, and creates
+a docker context named **`hawser-desktop`** carrying the TLS material. Because
+it is a real docker context, **anything that follows the docker context follows
+the remote** — `docker compose`, and VS Code Dev Containers: "Reopen in
+Container" builds and runs on the remote engine. `hawser remote` lists remotes
+and which one docker is on; `hawser doctor` reports `remote:desktop` and warns
+two weeks before the client certificate expires. `hawser remote remove desktop`
+removes the context and the copied material.
+
+Both certificate layouts are accepted: what `hawser serve cert` writes
+(`ca.pem`, `client.pem`, `client-key.pem`) and docker's own
+(`ca.pem`, `cert.pem`, `key.pem`).
+
+### Without `hawser remote`
+
+Any docker client can reach the engine with the standard TLS variables, if you
+prefer to wire them yourself. `DOCKER_CERT_PATH` expects **`ca.pem`, `cert.pem`,
+`key.pem`**:
 
 ```powershell
-$env:DOCKER_HOST      = "tcp://my-desktop.corp:2376"
+$env:DOCKER_HOST       = "tcp://my-desktop.corp:2376"
 $env:DOCKER_TLS_VERIFY = "1"
-$env:DOCKER_CERT_PATH  = "C:\path\to\certs"   # holds ca.pem, cert.pem, key.pem
+$env:DOCKER_CERT_PATH  = "C:\path\to\certs"
 docker version
 ```
 
-`DOCKER_CERT_PATH` expects the files named **`ca.pem`, `cert.pem`, `key.pem`**.
-Rename `client.pem` → `cert.pem` and `client-key.pem` → `key.pem`, or pass them
-explicitly:
+or pass the files explicitly:
 
 ```
 docker --tlsverify --tlscacert ca.pem --tlscert client.pem --tlskey client-key.pem \
