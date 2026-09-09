@@ -153,3 +153,16 @@ func TestHealthcheckAndLogShapes(t *testing.T) {
 	l := roundTrip(t, logLineJSON{Source: "dockerd", Line: "x"})
 	requireKeys(t, l, "source", "line")
 }
+
+func TestPrewarmShape(t *testing.T) {
+	m := roundTrip(t, prewarmJSON{File: "images.txt", Concurrency: 3, Images: []prewarmImageJSON{}})
+	requireKeys(t, m, "file", "concurrency", "pulled", "failed", "ms", "images")
+	if a, ok := m["images"].([]any); !ok || a == nil {
+		t.Errorf("images must be an array even when empty, got %v", m["images"])
+	}
+	img := roundTrip(t, prewarmImageJSON{Ref: "alpine:3.20", OK: true})
+	requireKeys(t, img, "ref", "ok", "ms")
+	if _, ok := img["error"]; ok {
+		t.Error("error should be omitted for a successful pull")
+	}
+}

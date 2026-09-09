@@ -83,6 +83,7 @@ func TestAcceptance(t *testing.T) {
 		{"EngineLockReflectsInstall", stageLock},
 		{"AirGapBundlePacksRootfs", stageAirGap},
 		{"HelloWorld", stageHelloWorld},
+		{"PrewarmPullsPinnedImages", stagePrewarm},
 		{"AuditLogRecordsCalls", stageAudit},
 		{"HostCAsImportedIntoEngine", stageHostCAs},
 		{"BindMountReadThroughContainer", stageBindMount},
@@ -959,6 +960,34 @@ func stageGPU(t *testing.T, s *state) {
 		t.Fatalf("nvidia-smi listed no GPU in the container:\n%s", out)
 	}
 	t.Logf("GPU reachable in a container: %s", strings.TrimSpace(out))
+}
+
+// stagePrewarm proves `hawser prewarm` (#149) pulls a pinned list through
+// whatever docker targets — here the suite's engine via DOCKER_HOST — and
+// reports per-image results. hello-world is already present; alpine:latest is
+// new, and pre-pulling it here is exactly the warm-up the later stages enjoy.
+func stagePrewarm(t *testing.T, s *state) {
+	list := filepath.Join(s.workDir, "images.txt")
+	if err := os.WriteFile(list, []byte("# pinned by the suite\nhello-world\nalpine:latest\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err := runEnv(t, s.dockerEnv(), 5*time.Minute, s.hawser, "prewarm", "--json", list)
+	must(t, out, err, "hawser prewarm")
+	var res struct {
+		Pulled int `json:"pulled"`
+		Failed int `json:"failed"`
+		Images []struct {
+			Ref string `json:"ref"`
+			OK  bool   `json:"ok"`
+		} `json:"images"`
+	}
+	if err := json.Unmarshal([]byte(out), &res); err != nil {
+		t.Fatalf("prewarm --json is not JSON: %v\n%s", err, out)
+	}
+	if res.Pulled != 2 || res.Failed != 0 || len(res.Images) != 2 {
+		t.Fatalf("prewarm result unexpected: %+v", res)
+	}
+	t.Logf("prewarm pulled %d pinned images through the suite's engine", res.Pulled)
 }
 
 func stageHelloWorld(t *testing.T, s *state) {

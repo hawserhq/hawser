@@ -135,3 +135,21 @@ type logLineJSON struct {
 	Source string `json:"source"` // supervisor | dockerd | audit
 	Line   string `json:"line"`
 }
+
+// prewarmJSON is `hawser prewarm --json <file>` (#149). images is in list order
+// and always an array; the exit code is 0 only when failed is 0.
+type prewarmJSON struct {
+	File        string             `json:"file"`
+	Concurrency int                `json:"concurrency"`
+	Pulled      int                `json:"pulled"`
+	Failed      int                `json:"failed"`
+	Millis      int64              `json:"ms"`
+	Images      []prewarmImageJSON `json:"images"`
+}
+
+type prewarmImageJSON struct {
+	Ref    string `json:"ref"`
+	OK     bool   `json:"ok"`
+	Millis int64  `json:"ms"`
+	Error  string `json:"error,omitempty"`
+}

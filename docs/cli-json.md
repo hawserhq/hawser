@@ -210,6 +210,31 @@ needs one pipeline:
   or the audit event's JSON.
 - Exits `3` for `--source dockerd` with no engine installed.
 
+## `hawser prewarm --json <images.txt>`
+
+Pulls a pinned image list ahead of need (runner warm-up, golden-image bake,
+post-start hook), through whatever docker currently targets:
+
+```json
+{
+  "file": "images.txt",
+  "concurrency": 3,
+  "pulled": 2,
+  "failed": 1,
+  "ms": 8420,
+  "images": [
+    { "ref": "alpine:3.20", "ok": true, "ms": 1210 },
+    { "ref": "node:20@sha256:…", "ok": true, "ms": 8390 },
+    { "ref": "ghcr.io/x/missing:1", "ok": false, "ms": 640, "error": "manifest unknown" }
+  ]
+}
+```
+
+- `images` is in list order and always an array; `error` is omitted on success.
+- Exit `0` only when `failed` is `0`; a failed pull never stops the others.
+- The list file: one reference per line, `#` comments and blank lines ignored,
+  duplicates dropped. Digest pins encouraged.
+
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and
