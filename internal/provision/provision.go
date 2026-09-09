@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zcsizmadia/hawser/internal/winpath"
 	"github.com/zcsizmadia/hawser/internal/wsl"
 )
 
@@ -58,6 +59,22 @@ type Options struct {
 	Headless bool
 	// StartTimeout bounds the wait for dockerd's socket. Defaults to 60s.
 	StartTimeout time.Duration
+	// Network configures the engine for corporate networks (#62): a proxy for
+	// dockerd's pulls and extra CA certificates to trust. Applied on every
+	// engine start, so a rootfs re-import keeps it.
+	Network NetConfig
+}
+
+// NetConfig is the corporate-network configuration applied to the engine.
+type NetConfig struct {
+	// Proxy is the HTTP(S) proxy URL for dockerd (empty = none). NoProxy is the
+	// comma-separated bypass list.
+	Proxy   string
+	NoProxy string
+	// HostCAPEM is a PEM bundle of extra root CAs to trust — the fix for a
+	// TLS-inspecting corporate proxy whose root the engine does not know. Empty
+	// removes any Hawser-installed host CAs.
+	HostCAPEM []byte
 }
 
 func (o Options) withDefaults() Options {
@@ -255,6 +272,94 @@ func (p *Provisioner) engineVersionFromDistro(ctx context.Context, opts Options)
 	return strings.TrimSpace(out)
 }
 
+// Host-CA install paths. The bundle is staged whole, then split into one file
+// per certificate because Alpine's update-ca-certificates skips any .crt that is
+// not exactly one certificate. The glob is Hawser's own, so turning the feature
+// off removes exactly what it added.
+const (
+	hostCABundle = "/etc/hawser/host-cas-bundle.pem"
+	hostCADir    = "/usr/local/share/ca-certificates"
+	hostCAGlob   = hostCADir + "/hawser-host-*.crt"
+)
+
+// proxyEnv builds the shell env file dockerd sources: HTTP(S)_PROXY and NO_PROXY
+// in both cases. Empty proxy yields an empty file (clears any prior setting).
+func proxyEnv(proxy, noProxy string) string {
+	proxy = strings.TrimSpace(proxy)
+	if proxy == "" {
+		return ""
+	}
+	var b strings.Builder
+	for _, k := range []string{"HTTP_PROXY", "HTTPS_PROXY", "http_proxy", "https_proxy"} {
+		fmt.Fprintf(&b, "export %s=%q\n", k, proxy)
+	}
+	np := "localhost,127.0.0.1"
+	if extra := strings.TrimSpace(noProxy); extra != "" {
+		np += "," + extra
+	}
+	fmt.Fprintf(&b, "export NO_PROXY=%q\nexport no_proxy=%q\n", np, np)
+	return b.String()
+}
+
+// applyNetwork writes the proxy env file and installs (or removes) the host CA
+// bundle. Best-effort: a network-config failure logs but does not stop the
+// engine, which must still come up.
+func (p *Provisioner) applyNetwork(ctx context.Context, opts Options) {
+	if err := p.writeDistroFile(ctx, opts, "/etc/hawser/network.env",
+		[]byte(proxyEnv(opts.Network.Proxy, opts.Network.NoProxy))); err != nil {
+		p.logger().Warn("could not write engine proxy config", "error", err)
+	}
+
+	if len(opts.Network.HostCAPEM) > 0 {
+		if err := p.writeDistroFile(ctx, opts, hostCABundle, opts.Network.HostCAPEM); err != nil {
+			p.logger().Warn("could not stage host CAs", "error", err)
+			return
+		}
+		// Split the bundle into one cert per file (Alpine requirement) under
+		// Hawser's own prefix, then rebuild the trust store.
+		split := "rm -f " + hostCAGlob + "; " +
+			`awk '/-----BEGIN CERTIFICATE-----/{n++} {print > ("` + hostCADir + `/hawser-host-" n ".crt")}' ` + hostCABundle + "; " +
+			"update-ca-certificates 2>&1"
+		if out, err := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c", split); err != nil {
+			p.logger().Warn("installing host CAs failed", "error", err, "output", strings.TrimSpace(out))
+		} else {
+			p.logger().Info("imported host CA certificates into the engine trust store")
+		}
+	} else {
+		// Off: remove everything Hawser added and refresh the bundle.
+		p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c",
+			"rm -f "+hostCAGlob+" "+hostCABundle+"; update-ca-certificates >/dev/null 2>&1 || true")
+	}
+}
+
+// writeDistroFile writes content to a path in the distro. The content is staged
+// in a host temp file the distro reads over the /mnt automount, rather than
+// passed as a shell argument — a full CA bundle is hundreds of KB, well past the
+// command-line length limit.
+func (p *Provisioner) writeDistroFile(ctx context.Context, opts Options, path string, content []byte) error {
+	tmp, err := os.CreateTemp(opts.StateDir, ".distrowrite-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+	if _, err := tmp.Write(content); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	mnt, err := winpath.ToWSL(tmpName)
+	if err != nil {
+		return err
+	}
+	cmd := "mkdir -p \"$(dirname " + path + ")\" && cp '" + mnt + "' " + path
+	_, err = p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c", cmd)
+	return err
+}
+
 // StartEngine launches dockerd and waits for its socket.
 func (p *Provisioner) StartEngine(ctx context.Context, opts Options) error {
 	opts = opts.withDefaults()
@@ -270,11 +375,16 @@ func (p *Provisioner) StartEngine(ctx context.Context, opts Options) error {
 		return nil
 	}
 
+	// Corporate-network config is applied before launch and sourced by the
+	// dockerd command, so proxy env and trusted CAs are in place for the very
+	// first registry pull (#62).
+	p.applyNetwork(ctx, opts)
+
 	p.logger().Info("starting dockerd", "distro", opts.Distro)
 	// Output goes to a log inside the distro; the caller gets it via
 	// `hawser logs` rather than having it interleaved here.
 	if _, err := p.wsl().Start(ctx, opts.Distro, "root",
-		"sh", "-c", "dockerd >>/var/log/dockerd.log 2>&1"); err != nil {
+		"sh", "-c", "[ -f /etc/hawser/network.env ] && . /etc/hawser/network.env; dockerd >>/var/log/dockerd.log 2>&1"); err != nil {
 		return fmt.Errorf("launching dockerd: %w", err)
 	}
 	p.ensureAgentSecret(ctx, opts)

@@ -14,6 +14,7 @@ import (
 	"github.com/zcsizmadia/hawser/internal/audit"
 	"github.com/zcsizmadia/hawser/internal/config"
 	"github.com/zcsizmadia/hawser/internal/dockerctx"
+	"github.com/zcsizmadia/hawser/internal/hostca"
 	"github.com/zcsizmadia/hawser/internal/logging"
 	"github.com/zcsizmadia/hawser/internal/pipeproxy"
 	"github.com/zcsizmadia/hawser/internal/profile"
@@ -133,6 +134,21 @@ flags:
 	// traffic feeds the supervisor's idle detection, and the supervisor's
 	// Demand wakes an idle-stopped engine for the server's next connection.
 	dialer := engineDialer(targetDistro, "", opts.StateDir, log)
+
+	// Corporate-network config (#62): proxy + host CA trust, applied to the
+	// engine on every start. Read once here — toggling it needs `hawser restart`
+	// so the change re-applies and dockerd restarts to pick it up.
+	if c, err := config.Load(opts.StateDir); err == nil {
+		opts.Network = provision.NetConfig{Proxy: c.Proxy, NoProxy: c.NoProxy}
+		if c.ImportHostCAs {
+			if pem, err := hostca.HostRootCAs(ctx); err != nil {
+				log.Warn("host CA import is on but the store could not be read", "error", err)
+			} else {
+				opts.Network.HostCAPEM = pem
+				log.Info("importing host CA certificates into the engine")
+			}
+		}
+	}
 
 	// Bind-path rewriting is always on; the audit log (#121) wraps it when
 	// enabled. Read once at start — toggling it needs `hawser restart`.

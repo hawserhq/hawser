@@ -51,6 +51,13 @@ to clear one. Events:
   %s  after the idle timeout stops the engine
   %s      after the engine cold-starts on demand
 `, config.KeyHookPostStart, config.KeyHookPreStop, config.KeyHookOnIdleStop, config.KeyHookOnWake)
+		fmt.Fprintf(os.Stderr, `
+Corporate network (applied on `+"`hawser restart`"+`):
+  %s          http(s):// proxy for the engine's registry pulls
+  %s       proxy bypass list (comma-separated)
+  %s   trust the host's root CA store inside the engine
+                             (the fix for a TLS-inspecting proxy; on/off)
+`, config.KeyProxy, config.KeyNoProxy, config.KeyImportHostCAs)
 		fmt.Fprintf(os.Stderr, "\nExit codes: 0 ok, %d error, %d usage.\n", exitError, exitUsage)
 		fs.PrintDefaults()
 	}

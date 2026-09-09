@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/zcsizmadia/hawser/internal/config"
 	"github.com/zcsizmadia/hawser/internal/provision"
 	"github.com/zcsizmadia/hawser/internal/supervise"
 	"github.com/zcsizmadia/hawser/internal/version"
@@ -51,6 +52,11 @@ type Facts struct {
 	// Session0 is advisory guidance about unattended (no-logon) operation; see
 	// checkSession0.
 	Session0 Session0Info
+
+	// Proxy is the configured engine proxy URL; ImportHostCAs whether host CA
+	// trust is on (#62).
+	Proxy         string
+	ImportHostCAs bool
 }
 
 // CredHelper is one docker credential helper referenced by the CLI config, and
@@ -136,6 +142,11 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 
 	f.CredHelpers = discoverCredHelpers(dockerConfigPath(), execLookPath)
 	f.Disk = diskInfo(engineDataDir(stateDir))
+
+	if c, err := config.Load(stateDir); err == nil {
+		f.Proxy = c.Proxy
+		f.ImportHostCAs = c.ImportHostCAs
+	}
 
 	return f
 }

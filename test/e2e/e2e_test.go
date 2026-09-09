@@ -76,6 +76,7 @@ func TestAcceptance(t *testing.T) {
 		{"BuildHawser", stageBuild},
 		{"InstallFromPublishedRelease", stageInstall},
 		{"EnableAuditLog", stageEnableAudit},
+		{"EnableHostCAImport", stageEnableHostCAs},
 		{"StartProxy", stageProxy},
 		{"DoctorReportsHealthy", stageDoctor},
 		{"DeclarativeExportAndConverge", stageDeclarative},
@@ -83,6 +84,7 @@ func TestAcceptance(t *testing.T) {
 		{"AirGapBundlePacksRootfs", stageAirGap},
 		{"HelloWorld", stageHelloWorld},
 		{"AuditLogRecordsCalls", stageAudit},
+		{"HostCAsImportedIntoEngine", stageHostCAs},
 		{"BindMountReadThroughContainer", stageBindMount},
 		{"ExecInRunningContainer", stageExec},
 		{"StdinPipeIntoContainer", stageStdinPipe},
@@ -691,6 +693,30 @@ func stageSnapshot(t *testing.T, s *state) {
 	if strings.Contains(out, "e2e") {
 		t.Errorf("snapshot still listed after delete:\n%s", out)
 	}
+}
+
+// stageEnableHostCAs turns on host-CA import before the supervisor starts, so
+// the engine trusts the host's roots (#62). Set here (like the audit log)
+// because the network config is read at supervise start. Harmless to the rest
+// of the run: it only adds trusted roots.
+func stageEnableHostCAs(t *testing.T, s *state) {
+	out, err := run(t, 30*time.Second, s.hawser, "config", "--state-dir", s.stateDir, "set", "network.import-host-cas", "on")
+	must(t, out, err, "config set network.import-host-cas on")
+}
+
+// stageHostCAs verifies the host CA import landed in the engine's trust store.
+func stageHostCAs(t *testing.T, s *state) {
+	// One file per imported cert lands under the CA source dir (Alpine splits them).
+	out, err := run(t, 60*time.Second, "wsl.exe", "-d", distro, "-u", "root", "sh", "-c",
+		"find /usr/local/share/ca-certificates -name 'hawser-host-*.crt' | wc -l")
+	if err != nil {
+		t.Fatalf("checking imported CAs: %v\n%s", err, out)
+	}
+	out = strings.TrimSpace(strings.ReplaceAll(out, "\x00", ""))
+	if out == "0" || out == "" {
+		t.Fatalf("no host CA certificates imported into the engine (got %q)", out)
+	}
+	t.Logf("engine now trusts %s imported host CA certificate(s)", out)
 }
 
 func stageHelloWorld(t *testing.T, s *state) {

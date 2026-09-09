@@ -44,6 +44,21 @@ func HookKeys() []string {
 // Changing it takes effect on the next `hawser restart`.
 const KeyAudit = "audit"
 
+// Corporate-network keys (#62), applied to the engine on the next `hawser
+// restart`. NetworkKeys enumerates them.
+const (
+	// KeyProxy is the HTTP(S) proxy URL dockerd uses for registry pulls.
+	KeyProxy = "network.proxy"
+	// KeyNoProxy is the comma-separated proxy bypass list.
+	KeyNoProxy = "network.no-proxy"
+	// KeyImportHostCAs, when on, trusts the host's root CA store inside the
+	// engine — the fix for a TLS-inspecting corporate proxy.
+	KeyImportHostCAs = "network.import-host-cas"
+)
+
+// NetworkKeys lists the corporate-network keys.
+func NetworkKeys() []string { return []string{KeyProxy, KeyNoProxy, KeyImportHostCAs} }
+
 // path is the settings file inside the state dir.
 func path(stateDir string) string {
 	return filepath.Join(stateDir, "config.json")
@@ -55,6 +70,11 @@ type Config struct {
 	IdleTimeout time.Duration
 	// Audit enables the container-affecting API audit log.
 	Audit bool
+	// Proxy / NoProxy configure dockerd's registry proxy; ImportHostCAs trusts
+	// the host root CA store inside the engine.
+	Proxy         string
+	NoProxy       string
+	ImportHostCAs bool
 }
 
 // Load parses the settings file. A missing file is the default configuration,
@@ -74,6 +94,9 @@ func Load(stateDir string) (Config, error) {
 		c.IdleTimeout = d
 	}
 	c.Audit = raw[KeyAudit] == "on"
+	c.Proxy = raw[KeyProxy]
+	c.NoProxy = raw[KeyNoProxy]
+	c.ImportHostCAs = raw[KeyImportHostCAs] == "on"
 	return c, nil
 }
 
@@ -110,6 +133,21 @@ var validators = map[string]func(string) (string, error){
 	KeyHookOnIdleStop: validateHookPath,
 	KeyHookOnWake:     validateHookPath,
 	KeyAudit:          validateOnOff,
+	KeyProxy:          validateProxy,
+	KeyNoProxy:        func(v string) (string, error) { return strings.TrimSpace(v), nil },
+	KeyImportHostCAs:  validateOnOff,
+}
+
+// validateProxy accepts an http(s) URL, or empty to clear.
+func validateProxy(v string) (string, error) {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return "", nil
+	}
+	if !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
+		return "", fmt.Errorf("%q must be an http:// or https:// URL", v)
+	}
+	return v, nil
 }
 
 // validateOnOff normalizes a boolean-ish setting to "on" or "off".
@@ -182,7 +220,7 @@ func Get(stateDir, key string) (string, error) {
 
 func defaultFor(key string) string {
 	switch key {
-	case KeyIdleTimeout, KeyAudit:
+	case KeyIdleTimeout, KeyAudit, KeyImportHostCAs:
 		return "off"
 	}
 	return ""
