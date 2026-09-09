@@ -59,6 +59,12 @@ const (
 // NetworkKeys lists the corporate-network keys.
 func NetworkKeys() []string { return []string{KeyProxy, KeyNoProxy, KeyImportHostCAs} }
 
+// KeyGPU, when on, installs the NVIDIA CDI spec in the engine on every start so
+// containers can use the GPU (#83). "off" (the default) removes it. Set through
+// `hawser enable-gpu` rather than by hand, since that also verifies the GPU is
+// visible and restarts the engine.
+const KeyGPU = "gpu"
+
 // path is the settings file inside the state dir.
 func path(stateDir string) string {
 	return filepath.Join(stateDir, "config.json")
@@ -75,6 +81,8 @@ type Config struct {
 	Proxy         string
 	NoProxy       string
 	ImportHostCAs bool
+	// GPU installs the NVIDIA CDI spec so containers can use the GPU (#83).
+	GPU bool
 }
 
 // Load parses the settings file. A missing file is the default configuration,
@@ -97,6 +105,7 @@ func Load(stateDir string) (Config, error) {
 	c.Proxy = raw[KeyProxy]
 	c.NoProxy = raw[KeyNoProxy]
 	c.ImportHostCAs = raw[KeyImportHostCAs] == "on"
+	c.GPU = raw[KeyGPU] == "on"
 	return c, nil
 }
 
@@ -136,6 +145,7 @@ var validators = map[string]func(string) (string, error){
 	KeyProxy:          validateProxy,
 	KeyNoProxy:        func(v string) (string, error) { return strings.TrimSpace(v), nil },
 	KeyImportHostCAs:  validateOnOff,
+	KeyGPU:            validateOnOff,
 }
 
 // validateProxy accepts an http(s) URL, or empty to clear.
@@ -220,7 +230,7 @@ func Get(stateDir, key string) (string, error) {
 
 func defaultFor(key string) string {
 	switch key {
-	case KeyIdleTimeout, KeyAudit, KeyImportHostCAs:
+	case KeyIdleTimeout, KeyAudit, KeyImportHostCAs, KeyGPU:
 		return "off"
 	}
 	return ""

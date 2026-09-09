@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zcsizmadia/hawser/internal/gpu"
 	"github.com/zcsizmadia/hawser/internal/winpath"
 	"github.com/zcsizmadia/hawser/internal/wsl"
 )
@@ -63,6 +64,10 @@ type Options struct {
 	// dockerd's pulls and extra CA certificates to trust. Applied on every
 	// engine start, so a rootfs re-import keeps it.
 	Network NetConfig
+	// GPUEnabled writes the NVIDIA CDI spec into the distro so containers can use
+	// the GPU (#83). Like Network, applied on every engine start so a rootfs
+	// re-import keeps it.
+	GPUEnabled bool
 }
 
 // NetConfig is the corporate-network configuration applied to the engine.
@@ -332,6 +337,53 @@ func (p *Provisioner) applyNetwork(ctx context.Context, opts Options) {
 	}
 }
 
+// applyGPU writes or removes the NVIDIA CDI spec in the distro (#83), so a
+// container started with `--device nvidia.com/gpu=all` gets the WSL GPU mounts.
+// Best-effort, like applyNetwork: a spec-write failure logs but never blocks the
+// engine from coming up.
+func (p *Provisioner) applyGPU(ctx context.Context, opts Options) {
+	if opts.GPUEnabled {
+		if err := p.writeDistroFile(ctx, opts, gpu.CDISpecPath, gpu.CDISpec()); err != nil {
+			p.logger().Warn("could not install the GPU CDI spec", "error", err)
+		} else {
+			p.logger().Info("GPU CDI spec installed", "path", gpu.CDISpecPath)
+		}
+	} else {
+		p.wsl().Exec(ctx, opts.Distro, "root", "rm", "-f", gpu.CDISpecPath)
+	}
+}
+
+// GPUAvailable reports whether the engine distro can see the GPU: WSL's driver
+// projection (/dev/dxg and libcuda) must be present, which it is only on an
+// NVIDIA machine with a WSL-capable driver. Host-side and cheap; boots nothing.
+func (p *Provisioner) GPUAvailable(ctx context.Context, opts Options) bool {
+	opts = opts.withDefaults()
+	out, err := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c",
+		"[ -e "+gpu.DxgDevice+" ] && [ -e "+gpu.ProbeLib+" ] && echo ok")
+	return err == nil && strings.Contains(out, "ok")
+}
+
+// ConfigureGPU writes (enabled) or removes (disabled) the CDI spec in the distro
+// immediately. dockerd reads CDI specs dynamically, so no restart is strictly
+// required, but callers typically restart to be certain the change is live.
+func (p *Provisioner) ConfigureGPU(ctx context.Context, opts Options, enabled bool) error {
+	opts = opts.withDefaults()
+	opts.GPUEnabled = enabled
+	if enabled {
+		return p.writeDistroFile(ctx, opts, gpu.CDISpecPath, gpu.CDISpec())
+	}
+	_, err := p.wsl().Exec(ctx, opts.Distro, "root", "rm", "-f", gpu.CDISpecPath)
+	return err
+}
+
+// GPUSpecInstalled reports whether the CDI spec is present in the distro.
+func (p *Provisioner) GPUSpecInstalled(ctx context.Context, opts Options) bool {
+	opts = opts.withDefaults()
+	out, err := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c",
+		"[ -f "+gpu.CDISpecPath+" ] && echo yes")
+	return err == nil && strings.Contains(out, "yes")
+}
+
 // writeDistroFile writes content to a path in the distro. The content is staged
 // in a host temp file the distro reads over the /mnt automount, rather than
 // passed as a shell argument — a full CA bundle is hundreds of KB, well past the
@@ -379,6 +431,10 @@ func (p *Provisioner) StartEngine(ctx context.Context, opts Options) error {
 	// dockerd command, so proxy env and trusted CAs are in place for the very
 	// first registry pull (#62).
 	p.applyNetwork(ctx, opts)
+
+	// GPU CDI spec, likewise applied before launch so the engine picks it up on
+	// startup and a rootfs re-import keeps GPU access (#83).
+	p.applyGPU(ctx, opts)
 
 	p.logger().Info("starting dockerd", "distro", opts.Distro)
 	// Output goes to a log inside the distro; the caller gets it via

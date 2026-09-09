@@ -32,7 +32,15 @@ func (e engineAdapter) Running(ctx context.Context) bool {
 	return e.p.EngineRunning(ctx, e.opts)
 }
 func (e engineAdapter) Start(ctx context.Context) error {
-	return e.p.StartEngine(ctx, e.opts)
+	// GPU config is re-read fresh on every engine start so `hawser enable-gpu`
+	// (and --off) take effect on the next start without cycling the supervisor:
+	// the supervisor persists across `hawser restart`, so a value captured once
+	// at its launch would go stale (#83).
+	opts := e.opts
+	if c, err := config.Load(opts.StateDir); err == nil {
+		opts.GPUEnabled = c.GPU
+	}
+	return e.p.StartEngine(ctx, opts)
 }
 func (e engineAdapter) Stop(ctx context.Context) error {
 	return e.p.StopEngine(ctx, e.opts)
@@ -148,6 +156,8 @@ flags:
 				log.Info("importing host CA certificates into the engine")
 			}
 		}
+		// GPU CDI spec (#83), re-applied on every start like the network config.
+		opts.GPUEnabled = c.GPU
 	}
 
 	// Bind-path rewriting is always on; the audit log (#121) wraps it when

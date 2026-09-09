@@ -92,6 +92,7 @@ func TestAcceptance(t *testing.T) {
 		{"ComposeStack", stageCompose},
 		{"DevContainerUpThroughPipe", stageDevContainer},
 		{"DockerCLIBundleInstalls", stageDockerCLIBundle},
+		{"GPUPassthroughIfPresent", stageGPU},
 		{"WSLIntegrateSharesEngine", stageWSLIntegrate},
 		{"MigrateFromDesktop", stageMigrate},
 		{"EngineConfigValidatesAndApplies", stageEngineConfig},
@@ -873,6 +874,39 @@ func stageDockerCLIBundle(t *testing.T, s *state) {
 		t.Errorf("credential helper not installed: %v", err)
 	}
 	t.Logf("docker CLI bundle installed and every tool runs")
+}
+
+// stageGPU proves NVIDIA GPU passthrough (#83) end to end when the machine has
+// an NVIDIA GPU, and skips cleanly when it does not (CI, AMD/Intel). It enables
+// GPU, checks the CDI device registered, and runs nvidia-smi in a container via
+// `--device nvidia.com/gpu=all` — the whole point of the feature.
+func stageGPU(t *testing.T, s *state) {
+	out, err := run(t, 60*time.Second, "wsl.exe", "-d", distro, "-u", "root", "sh", "-c",
+		"[ -e /dev/dxg ] && [ -e /usr/lib/wsl/lib/libcuda.so.1 ] && echo gpu-ok")
+	if err != nil || !strings.Contains(out, "gpu-ok") {
+		t.Skip("no NVIDIA GPU visible to WSL; skipping GPU passthrough")
+	}
+
+	out, err = run(t, 60*time.Second, s.hawser, "enable-gpu", "--state-dir", s.stateDir, "--distro", distro)
+	must(t, out, err, "hawser enable-gpu")
+	defer run(t, 30*time.Second, s.hawser, "enable-gpu", "--off", "--state-dir", s.stateDir, "--distro", distro)
+
+	// The CDI device must be registered with the engine.
+	info, err := dockerE(t, s, 30*time.Second, "info")
+	must(t, info, err, "docker info")
+	if !strings.Contains(info, "nvidia.com/gpu") {
+		t.Fatalf("engine did not register the nvidia CDI device:\n%s", info)
+	}
+
+	// A container must see the GPU through the hookless CDI spec. ubuntu (glibc)
+	// runs the WSL-injected nvidia-smi.
+	out, err = dockerE(t, s, 5*time.Minute, "run", "--rm", "--device", "nvidia.com/gpu=all",
+		"ubuntu:22.04", "nvidia-smi", "-L")
+	must(t, out, err, "docker run --device nvidia.com/gpu=all nvidia-smi")
+	if !strings.Contains(out, "GPU 0") {
+		t.Fatalf("nvidia-smi listed no GPU in the container:\n%s", out)
+	}
+	t.Logf("GPU reachable in a container: %s", strings.TrimSpace(out))
 }
 
 func stageHelloWorld(t *testing.T, s *state) {

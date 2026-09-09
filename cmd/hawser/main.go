@@ -33,6 +33,7 @@ func commands() []command {
 		{"cli", "install the bundled docker CLI + compose + buildx (ditch Docker Desktop)", runCLI},
 		{"config", "list, get, or set Hawser settings (idle-timeout)", runConfig},
 		{"doctor", "diagnose the host and engine; --fix applies safe remedies", runDoctor},
+		{"enable-gpu", "install the NVIDIA CDI spec so containers can use the GPU", runEnableGPU},
 		{"install", "provision the engine distro and start it", runInstall},
 		{"lock", "write a hawser.lock pinning the exact engine (reproducible installs)", runLock},
 		{"migrate", "copy images and volumes from Docker Desktop into the engine", runMigrate},
