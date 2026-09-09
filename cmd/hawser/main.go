@@ -39,6 +39,7 @@ func commands() []command {
 		{"lock", "write a hawser.lock pinning the exact engine (reproducible installs)", runLock},
 		{"logs", "supervisor, dockerd, or audit log; --follow, --json for shippers", runLogs},
 		{"migrate", "copy images and volumes from Docker Desktop into the engine", runMigrate},
+		{"prewarm", "pull a pinned image list ahead of need (runner warm-up, golden images)", runPrewarm},
 		{"profile", "save and switch named settings profiles (work/home)", runProfile},
 		{"proxy", "serve the docker pipe in the foreground (debug mode)", runProxy},
 		{"remote", "register and switch to a remote engine served over mutual TLS", runRemote},
