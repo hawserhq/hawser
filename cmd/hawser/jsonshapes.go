@@ -173,3 +173,18 @@ type resetJSON struct {
 	EngineVersion string `json:"engineVersion,omitempty"`
 	Millis        int64  `json:"ms"`
 }
+
+// pruneJSON is `hawser prune --json` (#145): bytes reclaimed per step and in
+// total. steps is always an array in plan order; error is omitted on success.
+// Exit 0 only when failed is 0.
+type pruneJSON struct {
+	ReclaimedBytes int64           `json:"reclaimedBytes"`
+	Failed         int             `json:"failed"`
+	Steps          []pruneStepJSON `json:"steps"`
+}
+
+type pruneStepJSON struct {
+	Name           string `json:"name"` // containers | images | volumes | build-cache
+	ReclaimedBytes int64  `json:"reclaimedBytes"`
+	Error          string `json:"error,omitempty"`
+}

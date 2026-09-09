@@ -278,6 +278,30 @@ implied (no `--yes`, no running-container check):
 - Exit `3` when the snapshot does not exist or nothing is installed; `1` when
   the restore failed (the engine is brought back best-effort either way).
 
+## `hawser prune --json`
+
+Reclaims disk on whatever docker currently targets:
+
+```json
+{
+  "reclaimedBytes": 1234000000,
+  "failed": 0,
+  "steps": [
+    { "name": "containers",  "reclaimedBytes": 100000000 },
+    { "name": "images",      "reclaimedBytes": 1134000000 },
+    { "name": "build-cache", "reclaimedBytes": 0, "error": "..." }
+  ]
+}
+```
+
+- `steps` is in plan order (containers → images → volumes → build-cache) and
+  always an array; `error` is omitted on success. A failed step never stops the
+  others.
+- Exit `0` only when `failed` is `0`.
+- `--all` removes every unused image (default: dangling only); `--until 168h`
+  keeps anything newer; `--build-cache` and `--volumes` widen the sweep
+  (volumes hold data, so off by default).
+
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and

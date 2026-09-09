@@ -53,6 +53,9 @@ type Facts struct {
 
 	// Disk describes free space on the volume holding the engine's data.
 	Disk DiskInfo
+	// DiskWarnBelow is the configured free-space floor (`disk.warn-below`,
+	// #145) in bytes; 0 means checkDisk's built-in default.
+	DiskWarnBelow uint64
 
 	// Session0 is advisory guidance about unattended (no-logon) operation; see
 	// checkSession0.
@@ -199,6 +202,7 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 		f.Proxy = c.Proxy
 		f.ImportHostCAs = c.ImportHostCAs
 		f.GPU.ConfigEnabled = c.GPU
+		f.DiskWarnBelow = c.DiskWarnBelow
 	}
 
 	// GPU distro probes only when the engine is already up: GPUAvailable uses
