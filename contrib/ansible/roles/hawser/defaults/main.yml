@@ -1,0 +1,45 @@
+---
+# Hawser on a Windows host, for Ansible's win_* modules (#143).
+#
+# Pin the version. "latest" resolves at run time, which means two hosts
+# converged a week apart are not the same host -- the thing this role exists to
+# prevent.
+hawser_version: "0.3.0"
+
+# Where hawser.exe lands. Machine-wide so the runner account and any
+# provisioning account both see it.
+hawser_home: 'C:\Hawser'
+
+# Tag of zcsizmadia/setup-hawser whose install script is used, so a host, a
+# GitHub Action and a baked image all install Hawser the same way.
+hawser_setup_ref: "v1"
+
+# Optional: a `hawser bundle` zip already on the host (air-gapped install, #75).
+# When set, the engine is imported from it and nothing is downloaded.
+hawser_bundle_path: ""
+
+# Optional: a hawser.lock on the host, pinning the engine to the commit
+# (install --locked). Ignored when hawser_bundle_path is set.
+hawser_lockfile_path: ""
+
+# Engine settings applied through `hawser config set engine.<key>` -- the
+# validated allowlist, not raw daemon.json. Example:
+#   hawser_engine_config:
+#     registry-mirrors: "https://mirror.example.com"
+#     max-concurrent-downloads: "6"
+hawser_engine_config: {}
+
+# Hawser's own settings, applied through `hawser config set <key>`. Example:
+#   hawser_config:
+#     idle-timeout: "30m"
+#     disk-warn-below: "20G"
+hawser_config: {}
+
+# Register the logon autostart so the engine is up after a reboot.
+hawser_autostart: true
+
+# Images to pre-pull with `hawser prewarm` (a list of image references).
+hawser_prewarm_images: []
+
+# Fail the play when `hawser doctor` reports a failure. Warnings never fail.
+hawser_doctor_gate: true
