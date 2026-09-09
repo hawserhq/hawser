@@ -16,6 +16,38 @@ hawser audit tail --since 30m
 hawser audit tail -n 50
 ```
 
+## Tracing a command
+
+`hawser audit trace` answers "what did *that* just do to the engine?" — run
+anything, get a summary of the records written while it ran:
+
+```
+hawser audit trace -- act -j build
+hawser audit trace -- docker compose up -d
+hawser audit --json trace -- gitlab-ci-local test        # machine-readable
+hawser audit --raw trace -- ./deploy.ps1                 # the records themselves
+```
+
+```
+--- hawser audit trace: act -j build (exit 0, 41.2s) ---
+  container-create   3
+  container-start    3
+  exec-start         1
+  image-pull         2
+  images:     catthehacker/ubuntu:act-latest, node:20
+  containers: act-build-1a2b, db
+```
+
+It is the trace for opaque CI YAML — see exactly which images a pipeline pulls
+and which containers it starts, locally, before pushing — and for auditing a
+script you did not write. The traced command's exit code is propagated, so
+`hawser audit trace -- make test` fails exactly when `make test` does.
+
+Two honest limits: attribution is **by position in the log** (everything
+appended after the command started), so concurrent docker use during the run is
+included; and audit must already be on (it refuses with the recipe otherwise,
+rather than restarting the engine behind your back).
+
 ## What a record looks like
 
 One JSON line per call, written to `audit.log` in the state directory

@@ -665,6 +665,32 @@ func stageAudit(t *testing.T, s *state) {
 			t.Fatalf("audit line is not a valid event: %q (%v)", line, err)
 		}
 	}
+
+	// `audit trace` (#152): run a docker command under the trace and check the
+	// summary attributes its container to it. hello-world is already pulled, so
+	// the expected records are create/start, not a pull. The child inherits the
+	// suite's DOCKER_HOST so it reaches the suite's engine.
+	out, err := runEnv(t, s.dockerEnv(), 3*time.Minute, s.hawser,
+		"audit", "--state-dir", s.stateDir, "--json", "trace", "--", s.docker, "run", "--rm", "hello-world")
+	must(t, out, err, "audit trace")
+	// The traced command prints to the same stdout; the JSON summary is the
+	// trailing object.
+	i := strings.LastIndex(out, "\n{")
+	if i < 0 {
+		t.Fatalf("no JSON summary in trace output:\n%s", out)
+	}
+	var sum struct {
+		ExitCode int            `json:"exitCode"`
+		Events   int            `json:"events"`
+		Actions  map[string]int `json:"actions"`
+	}
+	if err := json.Unmarshal([]byte(out[i+1:]), &sum); err != nil {
+		t.Fatalf("trace summary is not JSON: %v\n%s", err, out[i+1:])
+	}
+	if sum.ExitCode != 0 || sum.Events == 0 || sum.Actions["container-create"] < 1 {
+		t.Fatalf("trace summary did not attribute the container run: %+v", sum)
+	}
+	t.Logf("audit trace attributed %d events (%d container-create) to the traced docker run", sum.Events, sum.Actions["container-create"])
 }
 
 // stageSnapshot exercises `hawser snapshot` (#122): a real `wsl --export` of the

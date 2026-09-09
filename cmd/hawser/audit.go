@@ -19,12 +19,20 @@ func runAudit(args []string) int {
 		stateDir = fs.String("state-dir", "", "override Hawser's state directory")
 		n        = fs.Int("n", 0, "show only the last N events (0 = all)")
 		since    = fs.Duration("since", 0, "show only events newer than this (e.g. 30m, 2h)")
-		asJSON   = fs.Bool("json", false, "emit the events as one JSON array instead of JSON lines")
+		asJSON   = fs.Bool("json", false, "emit the events as one JSON array instead of JSON lines (tail), or the summary as JSON (trace)")
+		raw      = fs.Bool("raw", false, "trace: print the matching records as JSON lines instead of a summary")
 	)
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, `usage: hawser audit tail [--since <dur>] [-n <count>]
+		fmt.Fprintf(os.Stderr, `usage: hawser audit tail [--since <dur>] [-n <count>] [--json]
+       hawser audit trace [--json|--raw] -- <cmd> [args...]
 
-Prints the container-affecting API audit log — image pulls, container
+trace runs a command and then summarizes what it did to the engine — images
+pulled, containers created, execs, builds — from the audit records written
+while it ran (a trace for opaque CI YAML: `+"`hawser audit trace -- act -j build`"+`).
+The command's exit code is propagated. Concurrent docker use during the run is
+included in the summary.
+
+tail prints the container-affecting API audit log — image pulls, container
 create/start/stop/remove, exec and builds that crossed the bridge — as the
 JSON lines they are recorded in. Enable recording with:
 
@@ -43,12 +51,16 @@ flags:
 		return exitUsage
 	}
 	rest := fs.Args()
-	if len(rest) != 1 || rest[0] != "tail" {
+	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
+	switch {
+	case len(rest) >= 1 && rest[0] == "trace":
+		return runAuditTrace(opts.StateDir, rest[1:], *asJSON, *raw)
+	case len(rest) == 1 && rest[0] == "tail":
+		// falls through to the tail below
+	default:
 		fs.Usage()
 		return exitUsage
 	}
-
-	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
 	path := filepath.Join(opts.StateDir, "audit.log")
 
 	f, err := os.Open(path)

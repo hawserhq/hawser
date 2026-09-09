@@ -101,3 +101,18 @@ type remoteTestJSON struct {
 	ServerVersion string `json:"serverVersion"`
 	Millis        int64  `json:"ms"`
 }
+
+// traceJSON is `hawser audit trace --json -- <cmd>` (#152): what the command
+// did to the engine. actions counts audit events by action name; images and
+// containers are the distinct ones touched (always arrays). exitCode is the
+// traced command's own, which the process also exits with.
+type traceJSON struct {
+	Command    []string       `json:"command"`
+	ExitCode   int            `json:"exitCode"`
+	Millis     int64          `json:"ms"`
+	Events     int            `json:"events"`
+	Actions    map[string]int `json:"actions"`
+	Images     []string       `json:"images"`
+	Containers []string       `json:"containers"`
+	Note       string         `json:"note,omitempty"`
+}

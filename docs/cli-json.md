@@ -149,6 +149,34 @@ The resulting install manifest: `{ "distro", "dataDir", "rootfsUrl",
 - `remote test <name> --json` → `{ "name", "serverVersion", "ms" }`. Exits `1`
   when the remote does not answer, `3` when no such remote.
 
+## `hawser audit trace --json -- <cmd> [args]`
+
+Runs the command, then reports what it did to the engine from the audit records
+appended while it ran:
+
+```json
+{
+  "command": ["act", "-j", "build"],
+  "exitCode": 0,
+  "ms": 41200,
+  "events": 9,
+  "actions": { "image-pull": 2, "container-create": 3, "container-start": 3, "exec-start": 1 },
+  "images": ["catthehacker/ubuntu:act-latest", "node:20"],
+  "containers": ["act-build-1a2b", "db"],
+  "note": "audit log rotated during the run; the summary covers the current file"
+}
+```
+
+- `exitCode` is the traced command's own; **the process exits with it too**, so
+  `audit trace -- make test` fails exactly when `make test` does.
+- `images` / `containers` are the distinct ones touched — always arrays.
+- `note` is omitted unless something qualifies the summary (rotation mid-run, or
+  no records written at all).
+- Attribution is by log position (appended after the command started), so
+  concurrent docker use during the run is included.
+- Requires `audit` to be on; otherwise exits `1` with the recipe.
+- `--raw` instead prints the matching records as JSON lines.
+
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and
