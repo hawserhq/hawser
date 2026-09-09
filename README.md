@@ -86,7 +86,8 @@ docker context. Nothing else on the system is touched.
   non-destructively and resumably (`--dry-run` first)
 - Optional status-light tray (`hawsertray.exe`) — six menu items, forever
 - Headless CI installs (`--headless`, exit codes, `--json` on every state-reporting command —
-  the contract in [docs/cli-json.md](docs/cli-json.md)), version pinning as a contract
+  the contract in [docs/cli-json.md](docs/cli-json.md)), `hawser healthcheck --wait` as a
+  runner readiness probe, `hawser logs --json` for log shippers, version pinning as a contract
   (nothing fetches "latest"), no telemetry
 - A logged-on session is required — a WSL2 platform constraint that binds every WSL-based
   engine; for CI runners see [docs/auto-logon-runner.md](docs/auto-logon-runner.md)

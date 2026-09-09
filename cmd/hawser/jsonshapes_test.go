@@ -142,3 +142,14 @@ func TestRemoteShapes(t *testing.T) {
 	requireKeys(t, e, "name", "host", "added", "certNotAfter", "dir", "current")
 	requireKeys(t, roundTrip(t, remoteTestJSON{}), "name", "serverVersion", "ms")
 }
+
+func TestHealthcheckAndLogShapes(t *testing.T) {
+	m := roundTrip(t, healthcheckJSON{Supervisor: "running", Engine: "idle", Ready: true, Reason: "r"})
+	requireKeys(t, m, "installed", "supervisor", "engine", "ready", "reason")
+	// reason is never omitted: a runner log must always be able to say why.
+	m = roundTrip(t, healthcheckJSON{})
+	requireKeys(t, m, "reason", "ready")
+
+	l := roundTrip(t, logLineJSON{Source: "dockerd", Line: "x"})
+	requireKeys(t, l, "source", "line")
+}

@@ -177,6 +177,39 @@ appended while it ran:
 - Requires `audit` to be on; otherwise exits `1` with the recipe.
 - `--raw` instead prints the matching records as JSON lines.
 
+## `hawser healthcheck --json`
+
+A readiness probe for runner warm-ups and orchestrators:
+
+```json
+{ "installed": true, "supervisor": "running", "engine": "idle", "ready": true,
+  "reason": "engine idle; wakes on the next docker command" }
+```
+
+- `ready` is the verdict the exit code carries: **`0` ready, `1` not ready,
+  `3` not installed**. `reason` is never omitted.
+- Ready means a docker command would succeed now: the supervisor is serving the
+  pipe **and** the engine is `running` or `idle` (idle wakes on demand).
+- `--wait <duration>` keeps probing until ready or the deadline; nothing is
+  started by the probe itself — pair it with `hawser start`.
+
+## `hawser logs --json`
+
+One object per line, the **same envelope for every source** so a log shipper
+needs one pipeline:
+
+```json
+{"source":"dockerd","line":"time=\"2026-09-09T16:44:18Z\" level=info msg=\"Daemon has completed initialization\""}
+{"source":"supervisor","line":"time=... level=INFO msg=\"engine socket is up\" distro=hawser-engine"}
+{"source":"audit","line":"{\"time\":\"...\",\"action\":\"image-pull\",...}"}
+```
+
+- `--source supervisor|dockerd|audit` (default supervisor); `-n <lines>` (default
+  200, `0` = all); `--follow` streams new lines and survives the 5 MB rotation.
+- `line` is the raw record; parse it further if you want dockerd's logfmt fields
+  or the audit event's JSON.
+- Exits `3` for `--source dockerd` with no engine installed.
+
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and
