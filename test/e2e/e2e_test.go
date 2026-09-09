@@ -75,12 +75,14 @@ func TestAcceptance(t *testing.T) {
 		{"Baselines", stageBaselines},
 		{"BuildHawser", stageBuild},
 		{"InstallFromPublishedRelease", stageInstall},
+		{"EnableAuditLog", stageEnableAudit},
 		{"StartProxy", stageProxy},
 		{"DoctorReportsHealthy", stageDoctor},
 		{"DeclarativeExportAndConverge", stageDeclarative},
 		{"EngineLockReflectsInstall", stageLock},
 		{"AirGapBundlePacksRootfs", stageAirGap},
 		{"HelloWorld", stageHelloWorld},
+		{"AuditLogRecordsCalls", stageAudit},
 		{"BindMountReadThroughContainer", stageBindMount},
 		{"ExecInRunningContainer", stageExec},
 		{"StdinPipeIntoContainer", stageStdinPipe},
@@ -612,6 +614,50 @@ func readAll(t *testing.T, r interface{ Read([]byte) (int, error) }) []byte {
 		}
 	}
 	return buf
+}
+
+// stageEnableAudit turns on the audit log before the supervisor starts, so the
+// bridge records the container-affecting calls the later stages make. The
+// handler is chosen at supervise start, which is why this runs before StartProxy.
+func stageEnableAudit(t *testing.T, s *state) {
+	out, err := run(t, 30*time.Second, s.hawser, "config", "--state-dir", s.stateDir, "set", "audit", "on")
+	must(t, out, err, "config set audit on")
+}
+
+// stageAudit verifies the audit log (#121) captured HelloWorld's activity: a
+// fresh engine pulls hello-world, then creates and starts a container — each a
+// JSON-lines record the bridge wrote.
+func stageAudit(t *testing.T, s *state) {
+	var out string
+	deadline := time.Now().Add(15 * time.Second)
+	for {
+		o, err := run(t, 30*time.Second, s.hawser, "audit", "--state-dir", s.stateDir, "tail")
+		must(t, o, err, "audit tail")
+		out = o
+		if strings.Contains(out, "container-create") {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("audit log never recorded a container-create:\n%s", out)
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	for _, want := range []string{"image-pull", "container-create", "container-start"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("audit log missing a %q record:\n%s", want, out)
+		}
+	}
+	// Every line is a well-formed JSON event with an action.
+	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
+		var ev struct {
+			Action string `json:"action"`
+			Time   string `json:"time"`
+		}
+		if err := json.Unmarshal([]byte(line), &ev); err != nil || ev.Action == "" || ev.Time == "" {
+			t.Fatalf("audit line is not a valid event: %q (%v)", line, err)
+		}
+	}
 }
 
 func stageHelloWorld(t *testing.T, s *state) {

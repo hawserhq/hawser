@@ -17,6 +17,13 @@ import (
 	"github.com/zcsizmadia/hawser/internal/winpath"
 )
 
+// AuditSink observes each proxied request for the audit log (#121). It is a
+// structural interface so pipeproxy stays decoupled from the audit package; a
+// nil sink disables auditing entirely (the default).
+type AuditSink interface {
+	Observe(start time.Time, method, path, rawQuery string, status int, err error)
+}
+
 // RewriteBinds is a Server.Handler that translates Windows bind paths on their
 // way to the engine, then gets out of the way.
 //
@@ -29,6 +36,16 @@ import (
 // The handler therefore proxies HTTP only until the engine signals a hijack,
 // then reverts to a raw byte relay for the life of the connection.
 func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
+	return rewriteBinds(client, engine, nil)
+}
+
+// RewriteBindsAudited is RewriteBinds with an audit sink wired in, for use as a
+// Server.Handler when the audit log is enabled.
+func RewriteBindsAudited(sink AuditSink) func(net.Conn, io.ReadWriteCloser) error {
+	return func(c net.Conn, e io.ReadWriteCloser) error { return rewriteBinds(c, e, sink) }
+}
+
+func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink) error {
 	clientR := bufio.NewReader(client)
 	engineR := bufio.NewReader(engine)
 
@@ -42,11 +59,13 @@ func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
 			}
 			return fmt.Errorf("read request: %w", err)
 		}
+		reqStart := time.Now()
 
 		if isContainerCreate(req) {
 			if err := rewriteCreateBody(req); err != nil {
 				// Refusing is better than forwarding a mount the user did not
 				// ask for; report it as the API would.
+				observe(audit, reqStart, req, http.StatusBadRequest, err)
 				return writeError(client, http.StatusBadRequest, err)
 			}
 		}
@@ -126,6 +145,7 @@ func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
 		// A real response is in hand: the engine is answering, so later EOFs on
 		// this connection are ordinary hang-ups, not "engine down" (#91).
 		responsesRelayed++
+		observe(audit, reqStart, req, resp.StatusCode, nil)
 
 		trace("RSP %d ct=%s cl=%d chunked=%v hijack=%v for %s",
 			resp.StatusCode, resp.Header.Get("Content-Type"), resp.ContentLength,
@@ -208,6 +228,15 @@ func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
 			}
 		}
 	}
+}
+
+// observe hands one completed request to the audit sink, if any. The sink
+// decides what is worth recording; a nil sink is a no-op.
+func observe(sink AuditSink, start time.Time, req *http.Request, status int, err error) {
+	if sink == nil {
+		return
+	}
+	sink.Observe(start, req.Method, req.URL.Path, req.URL.RawQuery, status, err)
 }
 
 // trace is debug logging for the relay and HTTP loop, enabled with
