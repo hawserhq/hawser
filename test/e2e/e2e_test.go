@@ -79,6 +79,7 @@ func TestAcceptance(t *testing.T) {
 		{"EnableHostCAImport", stageEnableHostCAs},
 		{"StartProxy", stageProxy},
 		{"DoctorReportsHealthy", stageDoctor},
+		{"RunnerCheckReports", stageRunnerCheck},
 		{"DeclarativeExportAndConverge", stageDeclarative},
 		{"EngineLockReflectsInstall", stageLock},
 		{"AirGapBundlePacksRootfs", stageAirGap},
@@ -988,6 +989,42 @@ func stagePrewarm(t *testing.T, s *state) {
 		t.Fatalf("prewarm result unexpected: %+v", res)
 	}
 	t.Logf("prewarm pulled %d pinned images through the suite's engine", res.Pulled)
+}
+
+// stageRunnerCheck proves `hawser runner check` (#150) evaluates the machine
+// and reports findings in the documented shape, with the exit code agreeing
+// with the verdict. The suite machine is normally not a runner (no auto-logon,
+// and the suite installs with --no-autostart), so the expected verdict is "not
+// ready" — but the assertions hold either way, so a real runner passes too.
+func stageRunnerCheck(t *testing.T, s *state) {
+	out, err := run(t, 60*time.Second, s.hawser, "runner", "--state-dir", s.stateDir, "--json", "check")
+	// A non-zero exit is the expected verdict here, not a failure of the command.
+	var res struct {
+		Ready    bool `json:"ready"`
+		Findings []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"findings"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &res); jerr != nil {
+		t.Fatalf("runner check --json is not JSON (%v): %v\n%s", jerr, err, out)
+	}
+	names := map[string]bool{}
+	for _, f := range res.Findings {
+		names[f.Name] = true
+		if f.Status != "ok" && f.Status != "warn" && f.Status != "fail" {
+			t.Errorf("finding %s has status %q", f.Name, f.Status)
+		}
+	}
+	for _, want := range []string{"autologon", "autostart", "supervisor", "engine"} {
+		if !names[want] {
+			t.Errorf("runner check is missing the %q finding: %+v", want, res.Findings)
+		}
+	}
+	if res.Ready != (err == nil) {
+		t.Errorf("exit code disagrees with the verdict: ready=%v err=%v", res.Ready, err)
+	}
+	t.Logf("runner check: ready=%v, %d findings", res.Ready, len(res.Findings))
 }
 
 func stageHelloWorld(t *testing.T, s *state) {

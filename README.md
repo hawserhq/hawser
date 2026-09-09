@@ -91,7 +91,8 @@ docker context. Nothing else on the system is touched.
   to pre-pull a pinned image list, version pinning as a contract (nothing fetches "latest"),
   no telemetry
 - A logged-on session is required — a WSL2 platform constraint that binds every WSL-based
-  engine; for CI runners see [docs/auto-logon-runner.md](docs/auto-logon-runner.md)
+  engine; for CI runners see [docs/auto-logon-runner.md](docs/auto-logon-runner.md), and
+  `hawser runner check` verifies the setup in one verdict
 
 ## What's ahead
 

@@ -93,7 +93,15 @@ Reboot. With no interactive login, from an SSH session or a remote build step:
 ```powershell
 docker version          # the engine answers
 hawser status --json    # "supervisor":"running","engine":"running"
+hawser runner check     # one verdict: auto-logon, autostart, supervisor, engine
 ```
+
+`hawser runner check` verifies every step above without elevation and names the
+missing one — including whether the auto-logon account is the one Hawser was
+installed for, and whether the password sits in clear text in the registry
+(step 3's warning). It compares the account name but never prints it. `--json`
+for fleet health scripts; `hawser doctor` includes the same check on any machine
+where auto-logon is configured.
 
 ## Security notes
 

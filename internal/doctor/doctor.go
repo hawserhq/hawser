@@ -89,6 +89,7 @@ func Registry() []Check {
 		checkGPU(),
 		checkDisk(),
 		checkSession0(),
+		checkRunner(),
 	}
 }
 
