@@ -71,6 +71,9 @@ docker context. Nothing else on the system is touched.
 - **Declarative installs**: `hawser install --config hawser.yaml` (idempotent) and
   `hawser config export` — infrastructure-as-code for a fleet
   ([docs/declarative-install.md](docs/declarative-install.md))
+- **NVIDIA GPU**: `hawser enable-gpu`, then `docker run --device nvidia.com/gpu=all …` runs
+  CUDA workloads (Ollama, vLLM, PyTorch) — a hookless CDI spec that works on the musl engine,
+  no toolkit installed ([docs/gpu.md](docs/gpu.md))
 - **Bundled docker CLI**: `hawser cli install` installs the upstream docker CLI + compose +
   buildx + credential helper — checksum-pinned, nothing fetched as "latest" — so you can
   uninstall Docker Desktop entirely ([docs/docker-cli.md](docs/docker-cli.md))
@@ -88,8 +91,8 @@ docker context. Nothing else on the system is touched.
 
 ## What's ahead
 
-VHDX compaction and data-dir relocation, pinned engine upgrades with rollback, GPU
-passthrough, and signed installers (winget/scoop/choco) — tracked in the
+VHDX compaction and data-dir relocation, pinned engine upgrades with rollback, and signed
+installers (winget/scoop/choco) — tracked in the
 [issue tracker](https://github.com/zcsizmadia/hawser/issues).
 
 ## What it will never be

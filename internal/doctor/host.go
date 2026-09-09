@@ -67,6 +67,26 @@ type Facts struct {
 
 	// CLI is the bundled docker CLI's install/PATH state (#66).
 	CLI CLIStatus
+
+	// GPU is the NVIDIA GPU-passthrough state (#83).
+	GPU GPUStatus
+}
+
+// GPUStatus describes GPU passthrough (#83): whether it is turned on in config,
+// and — only when the engine is already running, so doctor never boots it (#82)
+// — whether the distro actually sees the GPU and the CDI spec is installed.
+type GPUStatus struct {
+	// EngineInstalled gates the check; GPU is meaningless without an engine.
+	EngineInstalled bool `json:"engineInstalled"`
+	// ConfigEnabled is the `gpu` setting (`hawser enable-gpu`).
+	ConfigEnabled bool `json:"configEnabled"`
+	// Probed is true when the running engine was queried for the two below;
+	// false means the engine was down, so they are not authoritative.
+	Probed bool `json:"probed"`
+	// Visible is true when /dev/dxg and the WSL CUDA library are present.
+	Visible bool `json:"visible"`
+	// SpecInstalled is true when the CDI spec is present in the distro.
+	SpecInstalled bool `json:"specInstalled"`
 }
 
 // CLIStatus describes the bundled docker CLI (#66): whether it is installed,
@@ -158,6 +178,7 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 		pOpts.Distro = f.Report.Engine.Distro
 		f.EngineReachable = p.EngineRunning(ctx, pOpts)
 		f.EngineIdle = supervise.ReadEngineState(stateDir) == supervise.EngineIdle
+		f.GPU.EngineInstalled = true
 	}
 	f.SupervisorHeld = supervise.Held(stateDir)
 
@@ -167,6 +188,15 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 	if c, err := config.Load(stateDir); err == nil {
 		f.Proxy = c.Proxy
 		f.ImportHostCAs = c.ImportHostCAs
+		f.GPU.ConfigEnabled = c.GPU
+	}
+
+	// GPU distro probes only when the engine is already up: GPUAvailable uses
+	// wsl exec, which would boot a stopped distro, and doctor must not (#82).
+	if f.EngineReachable {
+		f.GPU.Probed = true
+		f.GPU.Visible = p.GPUAvailable(ctx, pOpts)
+		f.GPU.SpecInstalled = p.GPUSpecInstalled(ctx, pOpts)
 	}
 
 	f.VPNs = vpnfingerprint.Detect(gatherAdapters(ctx))
