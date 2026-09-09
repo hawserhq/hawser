@@ -831,6 +831,32 @@ func stageServeMTLS(t *testing.T, s *state) {
 		t.Fatalf("engine answered a client with NO certificate — mutual TLS is not enforced:\n%s", out)
 	}
 	t.Logf("client without a signed certificate correctly refused")
+
+	// The client side (#138): register the loopback server as a remote, prove
+	// the round trip through the docker context it creates, and clean up.
+	// `remote use` is deliberately not exercised: it would switch the machine's
+	// current docker context, which the suite must leave alone.
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Log("no docker on PATH for the remote client round trip; skipping that part")
+		return
+	}
+	out, err = run(t, 60*time.Second, s.hawser, "remote", "--state-dir", s.stateDir,
+		"--host", host, "--certs", tlsDir, "add", "e2e-loop")
+	must(t, out, err, "hawser remote add")
+	defer run(t, 30*time.Second, s.hawser, "remote", "--state-dir", s.stateDir, "remove", "e2e-loop")
+
+	out, err = run(t, 30*time.Second, s.hawser, "remote", "--state-dir", s.stateDir, "--json", "list")
+	must(t, out, err, "hawser remote list --json")
+	if !strings.Contains(out, `"e2e-loop"`) {
+		t.Fatalf("remote list --json does not show the remote:\n%s", out)
+	}
+
+	out, err = run(t, 60*time.Second, s.hawser, "remote", "--state-dir", s.stateDir, "test", "e2e-loop")
+	must(t, out, err, "hawser remote test")
+	if !strings.Contains(out, verOut) {
+		t.Errorf("remote test did not report server version %q:\n%s", verOut, out)
+	}
+	t.Logf("remote client round trip through context hawser-e2e-loop OK")
 }
 
 // stageDockerCLIBundle proves `hawser cli install` (#66) fetches and installs
