@@ -1,0 +1,28 @@
+---
+# Converge a fleet of Windows CI runners onto one pinned engine (#143).
+#
+#   ansible-galaxy collection install ansible.windows
+#   ansible-playbook -i inventory.ini contrib/ansible/playbook-example.yml
+#
+# Inventory needs WinRM or SSH reachability and an account with local admin (the
+# machine PATH and the WSL import both need it). The engine is per-user: run
+# this as the account the runner logs on as.
+- name: Hawser runners
+  hosts: windows_runners
+  gather_facts: true
+  roles:
+    - role: ../roles/hawser
+      vars:
+        hawser_version: "0.3.0"
+        # Same lock the developers commit, so laptop and runner run the same
+        # dockerd, containerd, runc and BuildKit -- to the commit.
+        hawser_lockfile_path: 'C:\ci\hawser.lock'
+        hawser_config:
+          idle-timeout: "0"          # a runner should not idle-stop mid-queue
+          disk-warn-below: "20G"
+        hawser_engine_config:
+          registry-mirrors: "https://mirror.example.com"
+          max-concurrent-downloads: "6"
+        hawser_prewarm_images:
+          - alpine:3.20
+          - node:20-bookworm-slim
