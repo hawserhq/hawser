@@ -53,6 +53,8 @@ func (f *fakeWSL) Status(context.Context) (wsl.Status, error) {
 	return f.status, f.statusErr
 }
 
+func (f *fakeWSL) Export(_ context.Context, distro, tarPath string) error { return nil }
+
 func (f *fakeWSL) Import(_ context.Context, distro, dir, rootfs string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()

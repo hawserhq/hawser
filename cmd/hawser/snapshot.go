@@ -1,0 +1,233 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"text/tabwriter"
+	"time"
+
+	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/zcsizmadia/hawser/internal/snapshot"
+	"github.com/zcsizmadia/hawser/internal/supervise"
+	"github.com/zcsizmadia/hawser/internal/wsl"
+)
+
+func runSnapshot(args []string) int {
+	fs := flag.NewFlagSet("snapshot", flag.ContinueOnError)
+	var (
+		stateDir = fs.String("state-dir", "", "override Hawser's state directory")
+		force    = fs.Bool("force", false, "proceed even if containers are running")
+		yes      = fs.Bool("yes", false, "skip the confirmation prompt (required for restore)")
+	)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `usage: hawser snapshot save <name>       capture the engine state
+       hawser snapshot list                list snapshots
+       hawser snapshot restore <name>      replace the engine with a snapshot
+       hawser snapshot delete <name>
+
+Saves and restores the whole engine state — every image, container and volume —
+as a named, checksummed archive. "Set up a dev environment, snapshot it, trash
+it during a risky test, restore it in seconds." Only Hawser's own distro is ever
+touched.
+
+save/restore refuse while containers are running (pass --force to override);
+restore is destructive and needs --yes.
+
+Exit codes: 0 ok, %d error, %d usage, %d no such snapshot / not installed.
+
+flags:
+`, exitError, exitUsage, exitNotFound)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+
+	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
+	log := cliLogger(false)
+	p := &provision.Provisioner{Logger: log}
+	m, err := p.ReadManifest(opts)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "hawser: no install found. Run `hawser install` first.")
+		return exitNotFound
+	}
+	opts.Distro = m.Distro
+	opts.DataDir = m.DataDir
+
+	mgr := &snapshot.Manager{
+		WSL:      &wsl.Local{},
+		StateDir: opts.StateDir,
+		Distro:   m.Distro,
+		DataDir:  m.DataDir,
+		Logger:   log,
+	}
+
+	rest := fs.Args()
+	switch {
+	case len(rest) == 0 || (rest[0] == "list" && len(rest) == 1):
+		return snapshotList(mgr)
+	case rest[0] == "save" && len(rest) == 2:
+		return snapshotSave(mgr, p, opts, m.EngineVersion, rest[1], *force)
+	case rest[0] == "restore" && len(rest) == 2:
+		return snapshotRestore(mgr, p, opts, rest[1], *force, *yes)
+	case rest[0] == "delete" && len(rest) == 2:
+		return snapshotDelete(mgr, rest[1])
+	default:
+		fs.Usage()
+		return exitUsage
+	}
+}
+
+func snapshotList(mgr *snapshot.Manager) int {
+	snaps, err := mgr.List()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+		return exitError
+	}
+	if len(snaps) == 0 {
+		fmt.Println("no snapshots; `hawser snapshot save <name>` captures the engine state")
+		return exitOK
+	}
+	tw := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+	fmt.Fprintln(tw, "NAME\tCREATED\tENGINE\tSIZE")
+	for _, s := range snaps {
+		fmt.Fprintf(tw, "%s\t%s\t%s\t%s\n", s.Name,
+			s.Created.Local().Format("2006-01-02 15:04"), orDash(s.EngineVersion), humanBytes(s.SizeBytes))
+	}
+	tw.Flush()
+	return exitOK
+}
+
+func snapshotSave(mgr *snapshot.Manager, p *provision.Provisioner, opts provision.Options, engineVersion, name string, force bool) int {
+	if err := snapshot.ValidName(name); err != nil {
+		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+		return exitUsage
+	}
+	if busy, why := containersRunning(p, opts); busy && !force {
+		fmt.Fprintf(os.Stderr, "hawser: %s; stop them or pass --force\n", why)
+		return exitError
+	}
+	// `wsl --export` terminates the distro for a consistent image; the
+	// supervisor brings the engine back afterward.
+	meta, err := mgr.Save(context.Background(), name, engineVersion)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+		return exitError
+	}
+	fmt.Printf("saved snapshot %q (%s)\n", meta.Name, humanBytes(meta.SizeBytes))
+	return exitOK
+}
+
+func snapshotRestore(mgr *snapshot.Manager, p *provision.Provisioner, opts provision.Options, name string, force, yes bool) int {
+	if !mgr.Exists(name) {
+		fmt.Fprintf(os.Stderr, "hawser: no such snapshot %q\n", name)
+		return exitNotFound
+	}
+	if busy, why := containersRunning(p, opts); busy && !force {
+		fmt.Fprintf(os.Stderr, "hawser: %s; stop them or pass --force\n", why)
+		return exitError
+	}
+	if !yes {
+		fmt.Fprintf(os.Stderr, "hawser: restoring %q replaces the current engine — every image, "+
+			"container and volume not in the snapshot is lost. Re-run with --yes to confirm.\n", name)
+		return exitError
+	}
+
+	ctx := context.Background()
+	if err := restoreWithEngine(ctx, mgr, p, opts, name); err != nil {
+		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+		return exitError
+	}
+	fmt.Printf("restored snapshot %q; the engine is back on that state\n", name)
+	return exitOK
+}
+
+func snapshotDelete(mgr *snapshot.Manager, name string) int {
+	if err := mgr.Delete(name); err != nil {
+		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+		return exitNotFound
+	}
+	fmt.Printf("deleted snapshot %q\n", name)
+	return exitOK
+}
+
+// restoreWithEngine pauses the engine (cooperating with the supervisor, like
+// the engine-config bounce), replaces the distro from the snapshot, then brings
+// it back on the restored state.
+func restoreWithEngine(ctx context.Context, mgr *snapshot.Manager, p *provision.Provisioner, opts provision.Options, name string) error {
+	const settle = 120 * time.Second
+	held := supervise.Held(opts.StateDir)
+
+	if held {
+		if err := supervise.WriteDesired(opts.StateDir, supervise.DesiredStopped); err != nil {
+			return err
+		}
+		if !waitFor(ctx, settle, func() bool { return !p.EngineRunning(ctx, opts) }) {
+			return fmt.Errorf("engine did not stop within %s", settle)
+		}
+	} else if err := p.StopEngine(ctx, opts); err != nil {
+		return err
+	}
+
+	if err := mgr.Restore(ctx, name); err != nil {
+		// Best-effort: bring the engine back up whatever happened.
+		if held {
+			supervise.WriteDesired(opts.StateDir, supervise.DesiredRunning)
+		} else {
+			p.StartEngine(ctx, opts)
+		}
+		return err
+	}
+
+	if held {
+		if err := supervise.WriteDesired(opts.StateDir, supervise.DesiredRunning); err != nil {
+			return err
+		}
+		if !waitFor(ctx, settle, func() bool { return p.EngineRunning(ctx, opts) }) {
+			return fmt.Errorf("restored engine did not come back within %s", settle)
+		}
+		return nil
+	}
+	return p.StartEngine(ctx, opts)
+}
+
+// containersRunning reports whether the engine has running containers, reusing
+// the idle busy-probe. A probe error is treated as "assume busy" so a snapshot
+// is never taken over an engine in an unknown state.
+func containersRunning(p *provision.Provisioner, opts provision.Options) (bool, string) {
+	if !p.EngineRunning(context.Background(), opts) {
+		return false, "" // down: nothing running
+	}
+	dialer := engineDialer(opts.Distro, "", opts.StateDir, cliLogger(true))
+	busy, err := busyProbe(dialer, cliLogger(true))(context.Background())
+	if err != nil {
+		return true, "could not confirm the engine is idle"
+	}
+	if busy {
+		return true, "containers are running"
+	}
+	return false, ""
+}
+
+func orDash(s string) string {
+	if s == "" {
+		return "-"
+	}
+	return s
+}
+
+// humanBytes formats a byte count with a binary unit suffix.
+func humanBytes(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	return fmt.Sprintf("%.1f %ciB", float64(b)/float64(div), "KMGTPE"[exp])
+}
