@@ -354,18 +354,15 @@ func runStatus(args []string) int {
 	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
 	p := &provision.Provisioner{Logger: cliLogger(true)}
 
-	st := struct {
-		Installed  bool   `json:"installed"`
-		Distro     string `json:"distro,omitempty"`
-		Supervisor string `json:"supervisor"`
-		Engine     string `json:"engine"`
-		Desired    string `json:"desired"`
-		Profile    string `json:"profile,omitempty"`
-	}{
+	st := statusJSON{
+		StateDir:   opts.StateDir,
 		Supervisor: "stopped",
 		Engine:     "stopped",
 		Desired:    string(supervise.ReadDesired(opts.StateDir)),
 		Profile:    (&profile.Manager{StateDir: opts.StateDir}).Active(),
+	}
+	if c, err := config.Load(opts.StateDir); err == nil {
+		st.GPU.Enabled = c.GPU
 	}
 
 	if distro, ok := resolveDistro(p, opts); ok {
@@ -378,6 +375,13 @@ func runStatus(args []string) int {
 		switch {
 		case p.EngineRunning(context.Background(), opts):
 			st.Engine = "running"
+			// GPU probes need the distro up (never boot it for status, #82) and
+			// are only worth two wsl calls when GPU is enabled at all.
+			if st.GPU.Enabled {
+				st.GPU.Probed = true
+				st.GPU.Visible = p.GPUAvailable(context.Background(), opts)
+				st.GPU.SpecInstalled = p.GPUSpecInstalled(context.Background(), opts)
+			}
 		case supervise.ReadEngineState(opts.StateDir) == supervise.EngineIdle:
 			// Down by design (#41): the idle timeout elapsed, and the next
 			// docker command wakes it. Scripts get to tell this from broken.

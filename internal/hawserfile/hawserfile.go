@@ -20,25 +20,28 @@ import (
 // File is the parsed hawser.yaml. Every field is optional; an absent field means
 // "leave it at the default / don't touch it," so a partial file is valid and
 // `config export` can omit what is unset.
+//
+// JSON tags mirror the YAML keys, so `profile show --json` and `config export
+// --json` emit the same document a hawser.yaml holds (#137).
 type File struct {
 	// Distro is the WSL distro name (install --distro).
-	Distro string `yaml:"distro,omitempty"`
+	Distro string `yaml:"distro,omitempty" json:"distro,omitempty"`
 	// DataDir is where the distro's VHDX lives (install --data-dir).
-	DataDir string `yaml:"data-dir,omitempty"`
+	DataDir string `yaml:"data-dir,omitempty" json:"data-dir,omitempty"`
 	// EngineVersion pins the engine (install --engine-version).
-	EngineVersion string `yaml:"engine-version,omitempty"`
+	EngineVersion string `yaml:"engine-version,omitempty" json:"engine-version,omitempty"`
 	// IdleTimeout is the `idle-timeout` setting (a duration or "off").
-	IdleTimeout string `yaml:"idle-timeout,omitempty"`
+	IdleTimeout string `yaml:"idle-timeout,omitempty" json:"idle-timeout,omitempty"`
 	// Autostart controls the logon autostart. A pointer so "unset" (leave as-is)
 	// is distinct from "false" (disable).
-	Autostart *bool `yaml:"autostart,omitempty"`
+	Autostart *bool `yaml:"autostart,omitempty" json:"autostart,omitempty"`
 	// Engine holds daemon.json settings, keyed by the engine.<key> suffix
 	// (e.g. registry-mirrors). Values are the CLI string form.
-	Engine map[string]string `yaml:"engine,omitempty"`
+	Engine map[string]string `yaml:"engine,omitempty" json:"engine,omitempty"`
 	// Hooks maps lifecycle event -> script path (e.g. post-start).
-	Hooks map[string]string `yaml:"hooks,omitempty"`
+	Hooks map[string]string `yaml:"hooks,omitempty" json:"hooks,omitempty"`
 	// Integrations lists distros to `wsl-integrate`.
-	Integrations []string `yaml:"integrations,omitempty"`
+	Integrations []string `yaml:"integrations,omitempty" json:"integrations,omitempty"`
 }
 
 // Load reads and strictly parses a hawser.yaml from disk.

@@ -84,7 +84,8 @@ docker context. Nothing else on the system is touched.
 - **`hawser migrate --from-desktop`**: copy images and volumes out of Docker Desktop,
   non-destructively and resumably (`--dry-run` first)
 - Optional status-light tray (`hawsertray.exe`) — six menu items, forever
-- Headless CI installs (`--headless`, exit codes, `--json`), version pinning as a contract
+- Headless CI installs (`--headless`, exit codes, `--json` on every state-reporting command —
+  the contract in [docs/cli-json.md](docs/cli-json.md)), version pinning as a contract
   (nothing fetches "latest"), no telemetry
 - A logged-on session is required — a WSL2 platform constraint that binds every WSL-based
   engine; for CI runners see [docs/auto-logon-runner.md](docs/auto-logon-runner.md)

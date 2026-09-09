@@ -19,6 +19,7 @@ func runAudit(args []string) int {
 		stateDir = fs.String("state-dir", "", "override Hawser's state directory")
 		n        = fs.Int("n", 0, "show only the last N events (0 = all)")
 		since    = fs.Duration("since", 0, "show only events newer than this (e.g. 30m, 2h)")
+		asJSON   = fs.Bool("json", false, "emit the events as one JSON array instead of JSON lines")
 	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: hawser audit tail [--since <dur>] [-n <count>]
@@ -58,6 +59,10 @@ flags:
 		} else {
 			fmt.Fprintln(os.Stderr, "audit is on but no events recorded yet")
 		}
+		if *asJSON {
+			// No log yet is an empty answer, not an error.
+			return emitJSON([]json.RawMessage{})
+		}
 		return exitOK
 	}
 	if err != nil {
@@ -93,6 +98,17 @@ flags:
 
 	if *n > 0 && len(lines) > *n {
 		lines = lines[len(lines)-*n:]
+	}
+	if *asJSON {
+		// One document instead of JSON lines, for consumers that want a single
+		// parse. Records pass through exactly as recorded (audit.Event), never
+		// re-shaped; a corrupt line fails the encode loudly rather than being
+		// silently dropped.
+		recs := make([]json.RawMessage, 0, len(lines))
+		for _, line := range lines {
+			recs = append(recs, json.RawMessage(line))
+		}
+		return emitJSON(recs)
 	}
 	for _, line := range lines {
 		fmt.Println(line)

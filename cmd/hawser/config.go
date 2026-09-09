@@ -18,7 +18,10 @@ import (
 
 func runConfig(args []string) int {
 	fs := flag.NewFlagSet("config", flag.ContinueOnError)
-	stateDir := fs.String("state-dir", "", "override Hawser's state directory")
+	var (
+		stateDir = fs.String("state-dir", "", "override Hawser's state directory")
+		asJSON   = fs.Bool("json", false, "emit machine-readable JSON (list)")
+	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: hawser config                    list all settings
        hawser config get <key>          print one value
@@ -70,7 +73,7 @@ Corporate network (applied on `+"`hawser restart`"+`):
 
 	switch {
 	case len(rest) == 0:
-		return listAllConfig(opts)
+		return listAllConfig(opts, *asJSON)
 
 	case rest[0] == "get" && len(rest) == 2:
 		return getConfig(opts, rest[1])
@@ -105,12 +108,31 @@ func exportConfig(opts provision.Options) int {
 	return exitOK
 }
 
-func listAllConfig(opts provision.Options) int {
+func listAllConfig(opts provision.Options, asJSON bool) int {
 	all, err := config.All(opts.StateDir)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
 		return exitError
 	}
+
+	// Engine settings live in the distro; list them only when one is installed,
+	// so `hawser config` still works on a machine with no engine.
+	var eng map[string]string
+	if m, ok := engineManager(opts); ok {
+		eng, err = m.List(context.Background())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "hawser: reading engine config: %v\n", err)
+			return exitError
+		}
+		if eng == nil {
+			eng = map[string]string{} // installed with nothing set is {}, not null
+		}
+	}
+
+	if asJSON {
+		return emitJSON(configListJSON{Settings: all, Engine: eng})
+	}
+
 	keys := make([]string, 0, len(all))
 	for k := range all {
 		keys = append(keys, k)
@@ -119,23 +141,13 @@ func listAllConfig(opts provision.Options) int {
 	for _, k := range keys {
 		fmt.Printf("%s = %s\n", k, all[k])
 	}
-
-	// Engine settings live in the distro; list them only when one is installed,
-	// so `hawser config` still works on a machine with no engine.
-	if m, ok := engineManager(opts); ok {
-		eng, err := m.List(context.Background())
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "hawser: reading engine config: %v\n", err)
-			return exitError
-		}
-		ekeys := make([]string, 0, len(eng))
-		for k := range eng {
-			ekeys = append(ekeys, k)
-		}
-		sort.Strings(ekeys)
-		for _, k := range ekeys {
-			fmt.Printf("%s = %s\n", k, eng[k])
-		}
+	ekeys := make([]string, 0, len(eng))
+	for k := range eng {
+		ekeys = append(ekeys, k)
+	}
+	sort.Strings(ekeys)
+	for _, k := range ekeys {
+		fmt.Printf("%s = %s\n", k, eng[k])
 	}
 	return exitOK
 }

@@ -15,7 +15,10 @@ import (
 
 func runProfile(args []string) int {
 	fs := flag.NewFlagSet("profile", flag.ContinueOnError)
-	stateDir := fs.String("state-dir", "", "override Hawser's state directory")
+	var (
+		stateDir = fs.String("state-dir", "", "override Hawser's state directory")
+		asJSON   = fs.Bool("json", false, "emit machine-readable JSON (list, show)")
+	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: hawser profile                    list profiles (* = active)
        hawser profile create <name>      save the current settings as a profile
@@ -46,13 +49,13 @@ Exit codes: 0 ok, %d error, %d usage, %d no such profile / not installed.
 
 	switch {
 	case len(rest) == 0 || (rest[0] == "list" && len(rest) == 1):
-		return listProfiles(m)
+		return listProfiles(m, *asJSON)
 	case rest[0] == "create" && len(rest) == 2:
 		return createProfile(m, opts, rest[1])
 	case rest[0] == "switch" && len(rest) == 2:
 		return switchProfile(m, opts, rest[1])
 	case rest[0] == "show" && len(rest) == 2:
-		return showProfile(m, rest[1])
+		return showProfile(m, rest[1], *asJSON)
 	case rest[0] == "delete" && len(rest) == 2:
 		return deleteProfile(m, rest[1])
 	default:
@@ -61,17 +64,24 @@ Exit codes: 0 ok, %d error, %d usage, %d no such profile / not installed.
 	}
 }
 
-func listProfiles(m *profile.Manager) int {
+func listProfiles(m *profile.Manager, asJSON bool) int {
 	names, err := m.List()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
 		return exitError
 	}
+	active := m.Active()
+	if asJSON {
+		out := profileListJSON{Active: active, Profiles: []profileEntryJSON{}}
+		for _, n := range names {
+			out.Profiles = append(out.Profiles, profileEntryJSON{Name: n, Active: n == active})
+		}
+		return emitJSON(out)
+	}
 	if len(names) == 0 {
 		fmt.Println("no profiles; `hawser profile create <name>` saves the current settings as one")
 		return exitOK
 	}
-	active := m.Active()
 	for _, n := range names {
 		marker := "  "
 		if n == active {
@@ -114,11 +124,15 @@ func switchProfile(m *profile.Manager, opts provision.Options, name string) int 
 	return exitOK
 }
 
-func showProfile(m *profile.Manager, name string) int {
+func showProfile(m *profile.Manager, name string, asJSON bool) int {
 	f, err := m.Load(name)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
 		return exitNotFound
+	}
+	if asJSON {
+		// Same document as the YAML: hawserfile.File carries matching json tags.
+		return emitJSON(f)
 	}
 	b, err := f.Marshal()
 	if err != nil {
