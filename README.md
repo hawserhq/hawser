@@ -58,7 +58,9 @@ docker context. Nothing else on the system is touched.
 - **Idle RAM answer**: `hawser config set idle-timeout 30m` stops a quiet engine and
   cold-starts it (~1 s engine start) on your next `docker` command
 - **`hawser doctor`**: diagnoses the WSL / PATH / credential-helper / supervisor quirk zoo,
-  with `--json`, `--report` (paste straight into an issue), and `--fix` for the safe subset
+  with `--json`, `--report` (paste straight into an issue), and `--fix` for the safe subset;
+  recognizes corporate VPNs (GlobalProtect, AnyConnect, Zscaler…) and prints the MTU/DNS fix
+  ([docs/vpn.md](docs/vpn.md))
 - **Validated engine settings**: `hawser config set engine.<key>` edits the engine's
   `daemon.json` (registry mirrors, logging, DNS…), checked with `dockerd --validate` before
   it applies and rolled back if the engine will not come back

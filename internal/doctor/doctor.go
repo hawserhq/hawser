@@ -84,6 +84,7 @@ func Registry() []Check {
 		checkContext(),
 		checkSupervisor(),
 		checkNetwork(),
+		checkVPN(),
 		checkDisk(),
 		checkSession0(),
 	}

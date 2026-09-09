@@ -38,3 +38,9 @@ you hit the x509 error.
 - Trusting the host CA store is a real trust decision — it means the engine
   accepts the same roots your machine does. That is exactly what a corporate
   TLS-inspecting proxy needs, and why it is opt-in.
+
+## See also
+
+- [vpn.md](vpn.md) — the other half of "works at home, breaks at work": a VPN
+  that clamps the MTU or hijacks DNS. `hawser doctor` recognizes the common
+  clients and prints the fix.
