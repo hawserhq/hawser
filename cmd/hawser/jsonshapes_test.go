@@ -180,3 +180,13 @@ func TestRunnerCheckShape(t *testing.T) {
 		t.Error("remedy should be omitted when empty")
 	}
 }
+
+func TestResetShape(t *testing.T) {
+	m := roundTrip(t, resetJSON{Snapshot: "golden", Millis: 4200})
+	requireKeys(t, m, "snapshot", "ms")
+	if _, ok := m["engineVersion"]; ok {
+		t.Error("engineVersion should be omitted when unknown")
+	}
+	m = roundTrip(t, resetJSON{Snapshot: "golden", EngineVersion: "29.7.2"})
+	requireKeys(t, m, "engineVersion")
+}

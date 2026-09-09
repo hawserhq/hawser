@@ -164,3 +164,12 @@ type runnerCheckJSON struct {
 	Ready    bool             `json:"ready"`
 	Findings []runner.Finding `json:"findings"`
 }
+
+// resetJSON is `hawser reset --to <snapshot> --json` (#142): what the engine
+// was reset to and how long the whole cycle took (verify, unregister, import,
+// engine back) — the number a runner's clean-slate budget is measured against.
+type resetJSON struct {
+	Snapshot      string `json:"snapshot"`
+	EngineVersion string `json:"engineVersion,omitempty"`
+	Millis        int64  `json:"ms"`
+}
