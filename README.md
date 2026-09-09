@@ -24,14 +24,16 @@ laptops and CI runners alike.
 **Status: v0.3 pre-release.** Installable and working as a daily driver: install once and
 the engine starts at every logon, heals itself, and answers `docker` at the same speed as
 Docker Desktop. v0.3 adds `hawser doctor`, validated engine settings, lifecycle hooks, and
-declarative installs; a bundled docker CLI and corporate-network support are next. Read
+declarative installs, corporate-network/VPN support, and a bundled docker CLI so you can
+drop Docker Desktop entirely. Read
 [PLAN.md](PLAN.md) for the strategy and [ROADMAP.md](ROADMAP.md) for the schedule; the
 [issue tracker](https://github.com/zcsizmadia/hawser/issues) is the live state.
 
 ## Install
 
-Requirements: Windows 11 with WSL2, and any `docker` CLI on PATH (Docker Desktop's works —
-Hawser coexists with it rather than replacing it; a bundled CLI is planned for a later release).
+Requirements: Windows 11 with WSL2, and a `docker` CLI. Docker Desktop's works (Hawser
+coexists with it), or install Hawser's own bundled CLI with `hawser cli install` and drop
+Docker Desktop entirely — see [docs/docker-cli.md](docs/docker-cli.md).
 
 1. Download the zip for your architecture from the
    [latest release](https://github.com/zcsizmadia/hawser/releases) and verify it against
@@ -69,6 +71,9 @@ docker context. Nothing else on the system is touched.
 - **Declarative installs**: `hawser install --config hawser.yaml` (idempotent) and
   `hawser config export` — infrastructure-as-code for a fleet
   ([docs/declarative-install.md](docs/declarative-install.md))
+- **Bundled docker CLI**: `hawser cli install` installs the upstream docker CLI + compose +
+  buildx + credential helper — checksum-pinned, nothing fetched as "latest" — so you can
+  uninstall Docker Desktop entirely ([docs/docker-cli.md](docs/docker-cli.md))
 - **Remote engine over mutual TLS**: `hawser serve --tcp` exposes the engine to a
   teammate or CI runner, reachable only by holders of a client cert this machine's CA
   signed — off by default ([docs/remote-engine.md](docs/remote-engine.md))
@@ -83,9 +88,8 @@ docker context. Nothing else on the system is touched.
 
 ## What's ahead
 
-A bundled docker CLI + compose + buildx (uninstall Docker Desktop entirely), corporate
-proxy/CA trust + registry mirrors, VHDX compaction and data-dir relocation, and pinned engine
-upgrades with rollback — tracked in the
+VHDX compaction and data-dir relocation, pinned engine upgrades with rollback, GPU
+passthrough, and signed installers (winget/scoop/choco) — tracked in the
 [issue tracker](https://github.com/zcsizmadia/hawser/issues).
 
 ## What it will never be

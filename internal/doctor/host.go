@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 
 	"github.com/zcsizmadia/hawser/internal/config"
+	"github.com/zcsizmadia/hawser/internal/dockercli"
 	"github.com/zcsizmadia/hawser/internal/provision"
 	"github.com/zcsizmadia/hawser/internal/supervise"
 	"github.com/zcsizmadia/hawser/internal/version"
@@ -63,6 +64,20 @@ type Facts struct {
 	// VPNs are the corporate VPN clients detected from the host's active network
 	// adapters, each with its recommended connectivity settings (#63).
 	VPNs []vpnfingerprint.Match
+
+	// CLI is the bundled docker CLI's install/PATH state (#66).
+	CLI CLIStatus
+}
+
+// CLIStatus describes the bundled docker CLI (#66): whether it is installed,
+// where, whether its directory is on the user PATH, and which docker the shell
+// actually resolves — so checkCLI can tell "installed and active" from "installed
+// but Docker Desktop still wins".
+type CLIStatus struct {
+	Installed    bool   `json:"installed"`
+	BinDir       string `json:"binDir"`
+	OnPath       bool   `json:"onPath"`
+	ActiveDocker string `json:"activeDocker,omitempty"`
 }
 
 // CredHelper is one docker credential helper referenced by the CLI config, and
@@ -155,8 +170,28 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 	}
 
 	f.VPNs = vpnfingerprint.Detect(gatherAdapters(ctx))
+	f.CLI = gatherCLIStatus(stateDir)
 
 	return f
+}
+
+// gatherCLIStatus reads the bundled docker CLI's install and PATH state (#66).
+func gatherCLIStatus(stateDir string) CLIStatus {
+	s := CLIStatus{}
+	if stateDir == "" {
+		return s
+	}
+	s.BinDir = filepath.Join(stateDir, "bin")
+	if _, err := os.Stat(filepath.Join(s.BinDir, "docker.exe")); err == nil {
+		s.Installed = true
+	}
+	if onPath, err := dockercli.UserPathContains(s.BinDir); err == nil {
+		s.OnPath = onPath
+	}
+	if active, err := execLookPath("docker"); err == nil {
+		s.ActiveDocker = active
+	}
+	return s
 }
 
 // gatherAdapters reads the host's network adapters via Get-NetAdapter (a

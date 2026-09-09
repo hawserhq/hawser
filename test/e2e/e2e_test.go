@@ -91,6 +91,7 @@ func TestAcceptance(t *testing.T) {
 		{"LogsFollowStreams", stageLogsFollow},
 		{"ComposeStack", stageCompose},
 		{"DevContainerUpThroughPipe", stageDevContainer},
+		{"DockerCLIBundleInstalls", stageDockerCLIBundle},
 		{"WSLIntegrateSharesEngine", stageWSLIntegrate},
 		{"MigrateFromDesktop", stageMigrate},
 		{"EngineConfigValidatesAndApplies", stageEngineConfig},
@@ -829,6 +830,49 @@ func stageServeMTLS(t *testing.T, s *state) {
 		t.Fatalf("engine answered a client with NO certificate — mutual TLS is not enforced:\n%s", out)
 	}
 	t.Logf("client without a signed certificate correctly refused")
+}
+
+// stageDockerCLIBundle proves `hawser cli install` (#66) fetches and installs
+// the pinned upstream docker CLI + compose + buildx, checksum-verified, and that
+// each one runs. It keeps the embedded pins honest: a rotted URL or a drifted
+// checksum fails here. PATH is left alone (--no-path) and the plugins land in a
+// throwaway DOCKER_CONFIG so the machine's real environment is untouched.
+func stageDockerCLIBundle(t *testing.T, s *state) {
+	cfg := filepath.Join(s.workDir, "clibundle-dockercfg")
+	env := append(os.Environ(), "DOCKER_CONFIG="+cfg)
+
+	out, err := runEnv(t, env, 5*time.Minute, s.hawser, "cli", "install",
+		"--no-path", "--state-dir", s.stateDir)
+	must(t, out, err, "hawser cli install")
+
+	docker := filepath.Join(s.stateDir, "bin", "docker.exe")
+	if _, err := os.Stat(docker); err != nil {
+		t.Fatalf("bundled docker.exe not installed: %v", err)
+	}
+
+	// Each tool must run. These are client-only (no engine needed), so they
+	// pass regardless of engine state.
+	for _, tc := range []struct {
+		what string
+		args []string
+		want string
+	}{
+		{"docker --version", []string{"--version"}, "Docker version"},
+		{"docker compose version", []string{"compose", "version"}, "Docker Compose"},
+		{"docker buildx version", []string{"buildx", "version"}, "buildx"},
+	} {
+		out, err := runEnv(t, env, time.Minute, docker, tc.args...)
+		must(t, out, err, tc.what)
+		if !strings.Contains(out, tc.want) {
+			t.Errorf("%s output %q does not contain %q", tc.what, out, tc.want)
+		}
+	}
+	// The credential helper is placed on the bin dir (no `list` here — that would
+	// read the machine's real stored credentials).
+	if _, err := os.Stat(filepath.Join(s.stateDir, "bin", "docker-credential-wincred.exe")); err != nil {
+		t.Errorf("credential helper not installed: %v", err)
+	}
+	t.Logf("docker CLI bundle installed and every tool runs")
 }
 
 func stageHelloWorld(t *testing.T, s *state) {

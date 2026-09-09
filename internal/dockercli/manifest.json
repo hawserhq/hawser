@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "comment": [
+    "Pinned upstream Docker CLI tooling (#66). Like the engine manifest, these",
+    "versions + per-arch URL + sha256 are compiled into the binary: nothing is",
+    "fetched as 'latest'. Bytes come from each upstream project's own release",
+    "assets. An arch entry with an empty sha256 is a placeholder — Published()",
+    "treats it as 'not available for this platform' and the installer skips it",
+    "with an honest message rather than importing anything unverified.",
+    "",
+    "compose/buildx/wincred sha256 come from each project's published checksums",
+    "file (compose: checksums.txt; buildx: checksums-signed.txt, which is the one",
+    "that covers windows; wincred: checksums.txt).",
+    "",
+    "The docker CLI is the exception: download.docker.com publishes no checksum",
+    "and no Windows arm64 static build. Its amd64 sha256 is computed from the",
+    "official download and pinned here, so every install verifies the exact bytes",
+    "even though upstream ships no digest; arm64 stays a placeholder until a",
+    "Windows arm64 docker.exe exists upstream.",
+    "",
+    "Licenses: docker/cli, docker/compose, docker/buildx are Apache-2.0;",
+    "docker-credential-helpers is MIT. Stage() lays each LICENSE beside the",
+    "binaries (embedded from internal/dockercli/licenses)."
+  ],
+  "components": [
+    {
+      "name": "docker",
+      "version": "29.8.0",
+      "role": "cli",
+      "target": "docker.exe",
+      "zipEntry": "docker/docker.exe",
+      "license": "Apache-2.0",
+      "licenseURL": "https://raw.githubusercontent.com/docker/cli/master/LICENSE",
+      "arch": {
+        "amd64": {
+          "url": "https://download.docker.com/win/static/stable/x86_64/docker-29.8.0.zip",
+          "sha256": "bca70bfcddb4eed5bb8af5c15a1fb583b95edacf6096152e20a621ae68c871cb"
+        },
+        "arm64": { "url": "", "sha256": "" }
+      }
+    },
+    {
+      "name": "compose",
+      "version": "5.5.1",
+      "role": "plugin",
+      "target": "docker-compose.exe",
+      "license": "Apache-2.0",
+      "licenseURL": "https://raw.githubusercontent.com/docker/compose/main/LICENSE",
+      "arch": {
+        "amd64": {
+          "url": "https://github.com/docker/compose/releases/download/v5.5.1/docker-compose-windows-x86_64.exe",
+          "sha256": "a3c0c73033eaede90210345d0cc2233edf4fab8fe0282a91dad8fd8436809d2f"
+        },
+        "arm64": {
+          "url": "https://github.com/docker/compose/releases/download/v5.5.1/docker-compose-windows-aarch64.exe",
+          "sha256": "4bbb5d1ecc75bde1a9ca4afac43f5907c0d3bd0f88c7f00bf481ee7c8c1737be"
+        }
+      }
+    },
+    {
+      "name": "buildx",
+      "version": "0.37.0",
+      "role": "plugin",
+      "target": "docker-buildx.exe",
+      "license": "Apache-2.0",
+      "licenseURL": "https://raw.githubusercontent.com/docker/buildx/master/LICENSE",
+      "arch": {
+        "amd64": {
+          "url": "https://github.com/docker/buildx/releases/download/v0.37.0/buildx-v0.37.0.windows-amd64.exe",
+          "sha256": "f49fa81c676e178ebac4679cc33c6560f14a56b586f33c9e298a917313cd909b"
+        },
+        "arm64": {
+          "url": "https://github.com/docker/buildx/releases/download/v0.37.0/buildx-v0.37.0.windows-arm64.exe",
+          "sha256": "822457d04cd6d0685dce5e6f343cdca86f6dbeba6bae6302d033ff93e95c9d23"
+        }
+      }
+    },
+    {
+      "name": "wincred",
+      "version": "0.9.9",
+      "role": "helper",
+      "target": "docker-credential-wincred.exe",
+      "license": "MIT",
+      "licenseURL": "https://raw.githubusercontent.com/docker/docker-credential-helpers/master/LICENSE",
+      "arch": {
+        "amd64": {
+          "url": "https://github.com/docker/docker-credential-helpers/releases/download/v0.9.9/docker-credential-wincred-v0.9.9.windows-amd64.exe",
+          "sha256": "ed50b9767eac0ba42782dc4f550ceab2f4354bacaad05c54caa9dec98a032c48"
+        },
+        "arm64": {
+          "url": "https://github.com/docker/docker-credential-helpers/releases/download/v0.9.9/docker-credential-wincred-v0.9.9.windows-arm64.exe",
+          "sha256": "f7a3c6f78fdec5699f0021595989cf1c9ea58270866e7dd3dc3e2e4f4621e84b"
+        }
+      }
+    }
+  ]
+}
