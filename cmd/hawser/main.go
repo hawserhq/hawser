@@ -27,6 +27,7 @@ type command struct {
 
 func commands() []command {
 	return []command{
+		{"audit", "print the container-affecting API audit log (`audit tail`)", runAudit},
 		{"autostart", "start the supervisor at logon: enable, disable, status", runAutostart},
 		{"bundle", "pack the engine into a .zip for an air-gapped `install --offline`", runBundle},
 		{"config", "list, get, or set Hawser settings (idle-timeout)", runConfig},

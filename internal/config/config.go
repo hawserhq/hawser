@@ -38,6 +38,12 @@ func HookKeys() []string {
 	return []string{KeyHookPostStart, KeyHookPreStop, KeyHookOnIdleStop, KeyHookOnWake}
 }
 
+// KeyAudit toggles the container-affecting API audit log (#121). "on" writes a
+// JSON-lines record of pulls, container create/start/stop/remove, exec and
+// builds to audit.log in the state dir; "off" (the default) disables it.
+// Changing it takes effect on the next `hawser restart`.
+const KeyAudit = "audit"
+
 // path is the settings file inside the state dir.
 func path(stateDir string) string {
 	return filepath.Join(stateDir, "config.json")
@@ -47,6 +53,8 @@ func path(stateDir string) string {
 type Config struct {
 	// IdleTimeout of zero means idle stops are off.
 	IdleTimeout time.Duration
+	// Audit enables the container-affecting API audit log.
+	Audit bool
 }
 
 // Load parses the settings file. A missing file is the default configuration,
@@ -65,6 +73,7 @@ func Load(stateDir string) (Config, error) {
 		}
 		c.IdleTimeout = d
 	}
+	c.Audit = raw[KeyAudit] == "on"
 	return c, nil
 }
 
@@ -100,6 +109,18 @@ var validators = map[string]func(string) (string, error){
 	KeyHookPreStop:    validateHookPath,
 	KeyHookOnIdleStop: validateHookPath,
 	KeyHookOnWake:     validateHookPath,
+	KeyAudit:          validateOnOff,
+}
+
+// validateOnOff normalizes a boolean-ish setting to "on" or "off".
+func validateOnOff(v string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "on", "true", "1", "yes":
+		return "on", nil
+	case "off", "false", "0", "no", "":
+		return "off", nil
+	}
+	return "", fmt.Errorf("%q is not on or off", v)
 }
 
 // validateHookPath accepts a path to an existing file, or empty/"off" to clear
@@ -161,7 +182,7 @@ func Get(stateDir, key string) (string, error) {
 
 func defaultFor(key string) string {
 	switch key {
-	case KeyIdleTimeout:
+	case KeyIdleTimeout, KeyAudit:
 		return "off"
 	}
 	return ""

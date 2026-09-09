@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/zcsizmadia/hawser/internal/audit"
 	"github.com/zcsizmadia/hawser/internal/config"
 	"github.com/zcsizmadia/hawser/internal/dockerctx"
 	"github.com/zcsizmadia/hawser/internal/logging"
@@ -132,9 +133,24 @@ flags:
 	// traffic feeds the supervisor's idle detection, and the supervisor's
 	// Demand wakes an idle-stopped engine for the server's next connection.
 	dialer := engineDialer(targetDistro, "", opts.StateDir, log)
+
+	// Bind-path rewriting is always on; the audit log (#121) wraps it when
+	// enabled. Read once at start — toggling it needs `hawser restart`.
+	handler := pipeproxy.RewriteBinds
+	if c, err := config.Load(opts.StateDir); err == nil && c.Audit {
+		auditPath := filepath.Join(opts.StateDir, "audit.log")
+		if w, err := logging.NewRotatingWriter(auditPath, 0, 0); err != nil {
+			log.Warn("audit log disabled", "error", err)
+		} else {
+			defer w.Close()
+			handler = pipeproxy.RewriteBindsAudited(audit.New(w))
+			log.Info("audit log enabled", "path", auditPath)
+		}
+	}
+
 	srv := &pipeproxy.Server{
 		Logger:  log,
-		Handler: pipeproxy.RewriteBinds,
+		Handler: handler,
 	}
 	sup := &supervise.Supervisor{
 		Engine:   engineAdapter{p: p, opts: opts},
