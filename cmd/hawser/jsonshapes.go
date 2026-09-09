@@ -1,0 +1,80 @@
+package main
+
+// The --json shapes: the CLI contract that machine consumers — the VS Code
+// extension, CI scripts, fleet tooling — depend on (#137). They are named types
+// so jsonshapes_test.go can pin every key. Changes are additive only; exit codes
+// keep the same meaning as the human output (0 ok, 1 error, 2 usage, 3 not
+// installed / not found), and a non-zero exit still emits the JSON where there is
+// something to say. Documented in docs/cli-json.md.
+
+// statusJSON is `hawser status --json`.
+type statusJSON struct {
+	Installed  bool    `json:"installed"`
+	Distro     string  `json:"distro,omitempty"`
+	StateDir   string  `json:"stateDir"`
+	Supervisor string  `json:"supervisor"` // running | stopped
+	Engine     string  `json:"engine"`     // running | idle | stopped
+	Desired    string  `json:"desired"`    // running | stopped
+	Profile    string  `json:"profile,omitempty"`
+	GPU        gpuJSON `json:"gpu"`
+}
+
+// gpuJSON is GPU passthrough state (#83). visible and specInstalled are probed
+// only while the engine is running AND gpu is enabled — probing would boot a
+// stopped distro, which status must never do (#82) — and probed says whether
+// they are authoritative.
+type gpuJSON struct {
+	Enabled       bool `json:"enabled"`
+	Probed        bool `json:"probed"`
+	Visible       bool `json:"visible"`
+	SpecInstalled bool `json:"specInstalled"`
+}
+
+// cliStatusJSON is `hawser cli status --json` (#66).
+type cliStatusJSON struct {
+	Arch         string        `json:"arch"`
+	BinDir       string        `json:"binDir"`
+	OnPath       bool          `json:"onPath"`
+	ActiveDocker string        `json:"activeDocker,omitempty"`
+	Tools        []cliToolJSON `json:"tools"`
+}
+
+// cliToolJSON is one bundled tool. Available is whether the manifest publishes
+// it for the host arch at all (the docker CLI has no Windows arm64 build).
+type cliToolJSON struct {
+	Name      string `json:"name"`
+	Version   string `json:"version"`
+	Role      string `json:"role"` // cli | plugin | helper
+	Path      string `json:"path"`
+	Installed bool   `json:"installed"`
+	Available bool   `json:"available"`
+}
+
+// configListJSON is `hawser config --json`. Engine is null when no engine is
+// installed and {} when one is installed with nothing set — different answers.
+type configListJSON struct {
+	Settings map[string]string `json:"settings"`
+	Engine   map[string]string `json:"engine"`
+}
+
+// profileListJSON is `hawser profile --json`; profiles is always an array.
+type profileListJSON struct {
+	Active   string             `json:"active,omitempty"`
+	Profiles []profileEntryJSON `json:"profiles"`
+}
+
+type profileEntryJSON struct {
+	Name   string `json:"name"`
+	Active bool   `json:"active"`
+}
+
+// snapshotRestoredJSON and snapshotDeletedJSON are the results of those verbs.
+// `snapshot save --json` emits the snapshot.Meta, `snapshot list --json` an
+// array of them (always an array, never null).
+type snapshotRestoredJSON struct {
+	Restored string `json:"restored"`
+}
+
+type snapshotDeletedJSON struct {
+	Deleted string `json:"deleted"`
+}

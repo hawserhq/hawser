@@ -134,7 +134,10 @@ flags:
 
 func runCLIStatus(args []string) int {
 	fs := flag.NewFlagSet("cli status", flag.ContinueOnError)
-	stateDir := fs.String("state-dir", "", "override Hawser's state directory")
+	var (
+		stateDir = fs.String("state-dir", "", "override Hawser's state directory")
+		asJSON   = fs.Bool("json", false, "emit machine-readable JSON")
+	)
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
@@ -148,7 +151,8 @@ func runCLIStatus(args []string) int {
 		return exitError
 	}
 
-	fmt.Printf("Docker CLI bundle (%s):\n\n", dockercli.HostArch())
+	arch := dockercli.HostArch()
+	report := cliStatusJSON{Arch: arch, BinDir: binDir, Tools: []cliToolJSON{}}
 	anyMissing := false
 	for _, c := range m.Components {
 		dir := binDir
@@ -156,21 +160,47 @@ func runCLIStatus(args []string) int {
 			dir = pluginDir
 		}
 		path := filepath.Join(dir, c.Target)
-		state := "missing"
+		t := cliToolJSON{
+			Name: c.Name, Version: c.Version, Role: string(c.Role), Path: path,
+			Available: c.Published(arch),
+		}
 		if _, err := os.Stat(path); err == nil {
-			state = "installed"
-		} else if !c.Published(dockercli.HostArch()) {
-			state = "n/a for " + dockercli.HostArch()
-		} else {
+			t.Installed = true
+		} else if t.Available {
 			anyMissing = true
 		}
-		fmt.Printf("  %-10s %-8s %-16s %s\n", c.Name, c.Version, state, path)
+		report.Tools = append(report.Tools, t)
+	}
+	report.OnPath, _ = dockercli.UserPathContains(binDir)
+	if active, err := exec.LookPath("docker"); err == nil {
+		report.ActiveDocker = active
 	}
 
-	onPath, _ := dockercli.UserPathContains(binDir)
-	fmt.Printf("\n  bin on user PATH: %v  (%s)\n", onPath, binDir)
-	if active, err := exec.LookPath("docker"); err == nil {
-		fmt.Printf("  active docker:    %s\n", active)
+	if *asJSON {
+		if code := emitJSON(report); code != exitOK {
+			return code
+		}
+		// Exit 3 still signals "something to install", like the human output.
+		if anyMissing {
+			return exitNotFound
+		}
+		return exitOK
+	}
+
+	fmt.Printf("Docker CLI bundle (%s):\n\n", arch)
+	for _, t := range report.Tools {
+		state := "missing"
+		switch {
+		case t.Installed:
+			state = "installed"
+		case !t.Available:
+			state = "n/a for " + arch
+		}
+		fmt.Printf("  %-10s %-8s %-16s %s\n", t.Name, t.Version, state, t.Path)
+	}
+	fmt.Printf("\n  bin on user PATH: %v  (%s)\n", report.OnPath, binDir)
+	if report.ActiveDocker != "" {
+		fmt.Printf("  active docker:    %s\n", report.ActiveDocker)
 	} else {
 		fmt.Printf("  active docker:    none on PATH\n")
 	}

@@ -20,6 +20,7 @@ func runSnapshot(args []string) int {
 		stateDir = fs.String("state-dir", "", "override Hawser's state directory")
 		force    = fs.Bool("force", false, "proceed even if containers are running")
 		yes      = fs.Bool("yes", false, "skip the confirmation prompt (required for restore)")
+		asJSON   = fs.Bool("json", false, "emit machine-readable JSON")
 	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: hawser snapshot save <name>       capture the engine state
@@ -67,24 +68,35 @@ flags:
 	rest := fs.Args()
 	switch {
 	case len(rest) == 0 || (rest[0] == "list" && len(rest) == 1):
-		return snapshotList(mgr)
+		return snapshotList(mgr, *asJSON)
 	case rest[0] == "save" && len(rest) == 2:
-		return snapshotSave(mgr, p, opts, m.EngineVersion, rest[1], *force)
+		return snapshotSave(mgr, p, opts, m.EngineVersion, rest[1], *force, *asJSON)
 	case rest[0] == "restore" && len(rest) == 2:
-		return snapshotRestore(mgr, p, opts, rest[1], *force, *yes)
+		return snapshotRestore(mgr, p, opts, rest[1], *force, *yes, *asJSON)
 	case rest[0] == "delete" && len(rest) == 2:
-		return snapshotDelete(mgr, rest[1])
+		return snapshotDelete(mgr, rest[1], *asJSON)
 	default:
 		fs.Usage()
 		return exitUsage
 	}
 }
 
-func snapshotList(mgr *snapshot.Manager) int {
+func snapshotList(mgr *snapshot.Manager, asJSON bool) int {
 	snaps, err := mgr.List()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
 		return exitError
+	}
+	if asJSON {
+		// Always an array, never null: an empty list is a normal answer.
+		out := []snapshot.Meta{}
+		for _, s := range snaps {
+			out = append(out, snapshot.Meta{
+				Name: s.Name, Created: s.Created, EngineVersion: s.EngineVersion,
+				Distro: s.Distro, SHA256: s.SHA256, SizeBytes: s.SizeBytes,
+			})
+		}
+		return emitJSON(out)
 	}
 	if len(snaps) == 0 {
 		fmt.Println("no snapshots; `hawser snapshot save <name>` captures the engine state")
@@ -100,7 +112,7 @@ func snapshotList(mgr *snapshot.Manager) int {
 	return exitOK
 }
 
-func snapshotSave(mgr *snapshot.Manager, p *provision.Provisioner, opts provision.Options, engineVersion, name string, force bool) int {
+func snapshotSave(mgr *snapshot.Manager, p *provision.Provisioner, opts provision.Options, engineVersion, name string, force, asJSON bool) int {
 	if err := snapshot.ValidName(name); err != nil {
 		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
 		return exitUsage
@@ -116,11 +128,14 @@ func snapshotSave(mgr *snapshot.Manager, p *provision.Provisioner, opts provisio
 		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
 		return exitError
 	}
+	if asJSON {
+		return emitJSON(meta)
+	}
 	fmt.Printf("saved snapshot %q (%s)\n", meta.Name, humanBytes(meta.SizeBytes))
 	return exitOK
 }
 
-func snapshotRestore(mgr *snapshot.Manager, p *provision.Provisioner, opts provision.Options, name string, force, yes bool) int {
+func snapshotRestore(mgr *snapshot.Manager, p *provision.Provisioner, opts provision.Options, name string, force, yes, asJSON bool) int {
 	if !mgr.Exists(name) {
 		fmt.Fprintf(os.Stderr, "hawser: no such snapshot %q\n", name)
 		return exitNotFound
@@ -140,14 +155,20 @@ func snapshotRestore(mgr *snapshot.Manager, p *provision.Provisioner, opts provi
 		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
 		return exitError
 	}
+	if asJSON {
+		return emitJSON(snapshotRestoredJSON{Restored: name})
+	}
 	fmt.Printf("restored snapshot %q; the engine is back on that state\n", name)
 	return exitOK
 }
 
-func snapshotDelete(mgr *snapshot.Manager, name string) int {
+func snapshotDelete(mgr *snapshot.Manager, name string, asJSON bool) int {
 	if err := mgr.Delete(name); err != nil {
 		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
 		return exitNotFound
+	}
+	if asJSON {
+		return emitJSON(snapshotDeletedJSON{Deleted: name})
 	}
 	fmt.Printf("deleted snapshot %q\n", name)
 	return exitOK
