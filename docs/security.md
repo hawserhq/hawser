@@ -59,9 +59,43 @@ pinned upstream tags whose commit SHAs are verified during the build, and the
 Alpine base is pinned by digest (#88) — a moved tag or re-pushed image fails
 the build rather than shipping. The rootfs is published with a SHA-256 that
 `hawser install` verifies before importing; there is no code path that imports
-an unverified rootfs. Release binaries are **not yet code-signed** (planned for
-v0.4); until then SmartScreen will warn, and `SHA256SUMS` on the release page
-lets you verify a download's integrity.
+an unverified rootfs.
+
+### Verifying a download
+
+Every release artifact carries **SLSA build provenance** and the checksum file
+is **signed with cosign keyless** (Sigstore, GitHub OIDC — no long-lived key
+exists to be stolen). Two independent checks, answering different questions:
+
+```
+# 1. Did GitHub Actions build this, from this repository, at a known commit?
+gh attestation verify hawser_0.4.0_windows_amd64.zip --owner zcsizmadia
+
+# 2. Is the checksum list itself authentic? (offline against the Sigstore log)
+cosign verify-blob \
+  --bundle SHA256SUMS.cosign.bundle \
+  --certificate-identity-regexp '^https://github.com/zcsizmadia/hawser/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  SHA256SUMS
+
+# 3. Then the usual: does your download match the signed list?
+sha256sum -c SHA256SUMS --ignore-missing
+```
+
+The rootfs tarball, its `.sha256` and its SBOM are attested and signed the same
+way, so a tampered rootfs fails verification **even if the attacker also edits
+the sha256 in `internal/release/manifest.json`** — the signature is independent
+of the pin.
+
+`hawser install` does not yet check these itself (it enforces the SHA-256 pin);
+wiring that in, with an explicit and logged escape hatch, is the remaining half
+of [#147](https://github.com/zcsizmadia/hawser/issues/147).
+
+Release binaries are **not yet Authenticode code-signed** — that needs a
+purchased certificate and is tracked by
+[#77](https://github.com/zcsizmadia/hawser/issues/77) — so SmartScreen will
+still warn. Provenance and Authenticode are different things and neither
+substitutes for the other.
 
 ## Known limitations (stated, not hidden)
 
@@ -71,7 +105,11 @@ lets you verify a download's integrity.
   (`docker events`, `docker logs -f` on an idle container) is cut after about
   five minutes of no traffic in either direction. The vsock path has no such
   timer; a normal install uses it.
-- **Release binaries are unsigned** until v0.4 (above).
+- **Release binaries are not Authenticode-signed** (above), so SmartScreen
+  warns. They *are* attested and their checksums signed, which is a different
+  guarantee: it proves origin, not that Windows will trust the executable.
+- **`hawser install` does not verify the signature itself** yet — it enforces
+  the SHA-256 pin, and the signature is a check you run (#147).
 - **The sibling-distro vsock boundary** is authenticated only by a handshake,
   not a secret, today; see #81.
 
