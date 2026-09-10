@@ -8,6 +8,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -293,10 +294,26 @@ func defaultFor(key string) string {
 	return ""
 }
 
+// commandHint answers a key that people reasonably reach for but which is an
+// operation rather than a stored value. PLAN.md and #64 both spell the data
+// dir as `config set data-dir`, so it will be typed; "unknown config key" is a
+// dead end when the thing they want does exist, under a command.
+func commandHint(key string) string {
+	if key == "data-dir" {
+		return "`data-dir` is not a stored setting: moving the engine data exports, " +
+			"moves and re-imports the distro. Run `hawser relocate <new-directory>` " +
+			"(`hawser relocate --help`)."
+	}
+	return ""
+}
+
 // Set validates and stores one key, atomically.
 func Set(stateDir, key, value string) error {
 	validate, ok := validators[key]
 	if !ok {
+		if h := commandHint(key); h != "" {
+			return errors.New(h)
+		}
 		return fmt.Errorf("unknown config key %q (known: %s)", key, strings.Join(Keys(), ", "))
 	}
 	normalized, err := validate(value)

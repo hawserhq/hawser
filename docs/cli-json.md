@@ -334,6 +334,38 @@ Shrinks the engine's virtual disk (fstrim + CompactVirtualDisk):
 - Exit codes: `0` ok, `1` error, `2` usage, `3` not installed, `11` the disk is
   held.
 
+## `hawser relocate --json`
+
+Moves the engine's data directory to another drive:
+
+```json
+{
+  "distro": "hawser-engine",
+  "from": "C:\Users\me\AppData\Local\Hawser\distro",
+  "to": "D:\hawser",
+  "movedBytes": 439422976,
+  "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "needBytes": 1098907648,
+  "freeBytes": 181070462976,
+  "restarted": true,
+  "dryRun": false
+}
+```
+
+- `movedBytes` and `sha256` describe the transfer archive: the engine is
+  exported, checksummed, and only then is the old distro unregistered, so the
+  archive is the recovery point if the import fails.
+- `needBytes` is the **peak** requirement on the target, roughly twice the
+  current disk, because the archive and the imported disk exist at the same
+  time. Checked before anything is touched; short space pairs with exit
+  code **12** and changes nothing.
+- Under `--dry-run` the payload is `steps` plus `needBytes`/`freeBytes` — what
+  it would do and whether it would fit.
+- `archiveKept` appears with `--keep-archive`, or when the archive could not be
+  removed, and names the file to delete by hand.
+- Exit codes: `0` ok, `1` error, `2` usage, `3` not installed, `12` not enough
+  space.
+
 ## `hawser engine list --json`
 
 What this build can install, what is installed, and where a rollback goes:

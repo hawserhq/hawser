@@ -45,6 +45,7 @@ func commands() []command {
 		{"profile", "save and switch named settings profiles (work/home)", runProfile},
 		{"proxy", "serve the docker pipe in the foreground (debug mode)", runProxy},
 		{"prune", "reclaim disk: stopped containers, unused images, build cache", runPrune},
+		{"relocate", "move the engine data dir to another drive", runRelocate},
 		{"remote", "register and switch to a remote engine served over mutual TLS", runRemote},
 		{"reset", "reset the engine to a snapshot, unconditionally (runner clean slate)", runReset},
 		{"restart", "stop the engine, then start it", runRestart},

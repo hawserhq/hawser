@@ -212,6 +212,22 @@ type compactJSONShape struct {
 	Held           []string `json:"held,omitempty"`
 }
 
+// relocateJSONShape is `hawser relocate --json` (#64). needBytes/freeBytes are
+// the space check, and are the whole payload of a --dry-run.
+type relocateJSONShape struct {
+	Distro      string   `json:"distro"`
+	From        string   `json:"from"`
+	To          string   `json:"to"`
+	MovedBytes  int64    `json:"movedBytes"`
+	SHA256      string   `json:"sha256,omitempty"`
+	NeedBytes   uint64   `json:"needBytes"`
+	FreeBytes   uint64   `json:"freeBytes"`
+	Steps       []string `json:"steps,omitempty"`
+	DryRun      bool     `json:"dryRun"`
+	Restarted   bool     `json:"restarted"`
+	ArchiveKept string   `json:"archiveKept,omitempty"`
+}
+
 // engineListJSON is `hawser engine list --json` (#65): what this build can
 // install, what is installed, and what a rollback would return to. available
 // is always an array; ref is the revisioned label (29.7.2-4), which is the

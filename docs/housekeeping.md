@@ -116,3 +116,56 @@ engine stopped.
 and `fstrim`'s misleading figure — come from the research in
 [zcsizmadia/wsldisk](https://github.com/zcsizmadia/wsldisk), which does this
 for any WSL distro (and for Docker Desktop's own `docker_data.vhdx`).*
+
+## Moving the engine to another drive: `hawser relocate`
+
+`compact` gives space back on the drive the engine already lives on. When that
+drive is simply the wrong one — a small C: SSD, a work laptop with a full
+system volume — move the whole thing:
+
+```
+hawser relocate D:\hawser --dry-run    # what it would do, and whether it fits
+hawser relocate D:\hawser --restart    # move it, then bring the engine back
+```
+
+Everything comes with it: images, containers, volumes, build cache. The
+manifest records the new location, so `compact`, `prune`, `status --stats` and
+the supervisor all follow it without further configuration.
+
+### How it moves, and why that order
+
+1. the engine stops
+2. `wsl --export` writes a **checksummed archive** on the target drive
+3. `wsl --unregister` removes the old distro — *this deletes the old disk*
+4. `wsl --import` recreates it at the new location
+5. the manifest is updated, and the archive is deleted
+
+Step 3 is destructive and irreversible, which is why the archive is written and
+verified first: between unregister and a completed import, that archive is the
+only copy of your data. It is therefore never cleaned up on a failure. If the
+import fails, the error prints the exact `wsl --import` command that puts
+everything back, and `--keep-archive` keeps it even on success.
+
+The archive lands on the **target** drive, not beside the current one. The
+reason to relocate is usually that the current drive is full, and staging there
+would fail exactly when it is needed.
+
+### Space, and what it refuses
+
+The archive and the newly imported disk exist at the same time, so the target
+needs roughly **twice** the current disk's size free. That is checked before
+anything is stopped or moved; too little space exits **12** and changes
+nothing.
+
+It also refuses to move onto itself, into a subdirectory of the current data
+dir (`wsl --unregister` would delete the target mid-move), or into a directory
+that already holds an `ext4.vhdx` — that disk belongs to some other distro, and
+overwriting it would destroy whatever engine that is.
+
+The old directory is removed only if the move left it empty, so anything you
+kept beside the disk stays where it is.
+
+### `hawser config set data-dir` is not the spelling
+
+Moving the engine is an operation, not a stored value, so it lives under a
+command. `hawser config set data-dir` says so and points here.

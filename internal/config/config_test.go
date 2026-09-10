@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -92,5 +93,18 @@ func TestAllListsDefaultsAndSet(t *testing.T) {
 	}
 	if all[KeyIdleTimeout] != "30m0s" {
 		t.Errorf("All()[%s] = %q", KeyIdleTimeout, all[KeyIdleTimeout])
+	}
+}
+
+func TestSetDataDirPointsAtTheRelocateCommand(t *testing.T) {
+	// PLAN.md and #64 both spell it `config set data-dir`, so it gets typed.
+	// The answer must name the command that actually does it rather than
+	// dead-ending on "unknown config key".
+	err := Set(t.TempDir(), "data-dir", `D:\hawser`)
+	if err == nil {
+		t.Fatal("data-dir must not be storable as a setting")
+	}
+	if !strings.Contains(err.Error(), "hawser relocate") {
+		t.Errorf("the error should point at `hawser relocate`, got: %v", err)
 	}
 }
