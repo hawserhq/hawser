@@ -12,6 +12,11 @@ security patch should not require an app release, and vice versa (PLAN §04,
 `hawser engine upgrade`). Both workflows check the tag prefix, so a rootfs
 release never gets app binaries attached and an app release never gets a rootfs.
 
+Deciding *what* to bump — which moby tag, whether containerd/runc/buildkit move
+with it, where each checksum comes from — is a separate job from cutting the
+release. That is [docs/bumping-upstream.md](docs/bumping-upstream.md); this file
+covers publishing once the versions are settled.
+
 ## The ordering that matters
 
 An app release embeds the rootfs checksum in
