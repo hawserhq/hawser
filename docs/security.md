@@ -87,9 +87,35 @@ way, so a tampered rootfs fails verification **even if the attacker also edits
 the sha256 in `internal/release/manifest.json`** — the signature is independent
 of the pin.
 
-`hawser install` does not yet check these itself (it enforces the SHA-256 pin);
-wiring that in, with an explicit and logged escape hatch, is the remaining half
-of [#147](https://github.com/zcsizmadia/hawser/issues/147).
+### Making `hawser install` check it for you
+
+The SHA-256 pin is always enforced. The signature check is opt-in:
+
+```
+hawser config set install.verify-signature on
+```
+
+From then on, every install and `hawser engine upgrade` verifies the rootfs
+signature before importing, and **refuses** if it cannot — verification that
+silently does nothing is the failure this exists to prevent. Three refusals,
+each with its own message because each needs a different action:
+
+- **no `cosign` on PATH** — verification shells out to cosign rather than
+  vendoring Sigstore into a binary budgeted under 15 MB, so it tells you to
+  install it (or to turn the check off and rely on the pin).
+- **the release carries no signature** — anything cut before signing existed,
+  and any rootfs you built yourself.
+- **the signed checksum does not match the tarball** — the interesting one.
+
+`--no-verify-signature` skips the check for a single install and logs that it
+did. An unlogged bypass of a security check would be worse than not having one.
+
+Air-gapped installs (`--offline`) have no transparency log to reach, which is
+the other reason the check is opt-in rather than default-on.
+
+Verified against a signed release: a tampered rootfs whose checksum was edited
+to match — so the pin *passed* — was still refused, because the signed checksum
+named the original bytes.
 
 Release binaries are **not yet Authenticode code-signed** — that needs a
 purchased certificate and is tracked by
@@ -108,8 +134,10 @@ substitutes for the other.
 - **Release binaries are not Authenticode-signed** (above), so SmartScreen
   warns. They *are* attested and their checksums signed, which is a different
   guarantee: it proves origin, not that Windows will trust the executable.
-- **`hawser install` does not verify the signature itself** yet — it enforces
-  the SHA-256 pin, and the signature is a check you run (#147).
+- **The signature check is off by default.** The SHA-256 pin is always
+  enforced; signature verification is opt-in
+  (`hawser config set install.verify-signature on`) because it needs `cosign`
+  on PATH and cannot work on an air-gapped install (above).
 - **The sibling-distro vsock boundary** is authenticated only by a handshake,
   not a secret, today; see #81.
 
