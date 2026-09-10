@@ -106,6 +106,9 @@ docker context. Nothing else on the system is touched.
   `gitlab-ci-local`, Dagger, and a BuildKit cache a laptop and a runner share; commit
   `hawser.lock` and both install the same engine to the commit —
   [docs/local-ci.md](docs/local-ci.md)
+- **Kubernetes when you want it, never bundled**: `kind` and `k3d` clusters run on the
+  engine, with `kubectl` and NodePort/Ingress reachable from Windows —
+  [docs/kubernetes.md](docs/kubernetes.md)
 
 ## What's ahead
 
@@ -116,7 +119,9 @@ installers (winget/scoop/choco) — tracked in the
 ## What it will never be
 
 Windows containers, Kubernetes, or a management GUI. Because Hawser serves the standard
-Docker API, existing frontends (Portainer, lazydocker, VS Code) already work against it.
+Docker API, existing frontends (Portainer, lazydocker, VS Code) already work against it —
+and a cluster is just containers, so `kind` and `k3d` run on it today
+([docs/kubernetes.md](docs/kubernetes.md)) without Hawser owning a control plane.
 
 ## Repository layout
 

@@ -99,6 +99,7 @@ func TestAcceptance(t *testing.T) {
 		{"GitLabPipelineRunsLocally", stageGitLabCILocal},
 		{"DaggerPipelineRuns", stageDagger},
 		{"BuildCacheExportsAndImports", stageBuildCache},
+		{"KindClusterServesFromWindows", stageKind},
 		{"ExecInRunningContainer", stageExec},
 		{"StdinPipeIntoContainer", stageStdinPipe},
 		{"LogsFollowStreams", stageLogsFollow},
@@ -1362,6 +1363,119 @@ func stageBuildCache(t *testing.T, s *state) {
 		t.Errorf("rebuild did not report a cache hit after importing %s:\n%s", cache, out)
 	}
 	t.Logf("cache-imported rebuild took %s", time.Since(start).Round(time.Second))
+}
+
+// stageKind proves a Kubernetes cluster built out of containers works on this
+// engine, and that a workload in it is reachable from Windows (#153). Hawser
+// ships no Kubernetes; running kind is the whole claim, so this is the test
+// that keeps it true.
+//
+// The cluster is configured with apiServerAddress 0.0.0.0 deliberately: WSL2
+// mirrored networking only projects wildcard-bound listeners onto the Windows
+// host, so kind's 127.0.0.1 default builds a cluster kubectl cannot reach.
+func stageKind(t *testing.T, s *state) {
+	kind, err := exec.LookPath("kind")
+	if err != nil {
+		t.Skip("kind not on PATH; install kind to exercise this")
+	}
+	kubectl, err := exec.LookPath("kubectl")
+	if err != nil {
+		t.Skip("kubectl not on PATH; install kubectl to exercise this")
+	}
+
+	const cluster = "hawser-e2e"
+	const nodePort = "30089"
+	dir := filepath.Join(s.workDir, "kind")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := filepath.Join(dir, "kind.yaml")
+	config := `kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+networking:
+  apiServerAddress: "0.0.0.0"
+nodes:
+  - role: control-plane
+    extraPortMappings:
+      - containerPort: ` + nodePort + `
+        hostPort: ` + nodePort + `
+        listenAddress: "0.0.0.0"
+        protocol: TCP
+`
+	if err := os.WriteFile(cfg, []byte(config), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	kubeconfig := filepath.Join(dir, "kubeconfig")
+	env := append(s.dockerEnv(), "DOCKER_HOST="+dockerHost, "KUBECONFIG="+kubeconfig)
+
+	// Pulling the node image is the slow part; a first run can take minutes.
+	out, err := runEnv(t, env, 15*time.Minute, kind, "create", "cluster",
+		"--name", cluster, "--config", cfg, "--wait", "180s")
+	if err != nil {
+		runEnv(t, env, 5*time.Minute, kind, "delete", "cluster", "--name", cluster)
+		t.Fatalf("kind create cluster: %v\n%s", err, out)
+	}
+	defer runEnv(t, env, 5*time.Minute, kind, "delete", "cluster", "--name", cluster)
+
+	// kind's kubeconfig says https://0.0.0.0:6443 and that is what works from
+	// Windows; rewriting it to 127.0.0.1 fails certificate verification.
+	out, err = runEnv(t, env, 2*time.Minute, kubectl, "get", "nodes", "--no-headers")
+	must(t, out, err, "kubectl get nodes")
+	if !strings.Contains(out, "Ready") {
+		t.Fatalf("no Ready node:\n%s", out)
+	}
+
+	svc := filepath.Join(dir, "web.yaml")
+	manifest := `apiVersion: apps/v1
+kind: Deployment
+metadata: {name: web}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: web}}
+  template:
+    metadata: {labels: {app: web}}
+    spec:
+      containers:
+        - name: web
+          image: nginx:alpine
+---
+apiVersion: v1
+kind: Service
+metadata: {name: web}
+spec:
+  type: NodePort
+  selector: {app: web}
+  ports:
+    - port: 80
+      targetPort: 80
+      nodePort: ` + nodePort + `
+`
+	if err := os.WriteFile(svc, []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	out, err = runEnv(t, env, 2*time.Minute, kubectl, "apply", "-f", svc)
+	must(t, out, err, "kubectl apply")
+	out, err = runEnv(t, env, 5*time.Minute, kubectl, "rollout", "status", "deployment/web", "--timeout=240s")
+	must(t, out, err, "kubectl rollout status")
+
+	// The point of the whole stage: a pod answering on the Windows side.
+	client := &http.Client{Timeout: 5 * time.Second}
+	deadline := time.Now().Add(2 * time.Minute)
+	for {
+		resp, err := client.Get("http://127.0.0.1:" + nodePort + "/")
+		if err == nil {
+			body, _ := io.ReadAll(io.LimitReader(resp.Body, 512))
+			resp.Body.Close()
+			if resp.StatusCode == http.StatusOK && strings.Contains(string(body), "nginx") {
+				t.Logf("NodePort %s served nginx from the cluster to Windows", nodePort)
+				return
+			}
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("NodePort %s never served from Windows (last error: %v)", nodePort, err)
+		}
+		time.Sleep(3 * time.Second)
+	}
 }
 
 func stageExec(t *testing.T, s *state) {
