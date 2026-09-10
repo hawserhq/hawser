@@ -10,6 +10,7 @@ import (
 
 	"github.com/zcsizmadia/hawser/internal/config"
 	"github.com/zcsizmadia/hawser/internal/dockercli"
+	"github.com/zcsizmadia/hawser/internal/hooks"
 	"github.com/zcsizmadia/hawser/internal/provision"
 	"github.com/zcsizmadia/hawser/internal/remote"
 	"github.com/zcsizmadia/hawser/internal/runner"
@@ -83,6 +84,11 @@ type Facts struct {
 	// Runner is the unattended-host setup (#150): auto-logon, autostart,
 	// supervisor, engine. Its account fields are compared, never rendered.
 	Runner runner.Facts
+
+	// InjectedModules are third-party DLLs loaded into Hawser's own process
+	// (#166) -- endpoint-security agents, almost always. Reported because they
+	// are the known cause of a supervisor crash no dump can explain.
+	InjectedModules []hooks.Module
 }
 
 // GPUStatus describes GPU passthrough (#83): whether it is turned on in config,
@@ -231,6 +237,10 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 		f.Runner.PlaintextPassword = w.HasDefaultPassword
 	}
 	f.Runner.CurrentUser, f.Runner.CurrentDomain = runner.CurrentAccount()
+
+	// Third-party DLLs in this very process (#166): read from our own module
+	// list, so it costs a snapshot call and no privileges.
+	f.InjectedModules = hooks.Injected()
 
 	return f
 }
