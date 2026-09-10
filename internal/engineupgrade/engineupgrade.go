@@ -184,8 +184,12 @@ func (r *Runner) Run(ctx context.Context, opts Options) (Report, error) {
 	}
 	rep.Steps = append(rep.Steps, "fetched and verified the rootfs")
 
-	// 2. Extract only the engine binaries, to a staging dir on the host.
+	// 2. Extract only the engine binaries, to a staging dir on the host --
+	// removed on the way out. It is ~250 MB of binaries that are redundant the
+	// moment they are copied in, and the verified tarball beside it is the
+	// durable source a rollback re-extracts from.
 	staging := filepath.Join(opts.StateDir, "engine-staging", opts.Target.Ref)
+	defer os.RemoveAll(staging)
 	extracted, err := ExtractBinaries(tarball, staging)
 	if err != nil {
 		return rep, err

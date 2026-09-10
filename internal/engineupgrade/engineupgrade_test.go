@@ -387,3 +387,24 @@ func TestBriefKeepsFailuresReadable(t *testing.T) {
 		}
 	}
 }
+
+func TestStagingIsNotLeftBehind(t *testing.T) {
+	// The extracted binaries are ~250 MB and redundant once copied in; the
+	// verified tarball beside them is what a rollback re-extracts from.
+	dir := t.TempDir()
+	src := makeRootfs(t, dir, map[string]string{"dockerd": "new", "runc": "new"})
+	d := &fakeDistro{version: "Docker version 29.7.2, build x"}
+	r, _ := runner(t, d, &fakeFetcher{tarball: src})
+
+	if _, err := r.Run(context.Background(), opts(t, dir)); err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	staging := filepath.Join(dir, "engine-staging", "29.7.2-4")
+	if _, err := os.Stat(staging); !os.IsNotExist(err) {
+		t.Errorf("%s survived the upgrade (err=%v)", staging, err)
+	}
+	// The tarball must still be there: it is the rollback source.
+	if _, err := os.Stat(filepath.Join(dir, "rootfs", "hawser-rootfs-29.7.2-4.tar.gz")); err != nil {
+		t.Errorf("the cached rootfs was removed: %v", err)
+	}
+}
