@@ -3,6 +3,7 @@ package provision
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/zcsizmadia/hawser/internal/engineconfig"
 	"github.com/zcsizmadia/hawser/internal/gpu"
+	"github.com/zcsizmadia/hawser/internal/rootfsverify"
 	"github.com/zcsizmadia/hawser/internal/winpath"
 	"github.com/zcsizmadia/hawser/internal/wsl"
 )
@@ -69,6 +71,10 @@ type Options struct {
 	// the GPU (#83). Like Network, applied on every engine start so a rootfs
 	// re-import keeps it.
 	GPUEnabled bool
+	// VerifySignature checks the rootfs Sigstore signature before importing, in
+	// addition to the always-enforced checksum (#147). Opt-in, because it needs
+	// cosign on PATH and an air-gapped install has no transparency log to reach.
+	VerifySignature bool
 }
 
 // NetConfig is the corporate-network configuration applied to the engine.
@@ -208,6 +214,16 @@ func (p *Provisioner) Install(ctx context.Context, opts Options) (*Manifest, err
 	rootfs := filepath.Join(opts.StateDir, "rootfs", filepath.Base(opts.RootfsURL))
 	if err := p.fetchRootfs(ctx, opts.RootfsURL, opts.RootfsSHA256, rootfs); err != nil {
 		return nil, err
+	}
+
+	// The checksum above is always enforced; a signature additionally ties the
+	// bytes to the project's release workflow, which a forked manifest cannot
+	// forge (#147). Opt-in, and a failure refuses the install rather than
+	// importing something unverified.
+	if opts.VerifySignature {
+		if err := p.verifyRootfsSignature(ctx, opts, rootfs); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := os.MkdirAll(opts.DataDir, 0o755); err != nil {
@@ -815,3 +831,44 @@ func (p *Provisioner) StopEngine(ctx context.Context, opts Options) error {
 func (p *Provisioner) SaveManifest(opts Options, m *Manifest) error {
 	return p.writeManifest(opts.withDefaults(), m)
 }
+
+// verifyRootfsSignature checks the rootfs against the Sigstore signature the
+// release workflow published beside it (#147).
+//
+// It refuses rather than warns: verification was asked for, and an install that
+// says "could not verify, carrying on" is the failure this exists to prevent.
+// The two "cannot check" cases get their own messages, because "no verifier
+// installed" and "this release was never signed" need different actions.
+func (p *Provisioner) verifyRootfsSignature(ctx context.Context, opts Options, tarball string) error {
+	v := &rootfsverify.Verifier{
+		Fetch:   p.fetcher(),
+		Repo:    signingRepo,
+		TempDir: filepath.Join(opts.StateDir, "rootfs"),
+	}
+	res, err := v.Verify(ctx, opts.RootfsURL, tarball)
+	switch {
+	case errors.Is(err, rootfsverify.ErrNoVerifier):
+		return fmt.Errorf("%w.\n"+
+			"  install.verify-signature is on, and verification needs cosign on PATH:\n"+
+			"    winget install sigstore.cosign   (or see https://docs.sigstore.dev)\n"+
+			"  Turn it off with `hawser config set install.verify-signature off` to install\n"+
+			"  on the SHA-256 pin alone, which is always enforced", err)
+	case err != nil:
+		var nm *rootfsverify.ErrNoMaterial
+		if errors.As(err, &nm) {
+			return fmt.Errorf("%w.\n"+
+				"  Releases from before signing was added (and rootfs images you built\n"+
+				"  yourself) carry no signature. The SHA-256 pin still applies; turn the\n"+
+				"  check off with `hawser config set install.verify-signature off` to\n"+
+				"  install this one", err)
+		}
+		return err
+	}
+	p.logger().Info("rootfs signature verified", "digest", res.Digest, "identity", res.SignedBy)
+	return nil
+}
+
+// signingRepo is the repository whose release workflow signs the rootfs. A
+// signature made by any other repository's workflow -- a fork's included -- is
+// rejected, so this is a trust anchor and not a convenience.
+const signingRepo = "zcsizmadia/hawser"

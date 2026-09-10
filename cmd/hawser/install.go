@@ -12,6 +12,7 @@ import (
 
 	"github.com/zcsizmadia/hawser/internal/autostart"
 	"github.com/zcsizmadia/hawser/internal/bundle"
+	"github.com/zcsizmadia/hawser/internal/config"
 	"github.com/zcsizmadia/hawser/internal/dockerctx"
 	"github.com/zcsizmadia/hawser/internal/integrate"
 	"github.com/zcsizmadia/hawser/internal/lockfile"
@@ -47,6 +48,7 @@ func runInstall(args []string) int {
 		stateDir      = fs.String("state-dir", "", "override Hawser's state directory")
 		headless      = fs.Bool("headless", false, "never prompt; for unattended and CI installs")
 		noAutostart   = fs.Bool("no-autostart", false, "do not register the supervisor to start at logon")
+		noVerifySig   = fs.Bool("no-verify-signature", false, "skip the rootfs signature check for this install (the SHA-256 pin still applies)")
 		rootfsURL     = fs.String("rootfs-url", "", "override the rootfs URL (development)")
 		rootfsSHA     = fs.String("rootfs-sha256", "", "expected rootfs SHA-256; required with --rootfs-url")
 		asJSON        = fs.Bool("json", false, "emit the resulting manifest as JSON")
@@ -162,6 +164,19 @@ flags:
 		opts.RootfsURL = engine.Rootfs.URL
 		opts.RootfsSHA256 = engine.Rootfs.SHA256
 		opts.EngineVersion = engine.Version
+	}
+
+	// Signature verification is opt-in (#147) and lives in config so a fleet
+	// sets it once. --no-verify-signature turns it off for one install and says
+	// so out loud, because an unlogged bypass of a security check is worse than
+	// not having the check.
+	if c, err := config.Load(optsWithResolvedStateDir(opts).StateDir); err == nil && c.VerifySignature {
+		if *noVerifySig {
+			log.Warn("skipping the rootfs signature check (--no-verify-signature); " +
+				"the SHA-256 pin is still enforced")
+		} else {
+			opts.VerifySignature = true
+		}
 	}
 
 	ctx, stop := interruptible()
