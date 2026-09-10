@@ -51,3 +51,45 @@ jobs:
             if ($LASTEXITCODE -ne 0) { Pop-Location; exit 1 }
             Pop-Location
           }
+
+  # #166: a supervisor serving the pipe died with Go runtime memory corruption
+  # ("found pointer to free object"; "unknown caller pc" inside go-winio's IOCP
+  # processor), leaving the engine unreachable until `hawser start`. The cause
+  # was two goroutines sharing one bufio.Reader in the relay — invisible to
+  # every other check in this file, and reproducible only as "crashes
+  # eventually" on a real machine. The race detector turns that into a test
+  # failure, so the pipe path runs under it on every PR.
+  race:
+    name: race & checkptr (windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+
+      # -race needs cgo and a real C toolchain. The runner image ships
+      # mingw-w64; printing it makes a missing compiler an obvious failure
+      # rather than a confusing `# runtime/cgo` build error.
+      - name: toolchain
+        run: gcc --version
+
+      # -count=4 on the relay itself: a race that loses the interleaving most
+      # of the time still has to lose it four times to slip through.
+      - name: go test -race (pipeproxy)
+        env:
+          CGO_ENABLED: '1'
+        run: go test -race -count=4 ./internal/pipeproxy/...
+
+      - name: go test -race (all packages)
+        env:
+          CGO_ENABLED: '1'
+        run: go test -race -count=1 ./...
+
+      # checkptr validates unsafe.Pointer arithmetic — the other half of #166's
+      # hypothesis, where an abandoned overlapped IO's OVERLAPPED struct is Go
+      # heap memory the OS may still write to. Cheap, and catches what -race
+      # does not.
+      - name: go test -d=checkptr
+        run: go test -gcflags=all=-d=checkptr -count=1 ./...
