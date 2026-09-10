@@ -68,6 +68,12 @@ func NetworkKeys() []string { return []string{KeyProxy, KeyNoProxy, KeyImportHos
 // visible and restarts the engine.
 const KeyGPU = "gpu"
 
+// KeyVerifySignature, when on, checks the rootfs Sigstore signature before it
+// is imported, in addition to the always-enforced SHA-256 pin (#147). Opt-in:
+// it needs cosign on PATH, and an air-gapped install has no transparency log
+// to reach.
+const KeyVerifySignature = "install.verify-signature"
+
 // WSL VM sizing (#148). These live in the GLOBAL ~/.wslconfig, which every
 // WSL2 distro on the machine shares -- so setting one here records an
 // intention, and `hawser wsl-config apply` is what writes it, after showing
@@ -111,6 +117,8 @@ type Config struct {
 	ImportHostCAs bool
 	// GPU installs the NVIDIA CDI spec so containers can use the GPU (#83).
 	GPU bool
+	// VerifySignature checks the rootfs signature before import (#147).
+	VerifySignature bool
 	// DiskWarnBelow is the doctor free-space floor in bytes; 0 means default.
 	DiskWarnBelow uint64
 }
@@ -136,6 +144,7 @@ func Load(stateDir string) (Config, error) {
 	c.NoProxy = raw[KeyNoProxy]
 	c.ImportHostCAs = raw[KeyImportHostCAs] == "on"
 	c.GPU = raw[KeyGPU] == "on"
+	c.VerifySignature = raw[KeyVerifySignature] == "on"
 	if v := strings.TrimSpace(raw[KeyDiskWarnBelow]); v != "" {
 		n, err := parseSize(v)
 		if err != nil {
@@ -174,16 +183,17 @@ var validators = map[string]func(string) (string, error){
 		}
 		return d.String(), nil
 	},
-	KeyHookPostStart:  validateHookPath,
-	KeyHookPreStop:    validateHookPath,
-	KeyHookOnIdleStop: validateHookPath,
-	KeyHookOnWake:     validateHookPath,
-	KeyAudit:          validateOnOff,
-	KeyProxy:          validateProxy,
-	KeyNoProxy:        func(v string) (string, error) { return strings.TrimSpace(v), nil },
-	KeyImportHostCAs:  validateOnOff,
-	KeyGPU:            validateOnOff,
-	KeyDiskWarnBelow:  validateSize,
+	KeyHookPostStart:   validateHookPath,
+	KeyHookPreStop:     validateHookPath,
+	KeyHookOnIdleStop:  validateHookPath,
+	KeyHookOnWake:      validateHookPath,
+	KeyAudit:           validateOnOff,
+	KeyProxy:           validateProxy,
+	KeyNoProxy:         func(v string) (string, error) { return strings.TrimSpace(v), nil },
+	KeyImportHostCAs:   validateOnOff,
+	KeyGPU:             validateOnOff,
+	KeyDiskWarnBelow:   validateSize,
+	KeyVerifySignature: validateOnOff,
 
 	// Validated the way WSL reads them, so a typo fails here rather than
 	// silently sizing the VM as something else (#148).
@@ -275,7 +285,7 @@ func Get(stateDir, key string) (string, error) {
 
 func defaultFor(key string) string {
 	switch key {
-	case KeyIdleTimeout, KeyAudit, KeyImportHostCAs, KeyGPU:
+	case KeyIdleTimeout, KeyAudit, KeyImportHostCAs, KeyGPU, KeyVerifySignature:
 		return "off"
 	case KeyDiskWarnBelow:
 		return "5GiB"
