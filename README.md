@@ -81,6 +81,10 @@ docker context. Nothing else on the system is touched.
   teammate or CI runner, reachable only by holders of a client cert this machine's CA
   signed — off by default; on the client, `hawser remote add/use` makes it docker's default
   in one command ([docs/remote-engine.md](docs/remote-engine.md))
+- **Engine upgrades, reversibly**: `hawser engine upgrade` swaps the engine binaries out of a
+  checksum-verified rootfs and leaves /var/lib/docker alone, so images and volumes survive;
+  a new engine that does not come back is rolled back automatically
+  ([docs/engine-upgrade.md](docs/engine-upgrade.md))
 - **Disk hygiene**: `hawser prune` reclaims stopped containers, unused images and build cache
   through whatever docker targets; **`hawser compact`** then shrinks the engine's VHDX itself
   (`fstrim` + `CompactVirtualDisk`, no administrator rights, so it works on Windows Home);
@@ -114,8 +118,7 @@ docker context. Nothing else on the system is touched.
 
 ## What's ahead
 
-Data-dir relocation, pinned engine upgrades with rollback, and signed installers
-(winget/scoop/choco) — tracked in the
+Data-dir relocation and signed installers (winget/scoop/choco) — tracked in the
 [issue tracker](https://github.com/zcsizmadia/hawser/issues).
 
 ## What it will never be

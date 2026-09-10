@@ -334,6 +334,45 @@ Shrinks the engine's virtual disk (fstrim + CompactVirtualDisk):
 - Exit codes: `0` ok, `1` error, `2` usage, `3` not installed, `11` the disk is
   held.
 
+## `hawser engine list --json`
+
+What this build can install, what is installed, and where a rollback goes:
+
+```json
+{
+  "installed": "29.7.2-4",
+  "previous": "29.7.2-3",
+  "available": [
+    { "ref": "29.7.2-4", "version": "29.7.2", "default": true, "published": true }
+  ]
+}
+```
+
+- `ref` is the **revisioned** label and the unit an upgrade moves between;
+  `version` is only the dockerd version, and two revisions can share one.
+- `published` is `false` for a manifest entry with no checksum yet — a
+  placeholder that cannot be installed.
+- `installed` and `previous` are omitted when unknown; `available` is always an
+  array.
+
+## `hawser engine upgrade --json` / `hawser engine rollback --json`
+
+```json
+{
+  "from": "29.7.2-3",
+  "to": "29.7.2-4",
+  "replaced": ["dockerd", "containerd", "runc", "..."],
+  "engineVersion": "29.7.2",
+  "rolledBack": false,
+  "dryRun": false
+}
+```
+
+- `engineVersion` is what the new dockerd reports about **itself** — evidence
+  the swap took, not an assumption that it did.
+- `rolledBack: true` with a **non-zero exit** is the interesting case: the
+  upgrade failed and the previous engine was restored, so the engine is up.
+- `replaced` and `engineVersion` are absent on a dry run.
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and

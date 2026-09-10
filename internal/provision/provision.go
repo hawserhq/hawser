@@ -124,6 +124,16 @@ type Manifest struct {
 	// WSLVersion is what WSL reported at install time, useful when diagnosing
 	// a machine whose WSL was updated afterwards.
 	WSLVersion string `json:"wslVersion,omitempty"`
+	// EngineRef is the revisioned engine label ("29.7.2-4"), which is the unit
+	// an upgrade moves between -- EngineVersion is only the dockerd version, and
+	// two rootfs revisions can carry the same one (#65). Empty on installs that
+	// predate this field.
+	EngineRef string `json:"engineRef,omitempty"`
+	// PreviousEngineRef is where `hawser engine rollback` goes back to: the ref
+	// that was installed before the last upgrade.
+	PreviousEngineRef string `json:"previousEngineRef,omitempty"`
+	// UpgradedAt is when the last engine upgrade landed.
+	UpgradedAt time.Time `json:"upgradedAt,omitempty"`
 }
 
 // Provisioner performs installs and removals.
@@ -796,4 +806,12 @@ func (p *Provisioner) StopEngine(ctx context.Context, opts Options) error {
 	opts = opts.withDefaults()
 	p.logger().Info("terminating distro", "distro", opts.Distro)
 	return p.wsl().Terminate(ctx, opts.Distro)
+}
+
+// SaveManifest persists an updated install manifest. Exported for `hawser
+// engine upgrade` (#65), which changes what is installed without reinstalling:
+// the record of which engine is in the distro, and which one to roll back to,
+// has to move with it.
+func (p *Provisioner) SaveManifest(opts Options, m *Manifest) error {
+	return p.writeManifest(opts.withDefaults(), m)
 }
