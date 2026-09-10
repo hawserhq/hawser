@@ -119,32 +119,10 @@ against the engine: `test/e2e/testcontainers`.
 ## Running pipelines locally
 
 The point of a local engine is that a pipeline can be *debugged* locally, not
-just executed in CI.
-
-### GitHub Actions with act
-
-```
-DOCKER_HOST=npipe:////./pipe/hawser_engine act -j build
-```
-
-[act](https://github.com/nektos/act) speaks to `DOCKER_HOST` directly. Verified
-against the Hawser engine with a container job **and** a service container: the
-job network is created, the service is reachable by its alias, and the workspace
-is bind-mounted. Pick a runner image explicitly if you do not want act's
-default (`-P ubuntu-latest=catthehacker/ubuntu:act-22.04`).
-
-### GitLab CI with gitlab-ci-local
-
-```
-DOCKER_HOST=npipe:////./pipe/hawser_engine gitlab-ci-local unit
-```
-
-[gitlab-ci-local](https://github.com/firecow/gitlab-ci-local) is the practical
-replacement for the removed `gitlab-runner exec`. On Windows it shells out to
-`rsync` (through bash) to stage the working tree, so **rsync must be on PATH** —
-MSYS2 or Cygwin provides one. Without it every job fails during setup with
-`rsync: command not found`, which is a gitlab-ci-local requirement, not a
-Hawser one.
+just executed in CI: `act` for GitHub Actions, `gitlab-ci-local` for GitLab,
+Dagger, and a BuildKit cache a laptop and a runner can share. All of it — with
+measured numbers and each tool's own limitations — is in
+**[local-ci.md](local-ci.md)**.
 
 ## Housekeeping on a long-lived runner
 

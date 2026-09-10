@@ -97,6 +97,8 @@ func TestAcceptance(t *testing.T) {
 		{"TestcontainersAgainstTheEngine", stageTestcontainers},
 		{"ActRunsAWorkflowLocally", stageAct},
 		{"GitLabPipelineRunsLocally", stageGitLabCILocal},
+		{"DaggerPipelineRuns", stageDagger},
+		{"BuildCacheExportsAndImports", stageBuildCache},
 		{"ExecInRunningContainer", stageExec},
 		{"StdinPipeIntoContainer", stageStdinPipe},
 		{"LogsFollowStreams", stageLogsFollow},
@@ -1279,6 +1281,87 @@ unit:
 	if !strings.Contains(out, "gitlab-ci-local-ok") {
 		t.Errorf("the job did not run its script:\n%s", out)
 	}
+}
+
+// stageDagger proves Dagger works against the engine (#151). Dagger
+// provisions its own long-lived engine container over DOCKER_HOST, which is a
+// different shape from act and gitlab-ci-local: nothing bind-mounts the
+// socket, but a container has to survive between invocations.
+func stageDagger(t *testing.T, s *state) {
+	bin, err := exec.LookPath("dagger")
+	if err != nil {
+		t.Skip("dagger not on PATH; install the Dagger CLI to exercise this")
+	}
+	env := append(s.dockerEnv(), "DOCKER_HOST="+dockerHost, "DAGGER_NO_NAG=1")
+	out, err := runEnv(t, env, 10*time.Minute, bin, "core", "container",
+		"from", "--address=alpine:3.20",
+		"with-exec", "--args=echo,dagger-on-hawser-ok", "stdout")
+	must(t, out, err, "dagger core container")
+	if !strings.Contains(out, "dagger-on-hawser-ok") {
+		t.Errorf("the Dagger pipeline produced no output:\n%s", out)
+	}
+	// Its engine container should be on this engine, not somewhere else.
+	ps, _ := dockerE(t, s, time.Minute, "ps", "--format", "{{.Image}}")
+	if !strings.Contains(ps, "dagger") {
+		t.Errorf("no dagger engine container on the suite's engine; ps:\n%s", ps)
+	}
+	defer func() {
+		ids, _ := dockerE(t, s, time.Minute, "ps", "-aq", "--filter", "name=dagger-engine")
+		for _, id := range strings.Fields(ids) {
+			dockerE(t, s, 2*time.Minute, "rm", "-f", id)
+		}
+	}()
+}
+
+// stageBuildCache proves a BuildKit cache written through this engine can be
+// imported again after the builder's own cache is wiped (#151) -- the property
+// that lets a laptop and a runner share layers, and the reason the rootfs pins
+// BuildKit rather than taking whatever is newest.
+func stageBuildCache(t *testing.T, s *state) {
+	if out, err := dockerE(t, s, time.Minute, "buildx", "version"); err != nil {
+		t.Skipf("no buildx plugin with this docker CLI: %s", out)
+	}
+	ctx := filepath.Join(s.workDir, "bakectx")
+	if err := os.MkdirAll(ctx, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// A layer slow enough that a cache hit is unmistakable, and unique to this
+	// run so a stale cache cannot fake it.
+	marker := fmt.Sprintf("cache-proof-%d", time.Now().UnixNano())
+	dockerfile := "FROM alpine:3.20\nRUN sleep 5 && echo " + marker + " > /marker\n"
+	if err := os.WriteFile(filepath.Join(ctx, "Dockerfile"), []byte(dockerfile), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cache := filepath.Join(s.workDir, "buildcache")
+
+	const builder = "hawser-e2e-cache"
+	dockerE(t, s, time.Minute, "buildx", "rm", builder) // best effort
+	if out, err := dockerE(t, s, 5*time.Minute, "buildx", "create", "--name", builder,
+		"--driver", "docker-container"); err != nil {
+		t.Skipf("cannot create a container builder on this engine: %s", out)
+	}
+	defer dockerE(t, s, 2*time.Minute, "buildx", "rm", builder)
+
+	out, err := dockerE(t, s, 15*time.Minute, "buildx", "build", "--builder", builder,
+		"--cache-to", "type=local,dest="+cache+",mode=max", ctx)
+	must(t, out, err, "buildx build exporting a local cache")
+	if _, err := os.Stat(cache); err != nil {
+		t.Fatalf("no cache was exported to %s: %v", cache, err)
+	}
+
+	// Wipe the builder's own cache so the rebuild can only come from the
+	// exported directory.
+	if out, err := dockerE(t, s, 5*time.Minute, "buildx", "prune", "-af", "--builder", builder); err != nil {
+		t.Fatalf("pruning the builder cache: %v\n%s", err, out)
+	}
+	start := time.Now()
+	out, err = dockerE(t, s, 15*time.Minute, "buildx", "build", "--builder", builder,
+		"--cache-from", "type=local,src="+cache, ctx)
+	must(t, out, err, "buildx build importing the local cache")
+	if !strings.Contains(out, "CACHED") {
+		t.Errorf("rebuild did not report a cache hit after importing %s:\n%s", cache, out)
+	}
+	t.Logf("cache-imported rebuild took %s", time.Since(start).Round(time.Second))
 }
 
 func stageExec(t *testing.T, s *state) {

@@ -101,8 +101,11 @@ docker context. Nothing else on the system is touched.
   the next `hawser start`
 - **CI runners**: GitHub Actions via
   [setup-hawser](https://github.com/zcsizmadia/setup-hawser), GitLab shell or docker
-  executor, Testcontainers (Ryuk included), and local pipeline runs with `act` or
-  `gitlab-ci-local` — [docs/ci-runners.md](docs/ci-runners.md)
+  executor, Testcontainers (Ryuk included) — [docs/ci-runners.md](docs/ci-runners.md)
+- **Debug pipelines locally, against the engine your runner uses**: `act`,
+  `gitlab-ci-local`, Dagger, and a BuildKit cache a laptop and a runner share; commit
+  `hawser.lock` and both install the same engine to the commit —
+  [docs/local-ci.md](docs/local-ci.md)
 
 ## What's ahead
 
