@@ -409,13 +409,28 @@ func runStatus(args []string) int {
 	return exitOK
 }
 
+func fileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
+}
+
 // spawnSupervisor launches `hawser supervise` detached and windowless.
+//
+// Through hawserw.exe when it is there (a release zip, not a bare go build):
+// the launcher stays resident as the supervisor's watchdog, so a crash costs
+// seconds of pipe downtime rather than every docker command until the next
+// `hawser start` (#166). Falling back to spawning supervise directly keeps a
+// single-binary checkout working, just without the watchdog.
 func spawnSupervisor(stateDir string) error {
 	self, err := os.Executable()
 	if err != nil {
 		return err
 	}
-	cmd := exec.Command(self, "supervise", "--state-dir", stateDir)
+	target, args := self, []string{"supervise", "--state-dir", stateDir}
+	if launcher := filepath.Join(filepath.Dir(self), "hawserw.exe"); fileExists(launcher) {
+		target, args = launcher, []string{"--state-dir", stateDir}
+	}
+	cmd := exec.Command(target, args...)
 	configureDetached(cmd)
 	if err := cmd.Start(); err != nil {
 		return err
