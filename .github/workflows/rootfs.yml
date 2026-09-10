@@ -84,11 +84,34 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      # See release.yml: id-token for the OIDC exchange cosign and the
+      # attestation both need, attestations to record the provenance (#147).
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/download-artifact@v4
         with:
           name: hawser-rootfs
           path: out
+
+      # Provenance over the tarball, its checksum and the SBOM, so a rootfs can
+      # be tied to this workflow and commit independently of the sha256 pin in
+      # internal/release/manifest.json. Tampering that also edits the manifest
+      # still fails this check.
+      - uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: 'out/*'
+
+      - uses: sigstore/cosign-installer@v3
+      - name: sign the rootfs checksum
+        run: |
+          sums=$(ls out/*.tar.gz.sha256)
+          cosign sign-blob --yes --bundle "$sums.cosign.bundle" "$sums"
+          cosign verify-blob \
+            --bundle "$sums.cosign.bundle" \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "$sums"
       # --repo is required: this job downloads artifacts without checking out
       # the code, so gh has no git remote to infer the repository from and
       # fails with "not a git repository".
