@@ -203,3 +203,21 @@ func TestPruneShape(t *testing.T) {
 		t.Error("error should be omitted on success")
 	}
 }
+
+func TestCompactShape(t *testing.T) {
+	m := roundTrip(t, compactJSONShape{Distro: "hawser-engine", Path: `C:\x\ext4.vhdx`})
+	requireKeys(t, m, "distro", "path", "trimmed", "beforeBytes", "afterBytes",
+		"reclaimedBytes", "waitedSeconds", "restarted", "dryRun")
+	// offeredBytes is fstrim's misleading figure: absent unless it ran, so no
+	// consumer sees a zero and reads it as "nothing was trimmed".
+	if _, ok := m["offeredBytes"]; ok {
+		t.Error("offeredBytes should be omitted when fstrim did not run")
+	}
+	// held only appears when other distros are holding the disk; its presence
+	// is the machine-readable form of exit code 11.
+	if _, ok := m["held"]; ok {
+		t.Error("held should be omitted when nothing is holding the disk")
+	}
+	m = roundTrip(t, compactJSONShape{OfferedBytes: 1078939029504, Held: []string{"docker-desktop"}})
+	requireKeys(t, m, "offeredBytes", "held")
+}

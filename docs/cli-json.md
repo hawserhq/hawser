@@ -302,6 +302,38 @@ Reclaims disk on whatever docker currently targets:
   keeps anything newer; `--build-cache` and `--volumes` widen the sweep
   (volumes hold data, so off by default).
 
+## `hawser compact --json`
+
+Shrinks the engine's virtual disk (fstrim + CompactVirtualDisk):
+
+```json
+{
+  "distro": "hawser-engine",
+  "path": "C:\\Users\\me\\AppData\\Local\\Hawser\\distro\\ext4.vhdx",
+  "trimmed": true,
+  "offeredBytes": 1078939029504,
+  "beforeBytes": 15032385536,
+  "afterBytes": 9663676416,
+  "reclaimedBytes": 5368709120,
+  "waitedSeconds": 66.4,
+  "restarted": true,
+  "dryRun": false
+}
+```
+
+- `reclaimedBytes` is the difference in the file's size **on disk** and the only
+  honest measure of what happened.
+- `offeredBytes` is what `fstrim` printed: the free extent of the whole virtual
+  disk, **not** space reclaimed. Named "offered" so nothing mistakes it for a
+  result; omitted when `--no-trim` was used.
+- `held` is present when other distros are keeping WSL from releasing the disk,
+  and pairs with exit code **11**. Under `--dry-run` it appears without an
+  error: the dry run reports that a real run would refuse, and names who.
+- `waitedSeconds` is how long WSL took to let go (about a minute after the last
+  distro stops).
+- Exit codes: `0` ok, `1` error, `2` usage, `3` not installed, `11` the disk is
+  held.
+
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and

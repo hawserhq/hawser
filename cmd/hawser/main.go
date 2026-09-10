@@ -31,6 +31,7 @@ func commands() []command {
 		{"autostart", "start the supervisor at logon: enable, disable, status", runAutostart},
 		{"bundle", "pack the engine into a .zip for an air-gapped `install --offline`", runBundle},
 		{"cli", "install the bundled docker CLI + compose + buildx (ditch Docker Desktop)", runCLI},
+		{"compact", "shrink the engine's virtual disk: fstrim + CompactVirtualDisk", runCompact},
 		{"config", "list, get, or set Hawser settings (idle-timeout)", runConfig},
 		{"doctor", "diagnose the host and engine; --fix applies safe remedies", runDoctor},
 		{"enable-gpu", "install the NVIDIA CDI spec so containers can use the GPU", runEnableGPU},
