@@ -35,6 +35,7 @@ func commands() []command {
 		{"config", "list, get, or set Hawser settings (idle-timeout)", runConfig},
 		{"doctor", "diagnose the host and engine; --fix applies safe remedies", runDoctor},
 		{"enable-gpu", "install the NVIDIA CDI spec so containers can use the GPU", runEnableGPU},
+		{"engine", "engine list, upgrade and rollback — pinned and reversible", runEngine},
 		{"healthcheck", "readiness probe: exit 0 when a docker command would succeed (--wait)", runHealthcheck},
 		{"install", "provision the engine distro and start it", runInstall},
 		{"lock", "write a hawser.lock pinning the exact engine (reproducible installs)", runLock},

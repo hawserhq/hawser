@@ -221,3 +221,38 @@ func TestCompactShape(t *testing.T) {
 	m = roundTrip(t, compactJSONShape{OfferedBytes: 1078939029504, Held: []string{"docker-desktop"}})
 	requireKeys(t, m, "offeredBytes", "held")
 }
+
+func TestEngineListShape(t *testing.T) {
+	m := roundTrip(t, engineListJSON{Available: []engineEntryJSON{}})
+	requireKeys(t, m, "available")
+	if a, ok := m["available"].([]any); !ok || a == nil {
+		t.Errorf("available must be an array even when empty, got %v", m["available"])
+	}
+	// installed/previous are omitted rather than empty strings: "no install"
+	// and "installed, name unknown" are different states.
+	for _, k := range []string{"installed", "previous"} {
+		if _, ok := m[k]; ok {
+			t.Errorf("%s should be omitted when unknown", k)
+		}
+	}
+	e := roundTrip(t, engineEntryJSON{Ref: "29.7.2-4", Version: "29.7.2", Default: true, Published: true})
+	requireKeys(t, e, "ref", "version", "default", "published")
+}
+
+func TestEngineUpgradeShape(t *testing.T) {
+	m := roundTrip(t, engineUpgradeJSON{To: "29.7.2-4"})
+	requireKeys(t, m, "to", "rolledBack", "dryRun")
+	// from is omitted on an install that predates the bookkeeping; replaced and
+	// engineVersion are absent on a dry run.
+	for _, k := range []string{"from", "replaced", "engineVersion"} {
+		if _, ok := m[k]; ok {
+			t.Errorf("%s should be omitted when empty", k)
+		}
+	}
+	m = roundTrip(t, engineUpgradeJSON{From: "29.7.2-3", To: "29.7.2-4",
+		Replaced: []string{"dockerd"}, EngineVersion: "29.7.2", RolledBack: true})
+	requireKeys(t, m, "from", "replaced", "engineVersion")
+	if m["rolledBack"] != true {
+		t.Error("rolledBack must survive the round trip: it is how a caller learns the engine is back")
+	}
+}

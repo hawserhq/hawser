@@ -1,0 +1,389 @@
+package engineupgrade_test
+
+import (
+	"archive/tar"
+	"compress/gzip"
+	"context"
+	"errors"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/zcsizmadia/hawser/internal/engineupgrade"
+)
+
+// fakeDistro records the shell commands an upgrade runs and answers the
+// version probe.
+type fakeDistro struct {
+	calls      []string
+	installErr error
+	version    string
+}
+
+func (f *fakeDistro) Exec(_ context.Context, _, _ string, args ...string) (string, error) {
+	cmd := args[len(args)-1]
+	f.calls = append(f.calls, cmd)
+	if strings.Contains(cmd, "dockerd") && strings.Contains(cmd, "--version") {
+		return f.version, nil
+	}
+	if len(args) > 0 && args[0] == "dockerd" {
+		return f.version, nil
+	}
+	if strings.Contains(cmd, "install -m 0755") {
+		return "", f.installErr
+	}
+	return "", nil
+}
+
+type fakeFetcher struct {
+	tarball string // copied to dest on Fetch
+	err     error
+}
+
+func (f *fakeFetcher) FetchRootfs(_ context.Context, _, _, dest string) error {
+	if f.err != nil {
+		return f.err
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	b, err := os.ReadFile(f.tarball)
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(dest, b, 0o644)
+}
+
+// makeRootfs writes a .tar.gz shaped like a real rootfs export: engine
+// binaries under usr/local/bin plus decoys that must be left alone.
+func makeRootfs(t *testing.T, dir string, binaries map[string]string) string {
+	t.Helper()
+	p := filepath.Join(dir, "hawser-rootfs-test.tar.gz")
+	f, err := os.Create(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+
+	write := func(name, content string) {
+		if err := tw.WriteHeader(&tar.Header{
+			Name: name, Mode: 0o755, Size: int64(len(content)), Typeflag: tar.TypeReg,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := tw.Write([]byte(content)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for name, content := range binaries {
+		write("usr/local/bin/"+name, content)
+	}
+	// Decoys: an Alpine tool in the same directory that is not ours, and files
+	// elsewhere. An engine upgrade must not touch the distro's own userland.
+	write("usr/local/bin/socat", "alpine's socat")
+	write("bin/busybox", "busybox")
+	write("etc/docker/daemon.json", "{}")
+	if err := tw.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := gz.Close(); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+func TestExtractBinariesTakesOnlyTheEngine(t *testing.T) {
+	dir := t.TempDir()
+	src := makeRootfs(t, dir, map[string]string{
+		"dockerd":      "dockerd-bytes",
+		"containerd":   "containerd-bytes",
+		"runc":         "runc-bytes",
+		"hawser-agent": "agent-bytes",
+	})
+	dest := filepath.Join(dir, "staging")
+
+	got, err := engineupgrade.ExtractBinaries(src, dest)
+	if err != nil {
+		t.Fatalf("ExtractBinaries: %v", err)
+	}
+	want := []string{"containerd", "dockerd", "hawser-agent", "runc"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	// socat sits in the same directory and must not have been taken.
+	if _, err := os.Stat(filepath.Join(dest, "socat")); err == nil {
+		t.Error("extracted socat: an engine upgrade must not replace the distro's userland")
+	}
+	b, err := os.ReadFile(filepath.Join(dest, "dockerd"))
+	if err != nil || string(b) != "dockerd-bytes" {
+		t.Errorf("dockerd content = %q (%v)", b, err)
+	}
+}
+
+func TestExtractBinariesToleratesLeadingDotSlash(t *testing.T) {
+	// `docker export | gzip` and `tar czf .` differ on this, and both are
+	// plausible sources for a rootfs tarball.
+	dir := t.TempDir()
+	p := filepath.Join(dir, "r.tar.gz")
+	f, err := os.Create(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gz := gzip.NewWriter(f)
+	tw := tar.NewWriter(gz)
+	body := "x"
+	if err := tw.WriteHeader(&tar.Header{Name: "./usr/local/bin/dockerd", Mode: 0o755,
+		Size: int64(len(body)), Typeflag: tar.TypeReg}); err != nil {
+		t.Fatal(err)
+	}
+	tw.Write([]byte(body))
+	tw.Close()
+	gz.Close()
+	f.Close()
+
+	got, err := engineupgrade.ExtractBinaries(p, filepath.Join(dir, "out"))
+	if err != nil {
+		t.Fatalf("ExtractBinaries: %v", err)
+	}
+	if len(got) != 1 || got[0] != "dockerd" {
+		t.Errorf("got %v, want [dockerd]", got)
+	}
+}
+
+func runner(t *testing.T, d *fakeDistro, f *fakeFetcher) (*engineupgrade.Runner, *[]string) {
+	t.Helper()
+	var events []string
+	r := &engineupgrade.Runner{
+		WSL:     d,
+		Fetcher: f,
+		Stop:    func(context.Context) error { events = append(events, "stop"); return nil },
+		Start:   func(context.Context) error { events = append(events, "start"); return nil },
+		Healthy: func(context.Context) bool { events = append(events, "healthy?"); return true },
+		Restore: func(_ context.Context, prev string) error {
+			events = append(events, "restore:"+prev)
+			return nil
+		},
+	}
+	return r, &events
+}
+
+func opts(t *testing.T, dir string) engineupgrade.Options {
+	return engineupgrade.Options{
+		StateDir: dir,
+		Distro:   "hawser-engine",
+		From:     "29.7.2-3",
+		Target: engineupgrade.Engine{
+			Ref:    "29.7.2-4",
+			URL:    "https://example.invalid/hawser-rootfs-29.7.2-4.tar.gz",
+			SHA256: "abc",
+		},
+	}
+}
+
+func TestUpgradeSwapsAndVerifies(t *testing.T) {
+	dir := t.TempDir()
+	src := makeRootfs(t, dir, map[string]string{"dockerd": "new", "runc": "new"})
+	d := &fakeDistro{version: "Docker version 29.7.2, build abcdef"}
+	r, events := runner(t, d, &fakeFetcher{tarball: src})
+
+	rep, err := r.Run(context.Background(), opts(t, dir))
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := strings.Join(*events, ","); got != "stop,start,healthy?" {
+		t.Errorf("lifecycle = %s, want stop,start,healthy?", got)
+	}
+	if len(rep.Replaced) != 2 {
+		t.Errorf("Replaced = %v", rep.Replaced)
+	}
+	if rep.EngineVersion != "29.7.2" {
+		t.Errorf("EngineVersion = %q, want 29.7.2 (parsed from dockerd --version)", rep.EngineVersion)
+	}
+	if rep.RolledBack {
+		t.Error("RolledBack set on a successful upgrade")
+	}
+	// The copy must use install(1), which renames into place.
+	var sawInstall bool
+	for _, c := range d.calls {
+		if strings.Contains(c, "install -m 0755") {
+			sawInstall = true
+		}
+	}
+	if !sawInstall {
+		t.Errorf("no install(1) copy: %v", d.calls)
+	}
+}
+
+func TestFailedStartRollsBackAndSaysSo(t *testing.T) {
+	// The exit criterion from #65: a broken new engine leaves a working one.
+	dir := t.TempDir()
+	src := makeRootfs(t, dir, map[string]string{"dockerd": "broken"})
+	d := &fakeDistro{version: "Docker version 29.7.2, build x"}
+	var events []string
+	r := &engineupgrade.Runner{
+		WSL:     d,
+		Fetcher: &fakeFetcher{tarball: src},
+		Stop:    func(context.Context) error { events = append(events, "stop"); return nil },
+		Start:   func(context.Context) error { events = append(events, "start"); return errors.New("dockerd exited") },
+		Healthy: func(context.Context) bool { return false },
+		Restore: func(_ context.Context, prev string) error {
+			events = append(events, "restore:"+prev)
+			return nil
+		},
+	}
+
+	rep, err := r.Run(context.Background(), opts(t, dir))
+	if err == nil {
+		t.Fatal("a failed start was reported as success")
+	}
+	if !rep.RolledBack {
+		t.Error("RolledBack not set after a failed start")
+	}
+	if !strings.Contains(err.Error(), "rolled back to 29.7.2-3") {
+		t.Errorf("the error should say the engine is back: %v", err)
+	}
+	if got := strings.Join(events, ","); got != "stop,start,restore:29.7.2-3" {
+		t.Errorf("lifecycle = %s", got)
+	}
+}
+
+func TestUnhealthyEngineRollsBack(t *testing.T) {
+	dir := t.TempDir()
+	src := makeRootfs(t, dir, map[string]string{"dockerd": "quiet"})
+	d := &fakeDistro{version: "Docker version 29.7.2, build x"}
+	var restored string
+	r := &engineupgrade.Runner{
+		WSL:     d,
+		Fetcher: &fakeFetcher{tarball: src},
+		Stop:    func(context.Context) error { return nil },
+		Start:   func(context.Context) error { return nil },
+		// Starts, but never answers: the case a start-only check would miss.
+		Healthy: func(context.Context) bool { return false },
+		Restore: func(_ context.Context, prev string) error { restored = prev; return nil },
+	}
+
+	_, err := r.Run(context.Background(), opts(t, dir))
+	if err == nil || !strings.Contains(err.Error(), "does not answer") {
+		t.Fatalf("err = %v, want the unhealthy report", err)
+	}
+	if restored != "29.7.2-3" {
+		t.Errorf("restored = %q", restored)
+	}
+}
+
+func TestFailedRollbackIsSaidPlainly(t *testing.T) {
+	// The worst case: the upgrade failed AND the restore failed. The message
+	// has to say the engine may be down, not just "upgrade failed".
+	dir := t.TempDir()
+	src := makeRootfs(t, dir, map[string]string{"dockerd": "x"})
+	r := &engineupgrade.Runner{
+		WSL:     &fakeDistro{},
+		Fetcher: &fakeFetcher{tarball: src},
+		Stop:    func(context.Context) error { return nil },
+		Start:   func(context.Context) error { return errors.New("boom") },
+		Healthy: func(context.Context) bool { return false },
+		Restore: func(context.Context, string) error { return errors.New("restore boom") },
+	}
+
+	_, err := r.Run(context.Background(), opts(t, dir))
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	for _, want := range []string{"boom", "restore", "may be down", "hawser engine rollback"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error is missing %q: %v", want, err)
+		}
+	}
+}
+
+func TestUpgradeToTheSameVersionIsRefused(t *testing.T) {
+	dir := t.TempDir()
+	d := &fakeDistro{}
+	r, _ := runner(t, d, &fakeFetcher{})
+	o := opts(t, dir)
+	o.Target.Ref = o.From
+
+	_, err := r.Run(context.Background(), o)
+	var same *engineupgrade.ErrSameVersion
+	if !errors.As(err, &same) {
+		t.Fatalf("err = %v, want *ErrSameVersion", err)
+	}
+	if len(d.calls) != 0 {
+		t.Errorf("a refusal still touched the distro: %v", d.calls)
+	}
+}
+
+func TestDryRunTouchesNothing(t *testing.T) {
+	dir := t.TempDir()
+	d := &fakeDistro{}
+	r, events := runner(t, d, &fakeFetcher{err: errors.New("must not fetch")})
+	o := opts(t, dir)
+	o.DryRun = true
+
+	rep, err := r.Run(context.Background(), o)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(*events) != 0 || len(d.calls) != 0 {
+		t.Errorf("--dry-run acted: events=%v calls=%v", *events, d.calls)
+	}
+	if len(rep.Steps) != 6 {
+		t.Errorf("Steps = %v, want the plan including the rollback note", rep.Steps)
+	}
+}
+
+func TestAnEmptyTarballIsRefusedBeforeStopping(t *testing.T) {
+	// A tarball with no engine binaries would otherwise stop the engine and
+	// then copy nothing, leaving it down for no reason.
+	dir := t.TempDir()
+	src := makeRootfs(t, dir, map[string]string{})
+	d := &fakeDistro{}
+	r, events := runner(t, d, &fakeFetcher{tarball: src})
+
+	if _, err := r.Run(context.Background(), opts(t, dir)); err == nil {
+		t.Fatal("expected a refusal for a tarball with no engine binaries")
+	}
+	if len(*events) != 0 {
+		t.Errorf("the engine was touched: %v", *events)
+	}
+}
+
+func TestBriefKeepsFailuresReadable(t *testing.T) {
+	// StartEngine reports the tail of the engine log, which is the right thing
+	// to keep in a log file and the wrong thing to put in a one-line failure.
+	dir := t.TempDir()
+	src := makeRootfs(t, dir, map[string]string{"dockerd": "broken"})
+	noisy := errors.New("dockerd did not create /var/run/docker.sock within 1m0s. Last log lines:\n" +
+		strings.Repeat("time=\"...\" level=info msg=\"noise\"\n", 40))
+	r := &engineupgrade.Runner{
+		WSL:     &fakeDistro{},
+		Fetcher: &fakeFetcher{tarball: src},
+		Stop:    func(context.Context) error { return nil },
+		Start:   func(context.Context) error { return noisy },
+		Healthy: func(context.Context) bool { return false },
+		Restore: func(context.Context, string) error { return nil },
+	}
+
+	_, err := r.Run(context.Background(), opts(t, dir))
+	if err == nil {
+		t.Fatal("expected a failure")
+	}
+	msg := err.Error()
+	if strings.Count(msg, "\n") != 0 {
+		t.Errorf("the failure spans lines:\n%s", msg)
+	}
+	if strings.Contains(msg, "noise") {
+		t.Errorf("the engine log leaked into the message:\n%s", msg)
+	}
+	if strings.Contains(msg, "Last log lines:") {
+		t.Errorf("a label introducing nothing survived:\n%s", msg)
+	}
+	for _, want := range []string{"docker.sock", "hawser logs --engine", "rolled back to 29.7.2-3"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message is missing %q:\n%s", want, msg)
+		}
+	}
+}

@@ -208,3 +208,35 @@ type compactJSONShape struct {
 	Steps          []string `json:"steps,omitempty"`
 	Held           []string `json:"held,omitempty"`
 }
+
+// engineListJSON is `hawser engine list --json` (#65): what this build can
+// install, what is installed, and what a rollback would return to. available
+// is always an array; ref is the revisioned label (29.7.2-4), which is the
+// unit an upgrade moves between, while version is only the dockerd version.
+type engineListJSON struct {
+	Installed string            `json:"installed,omitempty"`
+	Previous  string            `json:"previous,omitempty"`
+	Available []engineEntryJSON `json:"available"`
+}
+
+type engineEntryJSON struct {
+	Ref     string `json:"ref"`
+	Version string `json:"version"`
+	Default bool   `json:"default"`
+	// Published is false for a manifest entry with no checksum yet: a
+	// placeholder that cannot be installed.
+	Published bool `json:"published"`
+}
+
+// engineUpgradeJSON is `hawser engine upgrade|rollback --json` (#65).
+// rolledBack true with a non-zero exit is the interesting case: the upgrade
+// failed and the previous engine was put back, so the engine is up.
+type engineUpgradeJSON struct {
+	From          string   `json:"from,omitempty"`
+	To            string   `json:"to"`
+	Replaced      []string `json:"replaced,omitempty"`
+	EngineVersion string   `json:"engineVersion,omitempty"`
+	RolledBack    bool     `json:"rolledBack"`
+	DryRun        bool     `json:"dryRun"`
+	Steps         []string `json:"steps,omitempty"`
+}
