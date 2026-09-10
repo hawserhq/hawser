@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 
 	"github.com/zcsizmadia/hawser/internal/config"
 	"github.com/zcsizmadia/hawser/internal/dockercli"
@@ -18,6 +19,7 @@ import (
 	"github.com/zcsizmadia/hawser/internal/version"
 	"github.com/zcsizmadia/hawser/internal/vpnfingerprint"
 	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/zcsizmadia/hawser/internal/wslconfig"
 )
 
 // Facts is everything the checks read, gathered once from the machine. Checks
@@ -85,7 +87,11 @@ type Facts struct {
 	// supervisor, engine. Its account fields are compared, never rendered.
 	Runner runner.Facts
 
-	// InjectedModules are third-party DLLs loaded into Hawser's own process
+	// WSLSizing is the WSL2 VM.s effective sizing from the global ~/.wslconfig,
+	// plus what Hawser.s own settings would change (#148).
+	WSLSizing WSLSizingInfo
+
+	// InjectedModules are third-party DLLs loaded into Hawser.s own process
 	// (#166) -- endpoint-security agents, almost always. Reported because they
 	// are the known cause of a supervisor crash no dump can explain.
 	InjectedModules []hooks.Module
@@ -242,6 +248,9 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 	// list, so it costs a snapshot call and no privileges.
 	f.InjectedModules = hooks.Injected()
 
+	// The global ~/.wslconfig, read only (#148).
+	f.WSLSizing = gatherWSLSizing(stateDir)
+
 	return f
 }
 
@@ -384,4 +393,49 @@ func parseCredHelpers(configJSON []byte, lookPath func(string) (string, error)) 
 		add(name, "credHelpers["+registry+"]")
 	}
 	return out
+}
+
+// WSLSizingInfo is the WSL2 VM's sizing picture (#148): what ~/.wslconfig sets
+// today, what Hawser's settings ask for that is not there yet, and the host's
+// RAM — which is what WSL's 50% default is half of, and therefore the only way
+// to tell a sensible default from a tight one.
+type WSLSizingInfo struct {
+	Path      string            `json:"path"`
+	Effective map[string]string `json:"effective"`
+	// Pending renders each unapplied change as "key=value".
+	Pending []string `json:"pending,omitempty"`
+	// HostBytes is physical RAM; 0 when it could not be read, which the check
+	// treats as "do not judge".
+	HostBytes uint64 `json:"hostBytes,omitempty"`
+	Err       string `json:"err,omitempty"`
+}
+
+// gatherWSLSizing reads the global ~/.wslconfig and compares it with Hawser's
+// recorded wsl.* settings. Read-only: doctor never writes a file every distro
+// on the machine shares.
+func gatherWSLSizing(stateDir string) WSLSizingInfo {
+	info := WSLSizingInfo{Effective: map[string]string{}, HostBytes: hostRAM()}
+	path, err := wslconfig.Path()
+	if err != nil {
+		info.Err = err.Error()
+		return info
+	}
+	info.Path = path
+	f, err := wslconfig.Load(path)
+	if err != nil {
+		info.Err = err.Error()
+		return info
+	}
+	info.Effective = f.All()
+
+	desired := map[string]string{}
+	for hawserKey, wslKey := range config.WSLKeys {
+		if v, err := config.Get(stateDir, hawserKey); err == nil && strings.TrimSpace(v) != "" {
+			desired[wslKey] = v
+		}
+	}
+	for _, c := range f.Plan(desired) {
+		info.Pending = append(info.Pending, c.Key+"="+c.New)
+	}
+	return info
 }

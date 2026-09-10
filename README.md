@@ -81,6 +81,9 @@ docker context. Nothing else on the system is touched.
   teammate or CI runner, reachable only by holders of a client cert this machine's CA
   signed — off by default; on the client, `hawser remote add/use` makes it docker's default
   in one command ([docs/remote-engine.md](docs/remote-engine.md))
+- **Right-size the VM with consent**: `hawser config set wsl.memory 4GB` then
+  `hawser wsl-config apply` shows the diff to the GLOBAL ~/.wslconfig and writes only on
+  a yes (`--yes` for runners, idempotent) — [docs/vm-sizing.md](docs/vm-sizing.md)
 - **Engine upgrades, reversibly**: `hawser engine upgrade` swaps the engine binaries out of a
   checksum-verified rootfs and leaves /var/lib/docker alone, so images and volumes survive;
   a new engine that does not come back is rolled back automatically

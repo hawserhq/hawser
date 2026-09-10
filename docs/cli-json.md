@@ -373,6 +373,29 @@ What this build can install, what is installed, and where a rollback goes:
 - `rolledBack: true` with a **non-zero exit** is the interesting case: the
   upgrade failed and the previous engine was restored, so the engine is up.
 - `replaced` and `engineVersion` are absent on a dry run.
+## `hawser wsl-config show|apply --json`
+
+The WSL2 VM''s sizing, from the global `~/.wslconfig` (#148):
+
+```json
+{
+  "path": "C:\\Users\\me\\.wslconfig",
+  "exists": true,
+  "effective": { "memory": "4GB", "processors": "2", "autoMemoryReclaim": "gradual" },
+  "desired":   { "memory": "4GB", "processors": "2", "autoMemoryReclaim": "gradual" },
+  "pending": [ { "key": "memory", "old": "8GB", "new": "4GB", "added": false } ],
+  "applied": false
+}
+```
+
+- `effective` is what the file says now; `desired` is what Hawser's own
+  settings ask for; `pending` is the difference — so a converge script can tell
+  "already right" from "would change something" without parsing prose.
+- `pending` is omitted when there is nothing to do, which is the signal that a
+  repeated `apply --yes` is a no-op.
+- `applied` is `true` only when this invocation wrote the file.
+- `apply --json` requires `--yes`: there is no way to ask a question in JSON, so
+  it exits `2` rather than appearing to hang.
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and
