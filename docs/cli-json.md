@@ -396,6 +396,70 @@ The WSL2 VM''s sizing, from the global `~/.wslconfig` (#148):
 - `applied` is `true` only when this invocation wrote the file.
 - `apply --json` requires `--yes`: there is no way to ask a question in JSON, so
   it exits `2` rather than appearing to hang.
+## `hawser status --stats --json`
+
+`--stats` **adds** a `stats` object; the rest of the shape above is unchanged,
+because it is a readiness-probe contract. Statistics are opt-in for two
+reasons: collecting them costs WSL calls a probe should not pay, and they are
+only meaningful when the engine is already running.
+
+```json
+{
+  "installed": true, "distro": "hawser-engine", "engine": "running",
+  "stats": {
+    "probed": true,
+    "supervisor": {
+      "fresh": true, "readingAgeSeconds": 0.2,
+      "uptimeSeconds": 3600, "engineUptimeSeconds": 3600,
+      "engineStarts": 1, "idleStops": 2,
+      "lastIdleStopAt": "2026-09-10T14:00:00Z", "lastWakeAt": "2026-09-10T14:31:00Z"
+    },
+    "bridge": {
+      "connections": 512, "bytesToEngine": 3281, "bytesToClient": 12883,
+      "activeConns": 0, "transport": "vsock"
+    },
+    "engine": {
+      "version": "29.7.2", "containers": 1, "containersRunning": 1,
+      "containersPaused": 0, "containersStopped": 0,
+      "images": 9, "volumes": 2,
+      "imagesBytes": 12191537, "volumesBytes": 0,
+      "buildCacheBytes": 0, "reclaimableBytes": 490
+    },
+    "disk": {
+      "path": "C:\\Users\\me\\AppData\\Local\\Hawser\\distro\\ext4.vhdx",
+      "sizeOnDiskBytes": 415236096, "guestUsedBytes": 305328128,
+      "reclaimableBytes": 109907968, "hostFreeBytes": 428330541056
+    },
+    "vm": {
+      "cpus": 20, "memTotalBytes": 33481715712,
+      "memAvailableBytes": 31422464000, "swapTotalBytes": 8589934592,
+      "configuredMemory": "4GB", "configuredProcessors": "2"
+    }
+  }
+}
+```
+
+- **`probed`** says whether the engine was up. Statistics never start it (#82),
+  so `probed: false` omits `engine`, `disk` and `vm` entirely rather than
+  reporting zeroes — "no data" and "zero containers" must not look alike.
+- **`supervisor`** and **`bridge`** come from a file the supervisor flushes, so
+  they are present even with the engine down. `fresh` and `readingAgeSeconds`
+  say whether they still describe the present: a supervisor that died leaves
+  its last numbers behind, and `fresh: false` is how a reader knows not to
+  trust them as current.
+- **`bridge.transport`** is `vsock` (fast path, ~0.6 ms per connection),
+  `fallback` (the socat relay, ~165 ms — the vsock agent is unreachable),
+  `socat` (that path pinned by `HAWSER_NO_VSOCK`) or `unknown`. This is the
+  field that explains a slow `docker` with a perfectly healthy engine.
+- **`engine.reclaimableBytes`** is what `hawser prune` could free;
+  **`disk.reclaimableBytes`** is size-on-disk minus guest-used, roughly what
+  `hawser compact` could return — an estimate, since compaction works in
+  blocks.
+- **`vm.configured*`** is what `~/.wslconfig` asks for, omitted when it asks
+  for nothing. Comparing it with `memTotalBytes` and `cpus` catches the trap
+  `hawser wsl-config` closes: a limit recorded and never applied.
+- **`errors`** names anything that could not be read, so a partial reading is
+  honest rather than silently short.
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and

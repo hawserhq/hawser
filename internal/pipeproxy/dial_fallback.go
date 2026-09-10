@@ -42,3 +42,9 @@ func (d *FallbackDialer) Dial(ctx context.Context) (io.ReadWriteCloser, error) {
 	}
 	return d.Secondary.Dial(ctx)
 }
+
+// Degraded reports whether the last dial fell back to the slow transport. It
+// is the one number that explains "docker feels slow" from the outside: the
+// engine is healthy, every request works, and each one is paying ~165 ms for
+// a socat relay instead of ~0.6 ms over vsock (#179).
+func (d *FallbackDialer) Degraded() bool { return d.degraded.Load() }

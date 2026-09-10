@@ -66,6 +66,10 @@ type Server struct {
 	mu     sync.Mutex
 	active map[io.Closer]struct{}
 
+	// Metrics counts connections and bytes for `hawser status --stats` (#179).
+	// Nil disables counting.
+	Metrics *Metrics
+
 	// clients and lastActivity feed idle detection (supervise.Activity):
 	// how many client connections are open, and when one last opened or
 	// closed (unix nanos; 0 = never).
@@ -181,6 +185,7 @@ func (s *Server) handle(ctx context.Context, client net.Conn) {
 	defer client.Close()
 
 	s.clients.Add(1)
+	s.Metrics.connAccepted()
 	s.touch()
 	defer func() {
 		s.clients.Add(-1)
@@ -209,7 +214,9 @@ func (s *Server) handle(ctx context.Context, client net.Conn) {
 	// returns transport errors from its own HTTP forwarding (wrapped with %w,
 	// so errors.Is still sees them), and a docker CLI exiting mid-response is
 	// ordinary shutdown regardless of which layer noticed it first.
-	if err := filterClosed(handler(client, engine)); err != nil {
+	// Counted at the outermost point, so both proxy paths -- the HTTP rewrite
+	// and the raw relay a hijack turns into -- are measured by the same code.
+	if err := filterClosed(handler(s.Metrics.countClient(client), s.Metrics.countEngine(engine))); err != nil {
 		// Warn, not Debug: the ordinary ways a docker client hangs up are
 		// filtered, so anything left is a real fault the user wants to see. An
 		// engine that is down otherwise looks like the bridge doing nothing at
