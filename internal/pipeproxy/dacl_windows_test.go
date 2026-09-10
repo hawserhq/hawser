@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Microsoft/go-winio"
 )
@@ -49,13 +50,37 @@ func TestListenOwnerCanStillConnect(t *testing.T) {
 		done <- err
 	}()
 
-	conn, err := winio.DialPipe(name, nil)
-	if err != nil {
-		t.Fatalf("owner denied by own pipe ACL: %v", err)
-	}
-	conn.Close()
-	if err := <-done; err != nil {
-		t.Fatalf("accept: %v", err)
+	// winio's ListenPipe reserves the name with a "first handle" that nothing
+	// ever accepts on: makeServerPipe always creates a NEW instance, and only
+	// once Accept has reached connectPipe is anything actually waiting. A dial
+	// that wins the race against the goroutine above therefore lands on the
+	// phantom instance, is never accepted, and Accept blocks on an instance no
+	// client will ever reach — a hang rather than a failure, which is how this
+	// consumed the whole 10-minute test budget on CI.
+	//
+	// So dial until one of them is accepted, and bound the whole thing: a
+	// second dial necessarily arrives after Accept is pending. The deadline is
+	// what keeps a genuine regression a failure instead of a hung suite.
+	deadline := time.After(30 * time.Second)
+	for {
+		conn, err := winio.DialPipe(name, nil)
+		if err != nil {
+			t.Fatalf("owner denied by own pipe ACL: %v", err)
+		}
+		select {
+		case err := <-done:
+			conn.Close()
+			if err != nil {
+				t.Fatalf("accept: %v", err)
+			}
+			return
+		case <-time.After(250 * time.Millisecond):
+			// That one hit the reserved instance. Drop it and dial again.
+			conn.Close()
+		case <-deadline:
+			conn.Close()
+			t.Fatal("the listener never accepted a connection from its owner")
+		}
 	}
 }
 
