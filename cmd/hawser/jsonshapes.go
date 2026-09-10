@@ -188,3 +188,23 @@ type pruneStepJSON struct {
 	ReclaimedBytes int64  `json:"reclaimedBytes"`
 	Error          string `json:"error,omitempty"`
 }
+
+// compactJSONShape is `hawser compact --json` (#64). reclaimedBytes is the only
+// honest measure of what happened: beforeBytes/afterBytes are the .vhdx's size
+// ON DISK, and offeredBytes is what fstrim printed -- the disk's whole free
+// extent, not space reclaimed, which is why it is named "offered". held is set
+// when the disk could not be released, and pairs with exit code 11.
+type compactJSONShape struct {
+	Distro         string   `json:"distro"`
+	Path           string   `json:"path"`
+	Trimmed        bool     `json:"trimmed"`
+	OfferedBytes   uint64   `json:"offeredBytes,omitempty"`
+	BeforeBytes    uint64   `json:"beforeBytes"`
+	AfterBytes     uint64   `json:"afterBytes"`
+	ReclaimedBytes uint64   `json:"reclaimedBytes"`
+	WaitedSeconds  float64  `json:"waitedSeconds"`
+	Restarted      bool     `json:"restarted"`
+	DryRun         bool     `json:"dryRun"`
+	Steps          []string `json:"steps,omitempty"`
+	Held           []string `json:"held,omitempty"`
+}
