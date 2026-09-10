@@ -124,8 +124,10 @@ func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink) e
 		// writer may be blocked mid-body forever — the response itself is the
 		// diagnosis, so a short grace and then the connection is written off:
 		// unsent body bytes make its framing unusable for keep-alive anyway.
+		bodyDone := false
 		select {
 		case werr := <-bodySent:
+			bodyDone = true
 			if werr != nil {
 				trace("REQ body aborted by early response (%d): %v", resp.StatusCode, werr)
 				resp.Close = true // unsendable remainder: never reuse this connection
@@ -171,11 +173,21 @@ func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink) e
 		// half-open class as #35 on a new surface. The Peek doubles as the
 		// wait for the client's next request, so exactly one goroutine reads
 		// clientR at any moment.
-		peekc := make(chan error, 1)
-		go func() {
-			_, err := clientR.Peek(1)
-			peekc <- err
-		}()
+		// The watchdog must own clientR alone. Arm it only once the body
+		// writer has finished with it: on the abandoned-upload path above that
+		// goroutine is still reading clientR, and a second reader corrupts the
+		// bufio.Reader's internal state — heap corruption that surfaces later,
+		// anywhere, including inside winio's IOCP processor (#166). That path
+		// already set resp.Close, so the connection ends after this response
+		// and there is nothing left for a watchdog to guard.
+		var peekc chan error // nil: blocks forever in the select below
+		if bodyDone {
+			peekc = make(chan error, 1)
+			go func() {
+				_, err := clientR.Peek(1)
+				peekc <- err
+			}()
+		}
 		writec := make(chan error, 1)
 		go func() { writec <- resp.Write(client) }()
 
@@ -216,7 +228,7 @@ func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink) e
 			// client conn; its channel is buffered, so nothing leaks.
 			return nil
 		}
-		if !peeked {
+		if bodyDone && !peeked {
 			// Wait for the client's next move — its next request's first byte,
 			// or a close ending the keep-alive conversation — before looping,
 			// so ReadRequest never shares clientR with a still-blocked Peek.
