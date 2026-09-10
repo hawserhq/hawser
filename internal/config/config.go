@@ -15,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/zcsizmadia/hawser/internal/wslconfig"
 )
 
 // KeyIdleTimeout is how long the bridge must be quiet (no open connections,
@@ -65,6 +67,25 @@ func NetworkKeys() []string { return []string{KeyProxy, KeyNoProxy, KeyImportHos
 // `hawser enable-gpu` rather than by hand, since that also verifies the GPU is
 // visible and restarts the engine.
 const KeyGPU = "gpu"
+
+// WSL VM sizing (#148). These live in the GLOBAL ~/.wslconfig, which every
+// WSL2 distro on the machine shares -- so setting one here records an
+// intention, and `hawser wsl-config apply` is what writes it, after showing
+// the diff. Nothing propagates on its own.
+const (
+	KeyWSLMemory            = "wsl.memory"
+	KeyWSLProcessors        = "wsl.processors"
+	KeyWSLSwap              = "wsl.swap"
+	KeyWSLAutoMemoryReclaim = "wsl.auto-memory-reclaim"
+)
+
+// WSLKeys lists the sizing keys, and maps each to its .wslconfig name.
+var WSLKeys = map[string]string{
+	KeyWSLMemory:            "memory",
+	KeyWSLProcessors:        "processors",
+	KeyWSLSwap:              "swap",
+	KeyWSLAutoMemoryReclaim: "autoMemoryReclaim",
+}
 
 // KeyDiskWarnBelow is the free-space floor on the engine data volume under
 // which `hawser doctor` warns (#145) — a size such as 10GB or 8GiB. Empty means
@@ -163,6 +184,13 @@ var validators = map[string]func(string) (string, error){
 	KeyImportHostCAs:  validateOnOff,
 	KeyGPU:            validateOnOff,
 	KeyDiskWarnBelow:  validateSize,
+
+	// Validated the way WSL reads them, so a typo fails here rather than
+	// silently sizing the VM as something else (#148).
+	KeyWSLMemory:            func(v string) (string, error) { return wslconfig.Validate(wslconfig.KeyMemory, v) },
+	KeyWSLProcessors:        func(v string) (string, error) { return wslconfig.Validate(wslconfig.KeyProcessors, v) },
+	KeyWSLSwap:              func(v string) (string, error) { return wslconfig.Validate(wslconfig.KeySwap, v) },
+	KeyWSLAutoMemoryReclaim: func(v string) (string, error) { return wslconfig.Validate(wslconfig.KeyAutoMemoryReclaim, v) },
 }
 
 // validateProxy accepts an http(s) URL, or empty to clear.

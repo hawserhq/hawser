@@ -256,3 +256,23 @@ func TestEngineUpgradeShape(t *testing.T) {
 		t.Error("rolledBack must survive the round trip: it is how a caller learns the engine is back")
 	}
 }
+
+func TestWSLConfigShape(t *testing.T) {
+	m := roundTrip(t, wslConfigJSON{
+		Path:      `C:\Users\me\.wslconfig`,
+		Effective: map[string]string{},
+		Desired:   map[string]string{},
+	})
+	requireKeys(t, m, "path", "exists", "effective", "desired", "applied")
+	// pending absent is the signal that a repeated `apply --yes` is a no-op.
+	if _, ok := m["pending"]; ok {
+		t.Error("pending should be omitted when there is nothing to do")
+	}
+	c := roundTrip(t, wslConfigChangeJSON{Key: "memory", New: "4GB", Added: true})
+	requireKeys(t, c, "key", "new", "added")
+	if _, ok := c["old"]; ok {
+		t.Error("old should be omitted when the key is being added")
+	}
+	c = roundTrip(t, wslConfigChangeJSON{Key: "memory", Old: "8GB", New: "4GB"})
+	requireKeys(t, c, "old")
+}

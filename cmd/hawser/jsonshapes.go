@@ -240,3 +240,25 @@ type engineUpgradeJSON struct {
 	DryRun        bool     `json:"dryRun"`
 	Steps         []string `json:"steps,omitempty"`
 }
+
+// wslConfigJSON is `hawser wsl-config show|apply --json` (#148). effective is
+// what ~/.wslconfig says now, desired what Hawser's own settings ask for, and
+// pending the difference -- so a converge run can tell "already right" from
+// "would change something" without parsing prose. applied is false for show
+// and for an apply with nothing to do.
+type wslConfigJSON struct {
+	Path      string                `json:"path"`
+	Exists    bool                  `json:"exists"`
+	Effective map[string]string     `json:"effective"`
+	Desired   map[string]string     `json:"desired"`
+	Pending   []wslConfigChangeJSON `json:"pending,omitempty"`
+	Applied   bool                  `json:"applied"`
+}
+
+type wslConfigChangeJSON struct {
+	Key string `json:"key"`
+	// Old is absent when the key is being added.
+	Old   string `json:"old,omitempty"`
+	New   string `json:"new"`
+	Added bool   `json:"added"`
+}
