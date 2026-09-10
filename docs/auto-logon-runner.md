@@ -83,6 +83,24 @@ which is the only evidence such a crash leaves — is captured in
 Set `HAWSER_NO_WATCHDOG=1` in the runner's environment to go back to
 launch-and-forget.
 
+### If the supervisor keeps dying
+
+Check `watchdog.log` for how often, then run `hawser doctor` and read the
+**injected modules** check. Endpoint-security agents (EDR/DLP) load a DLL into
+every process and rewrite function prologues to route through their own
+trampolines; those trampolines assume a C thread stack, and Go's goroutine
+stacks — small, movable, their own calling convention — do not survive a hook
+that restores the wrong frame. The result is a Go runtime fatal error
+(`unexpected return pc`, `found pointer to free object`, an access violation at
+an image-base-shaped address) with **no Hawser frame at the top of the dump**
+and nothing wrong in the program that died.
+
+Doctor names the module because the dump cannot. The actual fix is an
+**exclusion for `hawser.exe` and `hawserw.exe`** from whoever manages the
+agent — a policy change, not a code change. `HAWSER_NO_VSOCK=1` narrows the
+window in the meantime, at the cost of the slower transport. See
+[#166](https://github.com/zcsizmadia/hawser/issues/166).
+
 ### 3. Enable auto-logon
 
 Use Sysinternals **Autologon** (recommended: it stores the password in an LSA
