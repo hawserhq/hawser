@@ -47,12 +47,22 @@ services:
               device_ids: ["nvidia.com/gpu=all"]
 ```
 
-> **`docker run --gpus all`** is *not* the invocation here. On the current engine
-> it routes through the legacy nvidia-container-runtime hook rather than the CDI
-> spec (and reports "AMD CDI spec not found"). Use `--device nvidia.com/gpu=all`,
-> which is NVIDIA's current CDI syntax and needs no runtime hook. (`--gpus all`
-> support would require shipping the `nvidia-cdi-hook` binary for the musl engine;
-> tracked as a follow-up.)
+### `--gpus all` too — on rootfs 29.7.2-4 and later
+
+`docker run --gpus all` (and VS Code Dev Containers' `"hostRequirements":
+{"gpu": true}`, which passes `--gpus all`) also reaches the GPU, with one
+condition: the engine must find an `nvidia-cdi-hook` binary **when dockerd
+starts** — that is what makes moby register its NVIDIA GPU driver and route
+`--gpus` to the CDI spec instead of the legacy runtime hook. Rootfs 29.7.2-4
+and later ship it; `hawser enable-gpu` tells you which spelling your rootfs
+supports. On an older rootfs `--gpus all` reports "AMD CDI spec not found" —
+use `--device nvidia.com/gpu=all`, which works everywhere.
+
+Two honest notes about that binary. It is the one glibc program in the
+otherwise-musl rootfs (NVIDIA's `go-nvml` does not build on musl), built as a
+static binary from the pinned toolkit tag; and it is **never executed** for GPU
+injection — the spec is hookless — it only has to exist. `--gpus device=0` also
+works: the spec names the single WSL GPU both `all` and `0`.
 
 ## Why this works on the musl engine
 

@@ -51,6 +51,12 @@ devices:
     containerEdits:
       deviceNodes:
         - path: /dev/dxg
+  # "0" aliases the same (single) WSL GPU so ` + "`--gpus device=0`" + ` and count-style
+  # requests resolve too; WSL exposes one /dev/dxg regardless of GPU count.
+  - name: "0"
+    containerEdits:
+      deviceNodes:
+        - path: /dev/dxg
 containerEdits:
   env:
     - LD_LIBRARY_PATH=/usr/lib/wsl/lib

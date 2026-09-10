@@ -993,6 +993,22 @@ func stageGPU(t *testing.T, s *state) {
 		t.Fatalf("nvidia-smi listed no GPU in the container:\n%s", out)
 	}
 	t.Logf("GPU reachable in a container: %s", strings.TrimSpace(out))
+
+	// `--gpus all` (#139) needs nvidia-cdi-hook present when dockerd started;
+	// rootfs 29.7.2-4+ ships it. Assert it only where the rootfs has it, so the
+	// suite stays honest on an older published rootfs.
+	hook, _ := run(t, 30*time.Second, "wsl.exe", "-d", distro, "-u", "root", "sh", "-c",
+		"command -v nvidia-cdi-hook >/dev/null 2>&1 && echo hook-present")
+	if !strings.Contains(hook, "hook-present") {
+		t.Log("rootfs has no nvidia-cdi-hook; --gpus all not asserted (use --device nvidia.com/gpu=all)")
+		return
+	}
+	out, err = dockerE(t, s, 3*time.Minute, "run", "--rm", "--gpus", "all", "ubuntu:22.04", "nvidia-smi", "-L")
+	must(t, out, err, "docker run --gpus all nvidia-smi")
+	if !strings.Contains(out, "GPU 0") {
+		t.Fatalf("--gpus all did not reach the GPU:\n%s", out)
+	}
+	t.Logf("--gpus all routed to the CDI spec: %s", strings.TrimSpace(out))
 }
 
 // stagePrewarm proves `hawser prewarm` (#149) pulls a pinned list through

@@ -400,6 +400,17 @@ func (p *Provisioner) GPUSpecInstalled(ctx context.Context, opts Options) bool {
 	return err == nil && strings.Contains(out, "yes")
 }
 
+// GPUHookInstalled reports whether nvidia-cdi-hook is present in the distro
+// (#139). Its presence when dockerd starts is what makes moby route
+// `docker run --gpus all` to the CDI spec; without it only
+// `--device nvidia.com/gpu=all` works. Rootfs 29.7.2-4 and later ship it.
+func (p *Provisioner) GPUHookInstalled(ctx context.Context, opts Options) bool {
+	opts = opts.withDefaults()
+	out, err := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c",
+		"command -v nvidia-cdi-hook >/dev/null 2>&1 && echo yes")
+	return err == nil && strings.Contains(out, "yes")
+}
+
 // writeDistroFile writes content to a path in the distro. The content is staged
 // in a host temp file the distro reads over the /mnt automount, rather than
 // passed as a shell argument — a full CA bundle is hundreds of KB, well past the
