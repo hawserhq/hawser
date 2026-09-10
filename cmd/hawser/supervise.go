@@ -174,9 +174,11 @@ flags:
 		}
 	}
 
+	metrics := &pipeproxy.Metrics{}
 	srv := &pipeproxy.Server{
 		Logger:  log,
 		Handler: handler,
+		Metrics: metrics,
 	}
 	sup := &supervise.Supervisor{
 		Engine:   engineAdapter{p: p, opts: opts},
@@ -200,6 +202,11 @@ flags:
 	}
 	srv.Dialer = &demandDialer{sup: sup, inner: dialer}
 	go sup.Run(ctx)
+
+	// Statistics the CLI cannot see from outside this process (#179), flushed
+	// to a timestamped file so `hawser status --stats` can report both the
+	// numbers and how old they are.
+	go flushStats(ctx, opts.StateDir, sup, srv, metrics, dialer, log)
 
 	// The pipe server carries traffic; both stop together.
 	if err := srv.Serve(ctx, listener); err != nil {
@@ -347,6 +354,7 @@ func runStatus(args []string) int {
 	fs := flag.NewFlagSet("status", flag.ContinueOnError)
 	stateDir := fs.String("state-dir", "", "override Hawser's state directory")
 	asJSON := fs.Bool("json", false, "emit machine-readable JSON")
+	withStats := fs.Bool("stats", false, "add engine, disk, VM, uptime and bridge statistics (needs a running engine for the first three)")
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
@@ -389,6 +397,14 @@ func runStatus(args []string) int {
 		}
 	}
 
+	// Statistics are opt-in and additive: the default shape is a pinned
+	// readiness-probe contract (#179), and collecting them costs WSL calls that
+	// a probe should not pay.
+	if *withStats && st.Installed {
+		s := gatherStats(context.Background(), opts, st.Distro, st.Engine == "running")
+		st.Stats = &s
+	}
+
 	if *asJSON {
 		return emitJSON(st)
 	}
@@ -400,6 +416,9 @@ func runStatus(args []string) int {
 		st.Distro, st.Supervisor, st.Engine, st.Desired)
 	if st.Profile != "" {
 		fmt.Printf("profile     %s\n", st.Profile)
+	}
+	if st.Stats != nil {
+		printStats(*st.Stats)
 	}
 	// Exit code mirrors engine health, so scripts can gate on it directly.
 	// Idle counts as healthy: the engine is a docker command away, on purpose.
@@ -437,4 +456,71 @@ func spawnSupervisor(stateDir string) error {
 	}
 	// Released, not waited on: it must outlive this CLI invocation.
 	return cmd.Process.Release()
+}
+
+// statsFlushInterval is how often the supervisor publishes its counters. Five
+// seconds keeps a reading current enough to act on while costing one small
+// atomic write; supervise.Stats.Fresh() allows six times that before calling a
+// reading stale, so a busy machine never flaps between the two.
+const statsFlushInterval = 5 * time.Second
+
+// flushStats publishes the supervisor's counters until the context ends, then
+// writes one last reading so a clean shutdown leaves the final numbers rather
+// than a reading from five seconds before the end.
+func flushStats(ctx context.Context, stateDir string, sup *supervise.Supervisor,
+	srv *pipeproxy.Server, m *pipeproxy.Metrics, dialer pipeproxy.Dialer, log *slog.Logger) {
+	write := func() {
+		snap := m.Snapshot()
+		st := supervise.Stats{
+			Lifecycle: sup.LifecycleSnapshot(),
+			Bridge: supervise.Bridge{
+				Connections:   snap.Connections,
+				BytesToEngine: snap.BytesToEngine,
+				BytesToClient: snap.BytesToClient,
+				ActiveConns:   srv.ActiveConns(),
+				Transport:     transportName(dialer),
+			},
+		}
+		// A statistic must never be able to take the supervisor down, so a
+		// failed write is logged at debug and forgotten.
+		if err := supervise.WriteStats(stateDir, st); err != nil {
+			log.Debug("could not write supervisor stats", "error", err)
+		}
+	}
+
+	t := time.NewTicker(statsFlushInterval)
+	defer t.Stop()
+	write()
+	for {
+		select {
+		case <-ctx.Done():
+			write()
+			return
+		case <-t.C:
+			write()
+		}
+	}
+}
+
+// transportName reports which engine transport is carrying traffic, because
+// that is the difference between ~0.6 ms and ~165 ms per connection -- and the
+// answer to "docker feels slow" when the engine itself is healthy (#179).
+//
+//	vsock     the fast path
+//	fallback  the vsock agent is unreachable and socat is carrying it
+//	socat     HAWSER_NO_VSOCK pinned the slow path deliberately
+//
+// Anything else is reported as unknown rather than guessed at: `hawser proxy`
+// and the tests wire dialers directly.
+func transportName(d pipeproxy.Dialer) string {
+	switch t := d.(type) {
+	case *pipeproxy.FallbackDialer:
+		if t.Degraded() {
+			return "fallback"
+		}
+		return "vsock"
+	case *pipeproxy.WSLDialer:
+		return "socat"
+	}
+	return "unknown"
 }

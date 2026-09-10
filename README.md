@@ -81,6 +81,10 @@ docker context. Nothing else on the system is touched.
   teammate or CI runner, reachable only by holders of a client cert this machine's CA
   signed — off by default; on the client, `hawser remote add/use` makes it docker's default
   in one command ([docs/remote-engine.md](docs/remote-engine.md))
+- **`hawser status --stats`**: container/image/volume counts and reclaimable space, the
+  VHDX footprint, VM memory and CPUs (configured versus actual), engine and supervisor
+  uptime with idle-stop history, and bridge counters including **which transport is live**
+  — the one number that explains a slow `docker` with a healthy engine
 - **Right-size the VM with consent**: `hawser config set wsl.memory 4GB` then
   `hawser wsl-config apply` shows the diff to the GLOBAL ~/.wslconfig and writes only on
   a yes (`--yes` for runners, idempotent) — [docs/vm-sizing.md](docs/vm-sizing.md)

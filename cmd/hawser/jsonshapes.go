@@ -22,6 +22,9 @@ type statusJSON struct {
 	Desired    string  `json:"desired"`    // running | stopped
 	Profile    string  `json:"profile,omitempty"`
 	GPU        gpuJSON `json:"gpu"`
+	// Stats is present only with --stats (#179); the default shape is a pinned
+	// readiness-probe contract and does not change.
+	Stats *statsJSON `json:"stats,omitempty"`
 }
 
 // gpuJSON is GPU passthrough state (#83). visible and specInstalled are probed
@@ -261,4 +264,88 @@ type wslConfigChangeJSON struct {
 	Old   string `json:"old,omitempty"`
 	New   string `json:"new"`
 	Added bool   `json:"added"`
+}
+
+// statsJSON is the `stats` object `hawser status --stats --json` adds (#179).
+// The default status shape is untouched: it is a pinned readiness-probe
+// contract, and statistics are opt-in.
+//
+// probed says whether the engine was up. Statistics are never collected by
+// starting it (#82), so probed=false means engine/disk/vm are absent rather
+// than zero -- "no data" and "zero containers" must not look alike.
+//
+// supervisor and bridge come from the file the supervisor flushes, so they are
+// present even when the engine is down, and carry the reading's age: a
+// supervisor that died leaves its last numbers behind, and fresh=false is how a
+// reader knows not to trust them as current.
+type statsJSON struct {
+	Probed     bool                 `json:"probed"`
+	Supervisor *supervisorStatsJSON `json:"supervisor,omitempty"`
+	Bridge     *bridgeStatsJSON     `json:"bridge,omitempty"`
+	Engine     *engineStatsJSON     `json:"engine,omitempty"`
+	Disk       *diskStatsJSON       `json:"disk,omitempty"`
+	VM         *vmStatsJSON         `json:"vm,omitempty"`
+	// Errors names what could not be read, so a partial reading is honest
+	// rather than silently short.
+	Errors []string `json:"errors,omitempty"`
+}
+
+type supervisorStatsJSON struct {
+	Fresh            bool    `json:"fresh"`
+	ReadingAgeSecs   float64 `json:"readingAgeSeconds"`
+	StartedAt        string  `json:"startedAt,omitempty"`
+	UptimeSecs       float64 `json:"uptimeSeconds"`
+	EngineStartedAt  string  `json:"engineStartedAt,omitempty"`
+	EngineUptimeSecs float64 `json:"engineUptimeSeconds"`
+	EngineStarts     int     `json:"engineStarts"`
+	IdleStops        int     `json:"idleStops"`
+	LastIdleStopAt   string  `json:"lastIdleStopAt,omitempty"`
+	LastWakeAt       string  `json:"lastWakeAt,omitempty"`
+}
+
+// bridgeStatsJSON is what the pipe carried. transport is "vsock" (fast path),
+// "fallback" (the socat relay, ~165 ms per connection instead of ~0.6 ms) or
+// "direct"; it is the field that explains a slow docker with a healthy engine.
+type bridgeStatsJSON struct {
+	Connections   uint64 `json:"connections"`
+	BytesToEngine uint64 `json:"bytesToEngine"`
+	BytesToClient uint64 `json:"bytesToClient"`
+	ActiveConns   int    `json:"activeConns"`
+	Transport     string `json:"transport"`
+}
+
+type engineStatsJSON struct {
+	Version          string `json:"version,omitempty"`
+	Containers       int    `json:"containers"`
+	Running          int    `json:"containersRunning"`
+	Paused           int    `json:"containersPaused"`
+	Stopped          int    `json:"containersStopped"`
+	Images           int    `json:"images"`
+	Volumes          int    `json:"volumes"`
+	ImagesBytes      uint64 `json:"imagesBytes"`
+	VolumesBytes     uint64 `json:"volumesBytes"`
+	BuildCacheBytes  uint64 `json:"buildCacheBytes"`
+	ReclaimableBytes uint64 `json:"reclaimableBytes"`
+}
+
+// diskStatsJSON is the host-side footprint. reclaimableBytes is size-on-disk
+// minus what the guest uses -- roughly what `hawser compact` could return, and
+// an estimate rather than a promise, since compaction works in blocks.
+type diskStatsJSON struct {
+	Path             string `json:"path"`
+	SizeOnDiskBytes  uint64 `json:"sizeOnDiskBytes"`
+	GuestUsedBytes   uint64 `json:"guestUsedBytes"`
+	ReclaimableBytes uint64 `json:"reclaimableBytes"`
+	HostFreeBytes    uint64 `json:"hostFreeBytes"`
+}
+
+// vmStatsJSON pairs what the VM has with what ~/.wslconfig asked for: the two
+// disagreeing is the trap `hawser wsl-config` closes (#148).
+type vmStatsJSON struct {
+	CPUs                 int    `json:"cpus"`
+	MemTotalBytes        uint64 `json:"memTotalBytes"`
+	MemAvailableBytes    uint64 `json:"memAvailableBytes"`
+	SwapTotalBytes       uint64 `json:"swapTotalBytes"`
+	ConfiguredMemory     string `json:"configuredMemory,omitempty"`
+	ConfiguredProcessors string `json:"configuredProcessors,omitempty"`
 }

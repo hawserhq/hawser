@@ -89,6 +89,10 @@ type Supervisor struct {
 	// can tell "down because I idled it" from "down unexpectedly" without
 	// re-reading, and re-adopted from the file after a supervisor restart.
 	idleStopped bool
+	// lifecycle and startedAt feed `hawser status --stats` (#179): counters the
+	// CLI cannot derive, because only this process sees the transitions.
+	lifecycle Lifecycle
+	startedAt time.Time
 	// upSince anchors the idle clock: a freshly started engine with no
 	// traffic yet must age past the timeout before it can be idled.
 	upSince time.Time
@@ -145,6 +149,10 @@ func (s *Supervisor) log() *slog.Logger {
 // and it survives sleep/resume for free: a resumed machine simply fails the
 // next health check and gets repaired like any other crash.
 func (s *Supervisor) Run(ctx context.Context) {
+	s.mu.Lock()
+	s.startedAt = time.Now()
+	s.mu.Unlock()
+
 	t := time.NewTicker(s.Config.interval())
 	defer t.Stop()
 
@@ -201,6 +209,13 @@ func (s *Supervisor) tick(ctx context.Context) {
 		s.failures = 0
 		s.nextTry = time.Time{}
 		s.upSince = time.Now()
+		s.lifecycle.EngineStarts++
+		if s.lifecycle.IdleStops > 0 && s.lifecycle.LastWakeAt.Before(s.lifecycle.LastIdleStopAt) {
+			// Started after an idle stop: this is the wake half of the cycle,
+			// and the gap between the two is what says whether idle-timeout is
+			// set somewhere useful.
+			s.lifecycle.LastWakeAt = time.Now()
+		}
 		s.log().Info("engine recovered")
 		s.fireHook(HookPostStart)
 
@@ -299,6 +314,9 @@ func (s *Supervisor) maybeIdleStop(ctx context.Context) {
 		return
 	}
 	s.idleStopped = true
+	s.lifecycle.IdleStops++
+	s.lifecycle.LastIdleStopAt = time.Now()
+	s.upSince = time.Time{}
 	s.fireHook(HookOnIdleStop)
 }
 

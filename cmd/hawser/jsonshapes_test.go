@@ -276,3 +276,51 @@ func TestWSLConfigShape(t *testing.T) {
 	c = roundTrip(t, wslConfigChangeJSON{Key: "memory", Old: "8GB", New: "4GB"})
 	requireKeys(t, c, "old")
 }
+
+func TestStatusStatsShape(t *testing.T) {
+	// The default status shape must not change: it is a pinned readiness-probe
+	// contract, and stats are opt-in.
+	m := roundTrip(t, statusJSON{})
+	if _, ok := m["stats"]; ok {
+		t.Error("stats appears without --stats")
+	}
+
+	m = roundTrip(t, statusJSON{Stats: &statsJSON{}})
+	stats, ok := m["stats"].(map[string]any)
+	if !ok {
+		t.Fatalf("stats = %v", m["stats"])
+	}
+	requireKeys(t, stats, "probed")
+	// Every group is a pointer, so "engine was down" is absent rather than a
+	// wall of zeroes that reads like an empty engine.
+	for _, k := range []string{"engine", "disk", "vm", "supervisor", "bridge"} {
+		if _, ok := stats[k]; ok {
+			t.Errorf("%s present when it was not collected", k)
+		}
+	}
+}
+
+func TestStatsGroupShapes(t *testing.T) {
+	e := roundTrip(t, engineStatsJSON{})
+	requireKeys(t, e, "containers", "containersRunning", "containersPaused",
+		"containersStopped", "images", "volumes", "imagesBytes", "volumesBytes",
+		"buildCacheBytes", "reclaimableBytes")
+
+	d := roundTrip(t, diskStatsJSON{})
+	requireKeys(t, d, "path", "sizeOnDiskBytes", "guestUsedBytes", "reclaimableBytes", "hostFreeBytes")
+
+	v := roundTrip(t, vmStatsJSON{})
+	requireKeys(t, v, "cpus", "memTotalBytes", "memAvailableBytes", "swapTotalBytes")
+	// Configured sizing is omitted when ~/.wslconfig sets none: "unset" and
+	// "set to empty" are different answers.
+	if _, ok := v["configuredMemory"]; ok {
+		t.Error("configuredMemory present with no sizing configured")
+	}
+
+	b := roundTrip(t, bridgeStatsJSON{Transport: "vsock"})
+	requireKeys(t, b, "connections", "bytesToEngine", "bytesToClient", "activeConns", "transport")
+
+	s := roundTrip(t, supervisorStatsJSON{})
+	requireKeys(t, s, "fresh", "readingAgeSeconds", "uptimeSeconds",
+		"engineUptimeSeconds", "engineStarts", "idleStops")
+}
