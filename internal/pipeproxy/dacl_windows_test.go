@@ -3,7 +3,10 @@
 package pipeproxy
 
 import (
+	"fmt"
+	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Microsoft/go-winio"
@@ -30,7 +33,7 @@ func TestDefaultSDDLScopedToOwner(t *testing.T) {
 
 func TestListenOwnerCanStillConnect(t *testing.T) {
 	// The tightened ACL must not lock the owner out of their own pipe.
-	name := `\\.\pipe\hawser-dacl-test`
+	name := uniquePipeName(t)
 	l, err := Listen(name, "")
 	if err != nil {
 		t.Fatalf("Listen: %v", err)
@@ -54,4 +57,18 @@ func TestListenOwnerCanStillConnect(t *testing.T) {
 	if err := <-done; err != nil {
 		t.Fatalf("accept: %v", err)
 	}
+}
+
+// pipeSeq makes each test pipe name unique. A Windows named pipe lives in a
+// machine-wide namespace and an instance can outlive the listener that created
+// it, so a fixed name is only safe while the test runs exactly once per
+// machine. Under `go test -count=N` it is not: a later iteration's DialPipe can
+// reach the previous instance while the new listener waits in Accept for a
+// client that already went elsewhere. That is a hang rather than a failure,
+// which is how it burned ten minutes of CI without reporting anything useful.
+var pipeSeq atomic.Uint64
+
+func uniquePipeName(t *testing.T) string {
+	t.Helper()
+	return fmt.Sprintf(`\\.\pipe\hawser-dacl-test-%d-%d`, os.Getpid(), pipeSeq.Add(1))
 }
