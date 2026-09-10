@@ -96,6 +96,9 @@ docker context. Nothing else on the system is touched.
 - A logged-on session is required — a WSL2 platform constraint that binds every WSL-based
   engine; for CI runners see [docs/auto-logon-runner.md](docs/auto-logon-runner.md), and
   `hawser runner check` verifies the setup in one verdict
+- The supervisor is watched: if it ever dies, `hawserw.exe` restarts it in about a second
+  (backing off, with a crash budget) instead of leaving every `docker` command broken until
+  the next `hawser start`
 - **CI runners**: GitHub Actions via
   [setup-hawser](https://github.com/zcsizmadia/setup-hawser), GitLab shell or docker
   executor, Testcontainers (Ryuk included), and local pipeline runs with `act` or
@@ -118,7 +121,7 @@ Standard Go project layout — the Go toolchain, not a framework, decides this s
 
 ```
 cmd/hawser/     the CLI — the product; every capability lives here
-cmd/hawserw/    windowless logon launcher (starts the supervisor, no console flash)
+cmd/hawserw/    windowless logon launcher and supervisor watchdog (no console flash)
 cmd/hawsertray/ optional status-light tray; shells out to the CLI, holds no logic
 internal/       implementation packages, compiler-enforced private to this module
   wsl/          every wsl.exe call, behind an interface so tests run anywhere

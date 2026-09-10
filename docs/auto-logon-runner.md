@@ -61,6 +61,28 @@ process, which is exactly what WSL2 needs. (A scheduled task set to "run
 whether logged on or not" performs a batch logon into session 0, where WSL
 cannot start; that is why Hawser uses the Run key, not a task.)
 
+`hawserw.exe` then stays resident as the supervisor's **watchdog**. If the
+supervisor dies — a crash, a stray `Stop-Process`, an out-of-memory kill — the
+pipe would otherwise stay gone until someone logged in and ran `hawser start`,
+which on an unattended runner can mean every job failing overnight. Instead it
+comes back in about a second:
+
+```
+type %LOCALAPPDATA%\Hawser\watchdog.log
+2026-09-09T22:15:23-05:00 supervisor exited 0xFFFFFFFF after 20s; restarting in 1s
+```
+
+The policy refuses to make things worse: a clean exit is final, a failure that
+happens in milliseconds (a held single-instance lock, a bad flag, no install)
+is not treated as a crash and does not loop, restarts back off from 1s to 30s,
+and after 10 restarts in an hour the watchdog stops and says so. Whatever the
+supervisor wrote to stderr — including the goroutine dump of a Go fatal error,
+which is the only evidence such a crash leaves — is captured in
+`supervisor-stderr.log` beside it.
+
+Set `HAWSER_NO_WATCHDOG=1` in the runner's environment to go back to
+launch-and-forget.
+
 ### 3. Enable auto-logon
 
 Use Sysinternals **Autologon** (recommended: it stores the password in an LSA
