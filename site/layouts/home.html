@@ -1,0 +1,24 @@
+{{ define "main" }}
+<article class="prose home">
+  <h1>{{ site.Title }}</h1>
+  <p class="lede">{{ site.Params.description }}</p>
+
+  {{ .Content }}
+
+  {{ range hugo.Data.nav.sections }}
+  <section class="group">
+    <h2>{{ .section }}</h2>
+    <ul class="cards">
+      {{- range .pages }}
+      {{- with site.GetPage (printf "/%s" .) }}
+      <li>
+        <a href="{{ .RelPermalink }}"><strong>{{ .Title | markdownify }}</strong></a>
+        {{- with .Description }}<span>{{ . }}</span>{{ end }}
+      </li>
+      {{- end }}
+      {{- end }}
+    </ul>
+  </section>
+  {{ end }}
+</article>
+{{ end }}

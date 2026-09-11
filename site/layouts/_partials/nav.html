@@ -1,0 +1,25 @@
+{{- /*
+  The sidebar. Order and grouping come from data/nav.yaml rather than from
+  weights scattered across front matter, so the whole IA is legible in one
+  file and matches the README index.
+*/ -}}
+<input type="checkbox" id="navtoggle" class="navtoggle" hidden>
+<label for="navtoggle" class="navtoggle-label">Contents</label>
+<nav class="sidebar" aria-label="Documentation">
+  <ul class="sections">
+    {{- range hugo.Data.nav.sections }}
+    <li>
+      <h2>{{ .section }}</h2>
+      <ul>
+        {{- range .pages }}
+        {{- with site.GetPage (printf "/%s" .) }}
+        <li><a href="{{ .RelPermalink }}"{{ if eq $.RelPermalink .RelPermalink }} aria-current="page"{{ end }}>{{ .LinkTitle | markdownify }}</a></li>
+        {{- else }}
+        {{- warnf "nav.yaml lists %q, which has no page" . }}
+        {{- end }}
+        {{- end }}
+      </ul>
+    </li>
+    {{- end }}
+  </ul>
+</nav>

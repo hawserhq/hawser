@@ -1,0 +1,207 @@
+/*
+ * Hawser docs. Hand-written, ~300 lines, no framework and no webfonts: the
+ * page makes zero requests it does not control, which is the same promise the
+ * product makes. System fonts also render a Windows-first project the way its
+ * readers' machines already look.
+ */
+
+:root {
+  --teal: #0a7d84;
+  --teal-bright: #3fb6bd;
+  --ink: #1c2226;
+  --body: #3b464e;
+  --muted: #6b7780;
+  --rule: #e2e6e9;
+  --bg: #ffffff;
+  --bg-soft: #f6f8f9;
+  --code-bg: #f4f6f7;
+  --link: var(--teal);
+  --sidebar-w: 17rem;
+  --measure: 46rem;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --teal: #3fb6bd;
+    --teal-bright: #6fd4da;
+    --ink: #e8edf0;
+    --body: #bcc7cf;
+    --muted: #8b98a2;
+    --rule: #2a343b;
+    --bg: #161b1f;
+    --bg-soft: #1c2328;
+    --code-bg: #1c2328;
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--body);
+  font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+a { color: var(--link); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: var(--teal-bright); }
+
+.skip {
+  position: absolute; left: -9999px;
+  background: var(--bg); color: var(--ink); padding: .6rem 1rem; z-index: 10;
+}
+.skip:focus { left: 1rem; top: .5rem; }
+
+/* ---- chrome ---- */
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; padding: .75rem clamp(1rem, 4vw, 2.5rem);
+  border-bottom: 1px solid var(--rule);
+  background: var(--bg-soft);
+  position: sticky; top: 0; z-index: 5;
+}
+.brand {
+  display: flex; align-items: center; gap: .55rem;
+  font-weight: 650; font-size: 1.05rem; color: var(--ink); text-decoration: none;
+}
+.brand img { display: block; }
+.topnav { display: flex; gap: 1.25rem; font-size: .92rem; }
+.topnav a { color: var(--body); text-decoration: none; }
+.topnav a:hover { color: var(--teal); text-decoration: underline; }
+
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  max-width: 78rem; margin: 0 auto;
+  padding: 2rem clamp(1rem, 4vw, 2.5rem);
+}
+
+.sidebar { font-size: .93rem; position: sticky; top: 4.5rem; align-self: start; max-height: calc(100vh - 6rem); overflow-y: auto; }
+.sidebar ul { list-style: none; margin: 0; padding: 0; }
+.sidebar .sections > li { margin-bottom: 1.5rem; }
+.sidebar h2 {
+  font-size: .74rem; text-transform: uppercase; letter-spacing: .09em;
+  color: var(--muted); margin: 0 0 .5rem; font-weight: 650;
+}
+.sidebar li a {
+  display: block; padding: .22rem 0 .22rem .7rem;
+  border-left: 2px solid var(--rule);
+  color: var(--body); text-decoration: none;
+}
+.sidebar li a:hover { color: var(--teal); border-left-color: var(--teal); }
+.sidebar li a[aria-current="page"] {
+  color: var(--teal); font-weight: 600; border-left-color: var(--teal);
+}
+
+.navtoggle-label { display: none; }
+
+/* ---- prose ---- */
+
+.prose { max-width: var(--measure); }
+.prose h1, .prose h2, .prose h3, .prose h4 {
+  color: var(--ink); line-height: 1.25; font-weight: 650;
+  scroll-margin-top: 4.5rem;
+}
+.prose h1 { font-size: 2rem; margin: 0 0 1rem; letter-spacing: -.015em; }
+.prose h2 { font-size: 1.35rem; margin: 2.4rem 0 .8rem; padding-bottom: .3rem; border-bottom: 1px solid var(--rule); }
+.prose h3 { font-size: 1.08rem; margin: 1.9rem 0 .6rem; }
+.prose h4 { font-size: .98rem; margin: 1.5rem 0 .5rem; }
+.prose p, .prose ul, .prose ol { margin: 0 0 1rem; }
+.prose li { margin-bottom: .3rem; }
+.prose img { max-width: 100%; height: auto; }
+.prose hr { border: 0; border-top: 1px solid var(--rule); margin: 2.5rem 0 1.25rem; }
+
+.lede { font-size: 1.12rem; color: var(--muted); margin-bottom: 2rem; }
+
+blockquote {
+  margin: 1.25rem 0; padding: .1rem 1.1rem;
+  border-left: 3px solid var(--teal);
+  background: var(--bg-soft); color: var(--body);
+}
+blockquote p { margin: .8rem 0; }
+
+code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+  font-size: .88em;
+}
+:not(pre) > code {
+  background: var(--code-bg); border: 1px solid var(--rule);
+  border-radius: 4px; padding: .1em .34em;
+}
+pre {
+  background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px;
+  padding: .85rem 1rem; overflow-x: auto; margin: 0 0 1.25rem;
+  line-height: 1.5;
+}
+pre code { background: none; border: 0; padding: 0; }
+
+table { border-collapse: collapse; width: 100%; margin: 0 0 1.25rem; font-size: .93rem; display: block; overflow-x: auto; }
+th, td { border: 1px solid var(--rule); padding: .45rem .7rem; text-align: left; vertical-align: top; }
+th { background: var(--bg-soft); color: var(--ink); font-weight: 650; }
+
+kbd {
+  font-family: inherit; font-size: .85em; border: 1px solid var(--rule);
+  border-bottom-width: 2px; border-radius: 4px; padding: .05em .35em; background: var(--bg-soft);
+}
+
+/* ---- page furniture ---- */
+
+.crumbs { font-size: .84rem; color: var(--muted); margin-bottom: 1rem; }
+.crumbs a { color: var(--muted); }
+.crumbs span { margin: 0 .1rem; }
+
+.toc {
+  background: var(--bg-soft); border: 1px solid var(--rule); border-radius: 6px;
+  padding: .6rem .9rem; margin: 0 0 1.75rem; font-size: .91rem;
+}
+.toc summary { cursor: pointer; color: var(--muted); font-weight: 600; }
+.toc ul { margin: .5rem 0 .2rem; padding-left: 1.1rem; }
+.toc li { margin-bottom: .15rem; }
+.toc > summary + #TableOfContents > ul { padding-left: 1rem; }
+
+.edit { font-size: .88rem; color: var(--muted); }
+
+.group { margin-top: 2.5rem; }
+.cards { list-style: none; padding: 0; margin: 0; display: grid; gap: .55rem; }
+.cards li {
+  border: 1px solid var(--rule); border-radius: 6px; padding: .65rem .9rem;
+  background: var(--bg-soft);
+}
+.cards li a { text-decoration: none; }
+.cards li a:hover strong { text-decoration: underline; }
+.cards li span { display: block; color: var(--muted); font-size: .89rem; margin-top: .15rem; }
+
+.foot {
+  border-top: 1px solid var(--rule); margin-top: 3rem;
+  padding: 1.5rem clamp(1rem, 4vw, 2.5rem) 2.5rem;
+  font-size: .88rem; color: var(--muted);
+  max-width: 78rem; margin-left: auto; margin-right: auto;
+}
+.foot p { margin: .3rem 0; }
+.muted { color: var(--muted); }
+
+/* ---- narrow ---- */
+
+@media (max-width: 56rem) {
+  .shell { grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+  .sidebar { position: static; max-height: none; display: none; border: 1px solid var(--rule); border-radius: 6px; padding: .9rem 1.1rem; }
+  .navtoggle:checked ~ .sidebar { display: block; }
+  .navtoggle-label {
+    display: inline-block; cursor: pointer; user-select: none;
+    border: 1px solid var(--rule); border-radius: 6px; background: var(--bg-soft);
+    padding: .4rem .8rem; font-size: .9rem; font-weight: 600; color: var(--ink);
+  }
+  .navtoggle:checked ~ .navtoggle-label { border-color: var(--teal); color: var(--teal); }
+  .topnav { gap: .9rem; font-size: .86rem; }
+  .prose h1 { font-size: 1.6rem; }
+}
+
+/* A code chip is right in body text and heavy in a heading, a nav item or a
+   breadcrumb, where the title just happens to contain a flag name. */
+.prose h1 code, .sidebar code, .crumbs code, .cards code {
+  background: none; border: 0; padding: 0; font-size: .93em;
+}

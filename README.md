@@ -149,6 +149,7 @@ internal/       implementation packages, compiler-enforced private to this modul
                 doctor, engineconfig, hawserfile, tray
 guest/          Linux side: rootfs build scripts, vsock agent
 docs/           operator docs, e.g. the unattended/auto-logon runner playbook
+site/           the docs site: layouts and nav only -- content comes from docs/
 test/e2e/       cross-package suite; the only part needing real WSL2
 spike/          throwaway experiments, deleted once their issue closes
 ```
@@ -168,8 +169,9 @@ only for suites that belong to no single package.
 
 ## Documentation
 
-Grouped by the question you arrived with. A proper docs site is [#197]; until
-then this is the index, and every page is reachable from here.
+Also published as a site: **<https://hawserhq.github.io/hawser/>**, generated
+from these same files. Grouped below by the question you arrived with; every
+page is reachable from here.
 
 **Start**
 [Bundled docker CLI](docs/docker-cli.md) ·
@@ -208,7 +210,9 @@ then this is the index, and every page is reachable from here.
 [Bumping the engine and docker CLI](docs/bumping-upstream.md) ·
 [Design notes](docs/design/)
 
-[#197]: https://github.com/hawserhq/hawser/issues/197
+Editing the docs edits the site: `pwsh -File scripts/build-docs.ps1 -Serve`
+previews it locally, and merging to `main` publishes it. Nothing in `site/` is
+hand-written prose except the front page.
 
 ## License
 

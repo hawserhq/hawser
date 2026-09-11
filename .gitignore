@@ -12,3 +12,10 @@ engine-bin/
 /agent
 /hawsertray
 /hawsertray.exe
+
+# The docs site: content/ is staged from docs/ by scripts/build-docs.ps1, the
+# rest is Hugo's output and cache.
+/site/content/
+/site/public/
+/site/resources/
+/site/.hugo_build.lock
