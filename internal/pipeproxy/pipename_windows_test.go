@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Microsoft/go-winio"
-	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/pipeproxy"
 )
 
 func TestDockerHostFor(t *testing.T) {
@@ -21,9 +21,9 @@ func TestDockerHostFor(t *testing.T) {
 		want string
 	}{
 		{`\\.\pipe\docker_engine`, "npipe:////./pipe/docker_engine"},
-		{`\\.\pipe\hawser_engine`, "npipe:////./pipe/hawser_engine"},
-		{"//./pipe/hawser_engine", "npipe:////./pipe/hawser_engine"},
-		{"hawser_custom", "npipe://hawser_custom"},
+		{`\\.\pipe\skrog_engine`, "npipe:////./pipe/skrog_engine"},
+		{"//./pipe/skrog_engine", "npipe:////./pipe/skrog_engine"},
+		{"skrog_custom", "npipe://skrog_custom"},
 	}
 	for _, tt := range tests {
 		if got := pipeproxy.DockerHostFor(tt.in); got != tt.want {
@@ -33,7 +33,7 @@ func TestDockerHostFor(t *testing.T) {
 }
 
 func TestPipeInUseDetectsALiveListener(t *testing.T) {
-	name := fmt.Sprintf(`\\.\pipe\hawser-inuse-%d`, os.Getpid())
+	name := fmt.Sprintf(`\\.\pipe\skrog-inuse-%d`, os.Getpid())
 
 	if pipeproxy.PipeInUse(name) {
 		t.Fatalf("%s reported in use before anything listened", name)
@@ -82,7 +82,7 @@ func TestPipeInUseDetectsALiveListener(t *testing.T) {
 
 func TestSelectPipeNameHonorsExplicitChoice(t *testing.T) {
 	// An explicit non-default name is taken as given; the caller meant it.
-	custom := `\\.\pipe\hawser-explicit`
+	custom := `\\.\pipe\skrog-explicit`
 	got, reason := pipeproxy.SelectPipeName(custom)
 	if got != custom {
 		t.Errorf("got %q, want %q", got, custom)
@@ -93,7 +93,7 @@ func TestSelectPipeNameHonorsExplicitChoice(t *testing.T) {
 }
 
 func TestSelectPipeNameFallsBackWhenDefaultIsHeld(t *testing.T) {
-	// The behavior that makes trying Hawser zero-risk: it never takes the
+	// The behavior that makes trying Skrog zero-risk: it never takes the
 	// default pipe away from Docker Desktop.
 	//
 	// This machine's real state decides which branch runs, so both are

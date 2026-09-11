@@ -1,14 +1,14 @@
 # Admission control
 
-A local, scriptable guardrail on the docker API. Hawser already sits in the
+A local, scriptable guardrail on the docker API. Skrog already sits in the
 request path — every `docker` call crosses the named-pipe bridge — so it can
 refuse a container this machine's owner has ruled out, before the engine ever
 sees it.
 
 ```
-hawser policy show                       # the rules in effect
-hawser policy check                      # validate the file without applying it
-hawser policy test create-body.json      # judge one request, and say why
+skrog policy show                       # the rules in effect
+skrog policy check                      # validate the file without applying it
+skrog policy test create-body.json      # judge one request, and say why
 ```
 
 ## What it is not
@@ -24,7 +24,7 @@ the value of writing a policy down.
 
 ## The rules
 
-They live in `policy.yaml` in the state dir (`hawser policy show` prints the
+They live in `policy.yaml` in the state dir (`skrog policy show` prints the
 path). A missing file means no rules, which is the default state of a machine
 nobody has configured.
 
@@ -46,7 +46,7 @@ restart, nothing to reload. Creating the file for the first time works the
 same way, and deleting it removes every rule.
 
 > An earlier draft read the file once when the supervisor started and told you
-> to run `hawser restart`. That was wrong twice: `restart` bounces the engine,
+> to run `skrog restart`. That was wrong twice: `restart` bounces the engine,
 > not the supervisor that holds the rules, so the advice did not work even
 > when followed — and a policy file written after the supervisor started
 > installed no rules at all. Both were found by running a real
@@ -90,15 +90,15 @@ simply will not run it. Every denial is also recorded by the
 
 ## Testing a rule set before trusting it
 
-`hawser policy test` judges a container-create body without running anything,
+`skrog policy test` judges a container-create body without running anything,
 and exits **13** when the rules refuse it — so it can gate a script.
 
 ```
-$ hawser policy test --rules policy.yaml request.json
+$ skrog policy test --rules policy.yaml request.json
 DENIED by allow-bind-sources
   policy does not allow bind mounts from C:/secrets (allowed: C:\work)
 
-$ hawser policy test --json --rules policy.yaml request.json
+$ skrog policy test --json --rules policy.yaml request.json
 {
   "denied": true,
   "rule": "allow-bind-sources",
@@ -121,12 +121,12 @@ Unknown keys are refused for the same reason: a misspelled rule that silently
 does nothing looks exactly like one that works.
 
 ```
-$ hawser policy check
-hawser: policy: yaml: unmarshal errors:
+$ skrog policy check
+skrog: policy: yaml: unmarshal errors:
   line 1: field deny-priviliged not found in type policy.Rules
 ```
 
-Run `hawser policy check` after editing, before restarting.
+Run `skrog policy check` after editing, before restarting.
 
 ## Scope today
 

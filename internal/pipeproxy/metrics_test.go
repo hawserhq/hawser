@@ -57,7 +57,7 @@ func TestConnectionsAreCounted(t *testing.T) {
 }
 
 func TestNilMetricsIsSafeAndTransparent(t *testing.T) {
-	// `hawser proxy` and the tests wire a Server with no Metrics; counting must
+	// `skrog proxy` and the tests wire a Server with no Metrics; counting must
 	// then cost nothing and, importantly, must not wrap the connection -- the
 	// handler type-asserts on it for CloseWrite.
 	var m *Metrics

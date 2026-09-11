@@ -85,7 +85,7 @@ func TestDockerExe(t *testing.T) {
 // The Move* paths stream between two real docker processes; without docker we
 // can still exercise their setup and the pipeline's start-failure branch by
 // pointing the binaries at something that cannot start.
-const noSuchBin = "hawser-no-such-docker-bin"
+const noSuchBin = "skrog-no-such-docker-bin"
 
 func TestMoveImagesReportsStartFailure(t *testing.T) {
 	tr := CLITransfer{Src: DockerCLI{Exe: noSuchBin}, Dest: DockerCLI{Exe: noSuchBin}}

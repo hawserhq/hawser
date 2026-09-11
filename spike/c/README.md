@@ -12,7 +12,7 @@ with Docker Desktop's distro running in the same utility VM:
 
 ```
 discovered 1 compute system(s) without elevation: [EAAC9D05-…]
-vm EAAC9D05-…: CONNECTED, banner="hawser-spike-c hello from the guest", first connect+banner=4.005ms
+vm EAAC9D05-…: CONNECTED, banner="skrog-spike-c hello from the guest", first connect+banner=4.005ms
 per-connection cost over 50 dials: avg 574.456µs
 PASS
 ```

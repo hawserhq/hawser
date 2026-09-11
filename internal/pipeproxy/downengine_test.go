@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/pipeproxy"
 )
 
 // A dead engine (first response never arrives) must surface as

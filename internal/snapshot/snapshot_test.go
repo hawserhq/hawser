@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // fakeWSL implements wsl.WSL; Export writes a stand-in tarball so the checksum
@@ -41,7 +41,7 @@ func (f *fakeWSL) Start(context.Context, string, string, ...string) (func(), err
 
 func newManager(t *testing.T, w *fakeWSL) *Manager {
 	t.Helper()
-	return &Manager{WSL: w, StateDir: t.TempDir(), Distro: "hawser-engine", DataDir: t.TempDir()}
+	return &Manager{WSL: w, StateDir: t.TempDir(), Distro: "skrog-engine", DataDir: t.TempDir()}
 }
 
 func TestValidName(t *testing.T) {

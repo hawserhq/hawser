@@ -7,7 +7,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
-$work = Join-Path $env:TEMP "hawser-spike-c"
+$work = Join-Path $env:TEMP "skrog-spike-c"
 New-Item -ItemType Directory -Force $work | Out-Null
 
 Write-Host "== building guest (linux/amd64) and host probes"

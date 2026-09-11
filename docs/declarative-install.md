@@ -1,10 +1,10 @@
-# Declarative install (`hawser.yaml`)
+# Declarative install (`skrog.yaml`)
 
 Describe a whole install in one YAML file, check it into your provisioning repo,
 and install a fleet of runners from it instead of a pile of flags:
 
 ```
-hawser install --config hawser.yaml
+skrog install --config skrog.yaml
 ```
 
 Re-running against an existing install **converges** it (idempotent) — it skips
@@ -13,7 +13,7 @@ first install and every later change. To capture an existing machine as a
 starting point:
 
 ```
-hawser config export > hawser.yaml
+skrog config export > skrog.yaml
 ```
 
 > Docker Desktop paywalls Settings Management behind Docker Business. This is
@@ -26,21 +26,21 @@ unknown fields fail loudly rather than being silently ignored.
 
 ```yaml
 # Install-time (used only on a fresh install):
-distro: hawser-engine          # --distro
-data-dir: D:\hawser            # --data-dir
+distro: skrog-engine          # --distro
+data-dir: D:\skrog            # --data-dir
 engine-version: 29.7.2         # --engine-version
 
 # Settings (applied on install and on every converge):
 idle-timeout: 30m              # or "off"
 autostart: true               # start the supervisor at logon
 
-engine:                        # engine daemon.json keys (see `hawser config`)
+engine:                        # engine daemon.json keys (see `skrog config`)
   registry-mirrors: https://mirror.corp.example.com
   insecure-registries: registry.internal:5000
   log-opts: max-size=10m,max-file=3
 
 hooks:                         # lifecycle scripts (see docs/hooks.md)
-  post-start: C:\ProgramData\hawser\login.cmd
+  post-start: C:\ProgramData\skrog\login.cmd
 
 integrations:                  # distros to wsl-integrate
   - Ubuntu
@@ -55,26 +55,26 @@ A GitHub Actions self-hosted runner image, provisioned in one step:
 
 ```powershell
 # In the runner's setup script:
-hawser install --config C:\provisioning\hawser.yaml --headless --no-autostart
-hawser start
+skrog install --config C:\provisioning\skrog.yaml --headless --no-autostart
+skrog start
 docker run --rm hello-world
 ```
 
 - `--headless` never prompts.
 - `--no-autostart` suits a runner started by a service manager rather than at
   logon; drop it (or set `autostart: true`) for interactive machines.
-- Flags win over the file, so one shared `hawser.yaml` can be specialized per
+- Flags win over the file, so one shared `skrog.yaml` can be specialized per
   host without editing it.
 
-## Pinning the engine (`hawser.lock`)
+## Pinning the engine (`skrog.lock`)
 
-`hawser.yaml` describes *what to configure*; `hawser.lock` pins *exactly which
+`skrog.yaml` describes *what to configure*; `skrog.lock` pins *exactly which
 engine* — version, rootfs URL, and SHA-256 — so every machine runs a verified,
 identical engine:
 
 ```
-hawser lock > hawser.lock            # capture this build's pinned engine
-hawser install --locked hawser.lock  # reproduce it, refusing on any checksum mismatch
+skrog lock > skrog.lock            # capture this build's pinned engine
+skrog install --locked skrog.lock  # reproduce it, refusing on any checksum mismatch
 ```
 
 Check both into your provisioning repo. `--locked` sets the rootfs the same way

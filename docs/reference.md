@@ -4,7 +4,7 @@ Every command, its flags and its exit codes — generated from the binary's own
 `--help` output by `scripts/build-reference.ps1`, so it cannot drift from what
 the CLI actually does. CI regenerates it and fails if the result differs.
 
-Run `hawser <command> --help` for the same text in your terminal.
+Run `skrog <command> --help` for the same text in your terminal.
 
 ## Commands
 
@@ -13,13 +13,13 @@ Run `hawser <command> --help` for the same text in your terminal.
 - [`bundle`](#bundle) — pack the engine into a .zip for an air-gapped `install --offline`
 - [`cli`](#cli) — install the bundled docker CLI + compose + buildx (ditch Docker Desktop)
 - [`compact`](#compact) — shrink the engine's virtual disk: fstrim + CompactVirtualDisk
-- [`config`](#config) — list, get, or set Hawser settings (idle-timeout)
+- [`config`](#config) — list, get, or set Skrog settings (idle-timeout)
 - [`doctor`](#doctor) — diagnose the host and engine; --fix applies safe remedies
 - [`enable-gpu`](#enable-gpu) — install the NVIDIA CDI spec so containers can use the GPU
 - [`engine`](#engine) — engine list, upgrade and rollback — pinned and reversible
 - [`healthcheck`](#healthcheck) — readiness probe: exit 0 when a docker command would succeed (--wait)
 - [`install`](#install) — provision the engine distro and start it
-- [`lock`](#lock) — write a hawser.lock pinning the exact engine (reproducible installs)
+- [`lock`](#lock) — write a skrog.lock pinning the exact engine (reproducible installs)
 - [`logs`](#logs) — supervisor, dockerd, or audit log; --follow, --json for shippers
 - [`migrate`](#migrate) — copy images and volumes from Docker Desktop into the engine
 - [`prewarm`](#prewarm) — pull a pinned image list ahead of need (runner warm-up, golden images)
@@ -38,7 +38,7 @@ Run `hawser <command> --help` for the same text in your terminal.
 - [`status`](#status) — report supervisor, engine and desired state
 - [`stop`](#stop) — stop the engine; it stays stopped until start
 - [`supervise`](#supervise) — serve the pipe and keep the engine alive (the always-on layer)
-- [`uninstall`](#uninstall) — remove the engine distro and Hawser's state
+- [`uninstall`](#uninstall) — remove the engine distro and Skrog's state
 - [`upgrade`](#upgrade) — am I current? app, engine and bundled CLI in one answer
 - [`wsl-integrate`](#wsl-integrate) — point docker inside your own WSL distros at the engine
 - [`wsl-config`](#wsl-config) — right-size the WSL2 VM: show and apply ~/.wslconfig sizing, with consent
@@ -63,12 +63,12 @@ says so in its help text below.
 print the container-affecting API audit log (`audit tail`)
 
 ```
-usage: hawser audit tail [--since <dur>] [-n <count>] [--json]
-       hawser audit trace [--json|--raw] -- <cmd> [args...]
+usage: skrog audit tail [--since <dur>] [-n <count>] [--json]
+       skrog audit trace [--json|--raw] -- <cmd> [args...]
 
 trace runs a command and then summarizes what it did to the engine — images
 pulled, containers created, execs, builds — from the audit records written
-while it ran (a trace for opaque CI YAML: `hawser audit trace -- act -j build`).
+while it ran (a trace for opaque CI YAML: `skrog audit trace -- act -j build`).
 The command's exit code is propagated. Concurrent docker use during the run is
 included in the summary.
 
@@ -76,7 +76,7 @@ tail prints the container-affecting API audit log — image pulls, container
 create/start/stop/remove, exec and builds that crossed the bridge — as the
 JSON lines they are recorded in. Enable recording with:
 
-  hawser config set audit on
+  skrog config set audit on
 
 It takes effect on the next docker call — nothing to restart.
 
@@ -95,7 +95,7 @@ flags:
   -since duration
     	show only events newer than this (e.g. 30m, 2h)
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## autostart
@@ -103,11 +103,11 @@ flags:
 start the supervisor at logon: enable, disable, status
 
 ```
-usage: hawser autostart enable|disable|status
+usage: skrog autostart enable|disable|status
 
 Controls whether the supervisor starts at logon, via a per-user Run entry
 (visible and switchable in Task Manager's Startup tab; no admin needed). The
-entry runs hawserw.exe, the windowless launcher, so nothing flashes at logon.
+entry runs skrogw.exe, the windowless launcher, so nothing flashes at logon.
 
 install registers this by default; uninstall removes it.
 ```
@@ -117,13 +117,13 @@ install registers this by default; uninstall removes it.
 pack the engine into a .zip for an air-gapped `install --offline`
 
 ```
-usage: hawser bundle [--engine-version <v>] [-o hawser-bundle.zip]
+usage: skrog bundle [--engine-version <v>] [-o skrog-bundle.zip]
 
-Packs the engine rootfs and a hawser.lock into one .zip for an air-gapped
+Packs the engine rootfs and a skrog.lock into one .zip for an air-gapped
 install. Run this on a connected machine; the rootfs is downloaded and
 checksum-verified, then copied into the bundle. On the isolated machine:
 
-  hawser install --offline hawser-bundle.zip
+  skrog install --offline skrog-bundle.zip
 
 installs entirely from the file — any network access on that step is a bug.
 
@@ -135,9 +135,9 @@ flags:
   -o string
     	shorthand for --output
   -output string
-    	bundle path (default: hawser-bundle-<version>.zip)
+    	bundle path (default: skrog-bundle-<version>.zip)
   -state-dir string
-    	override Hawser's state directory (rootfs download cache)
+    	override Skrog's state directory (rootfs download cache)
 ```
 
 ## cli
@@ -145,7 +145,7 @@ flags:
 install the bundled docker CLI + compose + buildx (ditch Docker Desktop)
 
 ```
-hawser cli: unknown subcommand "--help" (install|status|uninstall)
+skrog cli: unknown subcommand "--help" (install|status|uninstall)
 ```
 
 ## compact
@@ -153,7 +153,7 @@ hawser cli: unknown subcommand "--help" (install|status|uninstall)
 shrink the engine's virtual disk: fstrim + CompactVirtualDisk
 
 ```
-usage: hawser compact [--no-trim] [--restart] [--dry-run] [--wait <dur>] [--json]
+usage: skrog compact [--no-trim] [--restart] [--dry-run] [--wait <dur>] [--json]
 
 Shrinks the engine's virtual disk. A WSL2 distro's ext4.vhdx only ever grows:
 delete 50 GB of images and the file on your drive stays exactly the same size.
@@ -170,8 +170,8 @@ running, so if another one is up — Docker Desktop's count — this refuses and
 names it rather than running `wsl --shutdown` and killing your containers.
 Stop them yourself and re-run.
 
-  hawser compact --dry-run       # what it would do
-  hawser compact --restart       # compact, then bring the engine back
+  skrog compact --dry-run       # what it would do
+  skrog compact --restart       # compact, then bring the engine back
 
 Exit codes: 0 ok, 1 error, 2 usage, 3 not installed, 11 the disk is held.
 
@@ -187,25 +187,25 @@ flags:
   -restart
     	start the engine again afterwards
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -wait duration
     	how long to wait for WSL to release the disk (default 1m30s)
 ```
 
 ## config
 
-list, get, or set Hawser settings (idle-timeout)
+list, get, or set Skrog settings (idle-timeout)
 
 ```
-usage: hawser config                    list all settings
-       hawser config get <key>          print one value
-       hawser config set <key> <value>  change one value
-       hawser config export             print the install as a hawser.yaml
+usage: skrog config                    list all settings
+       skrog config get <key>          print one value
+       skrog config set <key> <value>  change one value
+       skrog config export             print the install as a skrog.yaml
 
-Hawser settings apply live: the supervisor re-reads this file when it changes,
+Skrog settings apply live: the supervisor re-reads this file when it changes,
 so nothing here needs a restart to take effect. Where "live" needs a
 qualifier, the setting below says so — settings that configure the engine
-itself land when the engine next starts, which `hawser restart` asks for.
+itself land when the engine next starts, which `skrog restart` asks for.
 
   idle-timeout   how long the bridge must be quiet (no connections, no running
                  containers) before the engine is stopped to reclaim its RAM;
@@ -213,9 +213,9 @@ itself land when the engine next starts, which `hawser restart` asks for.
                  or 1h, or "off" (the default).
   audit          record container-affecting API calls to audit.log in the state
                  dir; on/off ("off" by default). Takes effect on the next
-                 docker call. See `hawser audit tail`.
+                 docker call. See `skrog audit tail`.
   install.verify-signature  refuse the rootfs at install time unless its signature verifies
-  disk.warn-below free-space floor under which `hawser doctor` warns, e.g. 10GB
+  disk.warn-below free-space floor under which `skrog doctor` warns, e.g. 10GB
 
 Engine settings (engine.<key>) are written into the engine's daemon.json,
 validated with `dockerd --validate` before they replace the live file, and
@@ -231,18 +231,18 @@ empty value to clear a key. Lists are comma-separated; maps are k=v,k=v.
   engine.max-concurrent-uploads   parallel layer pushes per image
   engine.mtu                      MTU for the default bridge network -- lower it under a VPN that clamps the tunnel MTU, or pulls hang mid-layer (#63)
   engine.registry-mirrors         pull-through mirror URLs, tried before Docker Hub
-  engine.userland-proxy           relay published ports through docker-proxy instead of iptables NAT (Hawser defaults this to false: NAT is what makes -p ports reachable from Windows under mirrored networking)
+  engine.userland-proxy           relay published ports through docker-proxy instead of iptables NAT (Skrog defaults this to false: NAT is what makes -p ports reachable from Windows under mirrored networking)
 
 Lifecycle hooks (hook.<event>) run a script on an engine event, time-bounded
 and best-effort (a failure is logged, never blocks the lifecycle). The script
-gets HAWSER_EVENT and HAWSER_STATE_DIR in its environment. Set an empty value
+gets SKROG_EVENT and SKROG_STATE_DIR in its environment. Set an empty value
 to clear one. Events:
   hook.post-start   after the engine starts (recovery or first start)
-  hook.pre-stop     before the engine stops on `hawser stop`
+  hook.pre-stop     before the engine stops on `skrog stop`
   hook.on-idle-stop  after the idle timeout stops the engine
   hook.on-wake      after the engine cold-starts on demand
 
-Corporate network (applied to the engine on its next start; `hawser restart`
+Corporate network (applied to the engine on its next start; `skrog restart`
 asks for one):
   network.proxy          http(s):// proxy for the engine's registry pulls
   network.no-proxy       proxy bypass list (comma-separated)
@@ -253,7 +253,7 @@ Exit codes: 0 ok, 1 error, 2 usage.
   -json
     	emit machine-readable JSON (list)
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## doctor
@@ -261,7 +261,7 @@ Exit codes: 0 ok, 1 error, 2 usage.
 diagnose the host and engine; --fix applies safe remedies
 
 ```
-usage: hawser doctor [--fix] [--json | --report]
+usage: skrog doctor [--fix] [--json | --report]
 
 Diagnoses the host: WSL2, the docker CLI on PATH, credential helpers, the
 engine install, the docker context, supervisor/engine agreement, disk space,
@@ -281,7 +281,7 @@ flags:
   -report
     	emit a Markdown report to paste into an issue
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## enable-gpu
@@ -289,7 +289,7 @@ flags:
 install the NVIDIA CDI spec so containers can use the GPU
 
 ```
-usage: hawser enable-gpu [--off]
+usage: skrog enable-gpu [--off]
 
 Enables NVIDIA GPU access for containers, then a container reaches the GPU with:
 
@@ -316,7 +316,7 @@ name and reports itself as experimental. Needs AMD Software: Adrenalin Edition
 26.2.2 for WSL2 or newer, and a ROCm container image (ROCm is Ubuntu-only, so
 the image must be glibc; the engine's own musl is irrelevant because nothing
 is installed in it). JAX, MIGraphX and multi-GPU are unsupported under WSL by
-AMD, not by Hawser.
+AMD, not by Skrog.
 
 Note the vendor is taken at your word: the only library AMD projects here is
 libdxcore.so, which is Microsoft's DXCore shim and is present on NVIDIA
@@ -330,7 +330,7 @@ flags:
   -off
     	disable GPU access (remove the CDI spec)
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -vendor string
     	GPU vendor: nvidia (default) or amd (EXPERIMENTAL, untested on hardware)
 ```
@@ -340,7 +340,7 @@ flags:
 engine list, upgrade and rollback — pinned and reversible
 
 ```
-usage: hawser engine list|upgrade|rollback
+usage: skrog engine list|upgrade|rollback
 
 Engine security patches should not have to wait for an app release, and taking
 one should not cost you your images.
@@ -363,14 +363,14 @@ Exit codes: 0 ok, 1 error, 2 usage, 3 not installed.
 readiness probe: exit 0 when a docker command would succeed (--wait)
 
 ```
-usage: hawser healthcheck [--wait <duration>] [--json]
+usage: skrog healthcheck [--wait <duration>] [--json]
 
 A readiness probe: exits 0 when a docker command would succeed right now —
 the supervisor is serving the pipe and the engine is running or idle (an idle
 engine wakes on the next docker call). Nothing is started; --wait keeps
-probing while `hawser start` (or the logon autostart) brings the engine up.
+probing while `skrog start` (or the logon autostart) brings the engine up.
 
-  hawser healthcheck --wait 2m && docker run --rm hello-world
+  skrog healthcheck --wait 2m && docker run --rm hello-world
 
 Exit codes: 0 ready, 1 not ready, 2 usage, 3 not installed.
 
@@ -378,7 +378,7 @@ flags:
   -json
     	emit machine-readable JSON
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -wait duration
     	keep probing until ready or this long has passed (e.g. 2m)
 ```
@@ -388,9 +388,9 @@ flags:
 provision the engine distro and start it
 
 ```
-usage: hawser install [flags]
+usage: skrog install [flags]
 
-Provisions the Hawser engine distro: checks the host, downloads and verifies the
+Provisions the Skrog engine distro: checks the host, downloads and verifies the
 rootfs, imports it as a WSL2 distro, and starts the engine.
 
 The rootfs is always checksum-verified. Version pinning is a contract: this
@@ -400,46 +400,46 @@ fetched as "latest".
 Exit codes: 0 ok, 1 error, 2 usage.
 
 flags:
-  -config hawser config export
-    	declarative install from a hawser.yaml (see hawser config export)
+  -config skrog config export
+    	declarative install from a skrog.yaml (see skrog config export)
   -data-dir string
     	where the distro's VHDX lives (default: under the state dir)
   -distro string
-    	WSL distro name (default: hawser-engine)
+    	WSL distro name (default: skrog-engine)
   -engine-version string
     	engine version to install (default: this build's default)
   -headless
     	never prompt; for unattended and CI installs
   -json
     	emit the resulting manifest as JSON
-  -locked hawser lock
-    	install the exact engine pinned in a hawser.lock (see hawser lock)
+  -locked skrog lock
+    	install the exact engine pinned in a skrog.lock (see skrog lock)
   -no-autostart
     	do not register the supervisor to start at logon
   -no-verify-signature
     	skip the rootfs signature check for this install (the SHA-256 pin still applies)
-  -offline hawser bundle
-    	install entirely from an air-gap bundle .zip (see hawser bundle)
+  -offline skrog bundle
+    	install entirely from an air-gap bundle .zip (see skrog bundle)
   -rootfs-sha256 string
     	expected rootfs SHA-256; required with --rootfs-url
   -rootfs-url string
     	override the rootfs URL (development)
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## lock
 
-write a hawser.lock pinning the exact engine (reproducible installs)
+write a skrog.lock pinning the exact engine (reproducible installs)
 
 ```
-usage: hawser lock [--engine-version <v>] [-o hawser.lock]
+usage: skrog lock [--engine-version <v>] [-o skrog.lock]
 
-Writes a hawser.lock pinning the exact engine this build installs: version,
+Writes a skrog.lock pinning the exact engine this build installs: version,
 rootfs URL and SHA-256, and component versions. Check it into a repo and every
 developer and CI runner reproduces the same verified engine with:
 
-  hawser install --locked hawser.lock
+  skrog install --locked skrog.lock
 
 With no -o, the lock is printed to stdout.
 
@@ -459,7 +459,7 @@ flags:
 supervisor, dockerd, or audit log; --follow, --json for shippers
 
 ```
-usage: hawser logs [--source supervisor|dockerd|audit] [-n <lines>] [--follow] [--json]
+usage: skrog logs [--source supervisor|dockerd|audit] [-n <lines>] [--follow] [--json]
 
   supervisor   the always-on bridge: engine starts/stops, recovery, idle stops
   dockerd      the engine daemon's own log, read from inside the distro
@@ -479,7 +479,7 @@ flags:
   -source string
     	which log: supervisor, dockerd, or audit (default "supervisor")
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## migrate
@@ -487,10 +487,10 @@ flags:
 copy images and volumes from Docker Desktop into the engine
 
 ```
-usage: hawser migrate --from-desktop [--dry-run]
+usage: skrog migrate --from-desktop [--dry-run]
 
-Copies images and named volumes from Docker Desktop into the Hawser engine, so
-trying Hawser does not mean starting from an empty engine.
+Copies images and named volumes from Docker Desktop into the Skrog engine, so
+trying Skrog does not mean starting from an empty engine.
 
 The copy is one-way and non-destructive: nothing in Docker Desktop is changed
 or removed, and an interrupted migration leaves Desktop exactly as it was. Run
@@ -507,7 +507,7 @@ flags:
   -docker string
     	path to the docker CLI (default: docker on PATH)
   -docker-host string
-    	destination engine (default: the Hawser pipe this install serves)
+    	destination engine (default: the Skrog pipe this install serves)
   -dry-run
     	list what would move and how big it is, then stop
   -from-context string
@@ -517,7 +517,7 @@ flags:
   -only value
     	limit to images/volumes whose name contains this (repeatable)
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## prewarm
@@ -525,16 +525,16 @@ flags:
 pull a pinned image list ahead of need (runner warm-up, golden images)
 
 ```
-usage: hawser prewarm [--concurrency <n>] [--json] <images.txt>
+usage: skrog prewarm [--concurrency <n>] [--json] <images.txt>
 
 Pulls every image listed in the file — one reference per line, # comments and
 blank lines ignored, digest pins encouraged — with a bounded number in flight.
 A failed pull never stops the others; the exit code says whether all succeeded.
 
-  hawser healthcheck --wait 2m && hawser prewarm images.txt
+  skrog healthcheck --wait 2m && skrog prewarm images.txt
 
 Pulls target whatever docker currently targets: the local engine, or the remote
-selected with `hawser remote use`.
+selected with `skrog remote use`.
 
 Exit codes: 0 all pulled, 1 some failed, 2 usage.
 
@@ -550,9 +550,9 @@ flags:
 local admission control for the docker API: show, check, test
 
 ```
-usage: hawser policy show|check|test
+usage: skrog policy show|check|test
 
-Local admission control for the docker API. Hawser already sits in the request
+Local admission control for the docker API. Skrog already sits in the request
 path, so it can refuse a container the machine's owner has ruled out — no
 elevation, no engine change, no daemon plugin.
 
@@ -583,16 +583,16 @@ Exit codes: 0 ok, 1 error, 2 usage, 3 not installed, 13 the rules deny it.
 save and switch named settings profiles (work/home)
 
 ```
-usage: hawser profile                    list profiles (* = active)
-       hawser profile create <name>      save the current settings as a profile
-       hawser profile switch <name>      apply a profile's settings
-       hawser profile show <name>        print a profile
-       hawser profile delete <name>      remove a profile
+usage: skrog profile                    list profiles (* = active)
+       skrog profile create <name>      save the current settings as a profile
+       skrog profile switch <name>      apply a profile's settings
+       skrog profile show <name>        print a profile
+       skrog profile delete <name>      remove a profile
 
 A profile is a named set of the settings that change between networks — engine
 registry mirrors, DNS, logging, the idle timeout, and lifecycle hooks (the
-config keys `hawser config` manages). Switch profiles when you move between the
-corporate VPN and home instead of hand-toggling each one; `hawser status` names
+config keys `skrog config` manages). Switch profiles when you move between the
+corporate VPN and home instead of hand-toggling each one; `skrog status` names
 the active profile.
 
 Switching applies the profile exactly: settings the profile does not set are
@@ -602,7 +602,7 @@ Exit codes: 0 ok, 1 error, 2 usage, 3 no such profile / not installed.
   -json
     	emit machine-readable JSON (list, show)
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## proxy
@@ -610,7 +610,7 @@ Exit codes: 0 ok, 1 error, 2 usage, 3 no such profile / not installed.
 serve the docker pipe in the foreground (debug mode)
 
 ```
-usage: hawser proxy [flags]
+usage: skrog proxy [flags]
 
 Serves the Windows named pipe that stock docker.exe connects to, relaying it to
 the engine inside the WSL2 distro. Runs in the foreground until interrupted.
@@ -624,17 +624,17 @@ flags:
   -distro string
     	WSL distro to relay to (default: from the install manifest)
   -no-context
-    	do not create or update the hawser docker context
+    	do not create or update the skrog docker context
   -no-path-translation
     	relay bytes verbatim, without translating Windows bind paths
   -pipe string
-    	pipe to serve (default: \\.\pipe\docker_engine, or Hawser's own if that is taken)
+    	pipe to serve (default: \\.\pipe\docker_engine, or Skrog's own if that is taken)
   -sddl string
     	security descriptor for the pipe (advanced; default restricts to SYSTEM, admins and interactive users)
   -socket string
     	engine socket inside the distro (default "/var/run/docker.sock")
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## prune
@@ -642,15 +642,15 @@ flags:
 reclaim disk: stopped containers, unused images, build cache
 
 ```
-usage: hawser prune [--all] [--until <age>] [--build-cache] [--volumes] [--json]
+usage: skrog prune [--all] [--until <age>] [--build-cache] [--volumes] [--json]
 
 Frees disk on the engine: stopped containers first (so their images become
 unused), then unused images; --build-cache and --volumes widen it. A failed step
 never stops the others. Acts on whatever docker currently targets — the local
-engine or the remote selected with `hawser remote use`.
+engine or the remote selected with `skrog remote use`.
 
-  hawser prune --until 168h               # keep anything from the last week
-  hawser prune --all --build-cache        # the full sweep after a job
+  skrog prune --until 168h               # keep anything from the last week
+  skrog prune --all --build-cache        # the full sweep after a job
 
 Exit codes: 0 ok, 1 a step failed, 2 usage.
 
@@ -672,7 +672,7 @@ flags:
 move the engine data dir to another drive
 
 ```
-usage: hawser relocate <new-directory> [--restart] [--dry-run] [--keep-archive] [--json]
+usage: skrog relocate <new-directory> [--restart] [--dry-run] [--keep-archive] [--json]
 
 Moves the engine's data directory — the virtual disk, and every image,
 container and volume in it — to another drive. "Move it off C:" is what this
@@ -691,8 +691,8 @@ import fails, the error prints the exact command that restores it.
 Because the archive and the new disk briefly coexist, the target needs roughly
 twice the current disk's size free. That is checked before anything is touched.
 
-  hawser relocate D:\hawser --dry-run      # what it would do, and what it needs
-  hawser relocate D:\hawser --restart      # move it, then bring the engine back
+  skrog relocate D:\skrog --dry-run      # what it would do, and what it needs
+  skrog relocate D:\skrog --restart      # move it, then bring the engine back
 
 Exit codes: 0 ok, 1 error, 2 usage, 3 not installed, 12 not enough space.
 
@@ -708,7 +708,7 @@ flags:
   -restart
     	start the engine again afterwards
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## remote
@@ -716,18 +716,18 @@ flags:
 register and switch to a remote engine served over mutual TLS
 
 ```
-usage: hawser remote                                   list remotes
-       hawser remote --host tcp://<h>:2376 --certs <dir> add <name>
-       hawser remote use <name>|local
-       hawser remote test <name>
-       hawser remote remove <name>
+usage: skrog remote                                   list remotes
+       skrog remote --host tcp://<h>:2376 --certs <dir> add <name>
+       skrog remote use <name>|local
+       skrog remote test <name>
+       skrog remote remove <name>
 
-The client side of `hawser serve --tcp`. `add` registers a remote engine's address
+The client side of `skrog serve --tcp`. `add` registers a remote engine's address
 and its mutual-TLS material (the ca.pem, client cert and key the server's
-`hawser serve cert` produced) and creates a docker context named hawser-<name>.
+`skrog serve cert` produced) and creates a docker context named skrog-<name>.
 `use` makes that context current, so plain `docker` — and anything that follows
 the docker context, such as VS Code Dev Containers — talks to the remote engine;
-`use local` switches back to the local hawser context. Certificates are copied
+`use local` switches back to the local skrog context. Certificates are copied
 under the state dir and never printed.
 
 Flags come before the verb. Exit codes: 0 ok, 1 error, 2 usage, 3 no such remote.
@@ -740,7 +740,7 @@ flags:
   -json
     	emit machine-readable JSON (list, test)
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## reset
@@ -748,15 +748,15 @@ flags:
 reset the engine to a snapshot, unconditionally (runner clean slate)
 
 ```
-usage: hawser reset --to <snapshot> [--json]
+usage: skrog reset --to <snapshot> [--json]
 
 Replaces the engine with a snapshot, unconditionally: every image, container and
 volume not in the snapshot is lost, running containers included. This is the
-non-interactive form of `hawser snapshot restore --yes --force`, meant for
+non-interactive form of `skrog snapshot restore --yes --force`, meant for
 runner job scripts:
 
-  hawser snapshot save golden          # once: after pulling your base images
-  hawser reset --to golden             # before each job: clean slate, images present
+  skrog snapshot save golden          # once: after pulling your base images
+  skrog reset --to golden             # before each job: clean slate, images present
 
 Exit codes: 0 ok, 1 error, 2 usage, 3 no such snapshot / not installed.
 
@@ -764,7 +764,7 @@ flags:
   -json
     	emit machine-readable JSON
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -to string
     	snapshot to reset the engine to (required)
 ```
@@ -774,7 +774,7 @@ flags:
 stop the engine, then start it
 
 ```
-usage: hawser restart [--supervisor]
+usage: skrog restart [--supervisor]
 
 Stops the engine and starts it again.
 
@@ -786,9 +786,9 @@ restart be quick and the pipe stay put.
 
 Almost nothing needs `--supervisor`: settings are re-read live, and the engine
 picks up config changes on this plain restart. Reach for it when the
-supervisor itself is misbehaving, or after replacing hawser.exe on disk.
+supervisor itself is misbehaving, or after replacing skrog.exe on disk.
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -supervisor
     	recycle the supervisor process too, not just the engine
   -timeout duration
@@ -800,7 +800,7 @@ supervisor itself is misbehaving, or after replacing hawser.exe on disk.
 runner check: verify auto-logon, autostart, supervisor and engine on an unattended host
 
 ```
-usage: hawser runner [--json] check
+usage: skrog runner [--json] check
 
 Verifies the pieces an unattended runner depends on, and names the missing one:
 
@@ -817,7 +817,7 @@ flags:
   -json
     	emit machine-readable JSON
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## serve
@@ -825,7 +825,7 @@ flags:
 expose the engine over the network with mutual TLS (`serve cert`)
 
 ```
-usage: hawser serve --tcp <addr>
+usage: skrog serve --tcp <addr>
 
 Exposes the engine over the network with MUTUAL TLS, so a teammate or a CI
 runner can target it. Only holders of a client certificate this machine's CA
@@ -833,11 +833,11 @@ signed can connect — the engine is never open to the network at large.
 
 First mint the certificates (once):
 
-  hawser serve cert --host <this-machine-hostname-or-ip>
+  skrog serve cert --host <this-machine-hostname-or-ip>
 
 then run the server:
 
-  hawser serve --tcp 0.0.0.0:2376
+  skrog serve --tcp 0.0.0.0:2376
 
 On the client, copy ca.pem + client.pem + client-key.pem and:
 
@@ -846,7 +846,7 @@ On the client, copy ca.pem + client.pem + client-key.pem and:
   $env:DOCKER_CERT_PATH = "<dir with the three files>"
   docker version
 
-The engine must be running (`hawser start`); pair remote serving with
+The engine must be running (`skrog start`); pair remote serving with
 idle-timeout off so a remote client never meets a stopped engine.
 
 Exit codes: 0 ok, 1 error, 2 usage, 3 not installed / no certs.
@@ -855,7 +855,7 @@ flags:
   -distro string
     	WSL distro (default: from the install manifest)
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -tcp string
     	address to serve on, e.g. 0.0.0.0:2376 (required)
 ```
@@ -865,14 +865,14 @@ flags:
 save/restore/list the engine state (images, containers, volumes)
 
 ```
-usage: hawser snapshot save <name>       capture the engine state
-       hawser snapshot list                list snapshots
-       hawser snapshot restore <name>      replace the engine with a snapshot
-       hawser snapshot delete <name>
+usage: skrog snapshot save <name>       capture the engine state
+       skrog snapshot list                list snapshots
+       skrog snapshot restore <name>      replace the engine with a snapshot
+       skrog snapshot delete <name>
 
 Saves and restores the whole engine state — every image, container and volume —
 as a named, checksummed archive. "Set up a dev environment, snapshot it, trash
-it during a risky test, restore it in seconds." Only Hawser's own distro is ever
+it during a risky test, restore it in seconds." Only Skrog's own distro is ever
 touched.
 
 save/restore refuse while containers are running (pass --force to override);
@@ -886,7 +886,7 @@ flags:
   -json
     	emit machine-readable JSON
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -yes
     	skip the confirmation prompt (required for restore)
 ```
@@ -896,12 +896,12 @@ flags:
 ensure the supervisor and engine are running
 
 ```
-usage: hawser start
+usage: skrog start
 
 Records the desired state as running, launches the supervisor when none is
 running, and waits for the engine to answer.
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -timeout duration
     	how long to wait for the engine (default 2m0s)
 ```
@@ -911,7 +911,7 @@ running, and waits for the engine to answer.
 report supervisor, engine and desired state
 
 ```
-usage: hawser status [--json] [--stats]
+usage: skrog status [--json] [--stats]
 
 Reports the distro, whether the supervisor and engine are running, and the
 desired state the user last asked for.
@@ -924,7 +924,7 @@ The engine is one of:
   running   answering the docker API
   idle      stopped by the idle timeout, ON PURPOSE; the next docker command
             wakes it. Not an error, and the exit code says so
-  stopped   down, and staying down until `hawser start`
+  stopped   down, and staying down until `skrog start`
 
 --stats adds engine, disk, VM, uptime and bridge counters. It is opt-in
 because collecting them costs WSL calls a readiness probe should not pay; the
@@ -934,7 +934,7 @@ Exit codes: 0 engine running or idle, 1 engine down, 2 usage, 3 not installed.
   -json
     	emit machine-readable JSON
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -stats
     	add engine, disk, VM, uptime and bridge statistics (needs a running engine for the first three)
 ```
@@ -944,13 +944,13 @@ Exit codes: 0 engine running or idle, 1 engine down, 2 usage, 3 not installed.
 stop the engine; it stays stopped until start
 
 ```
-usage: hawser stop
+usage: skrog stop
 
 Records the desired state as stopped and waits for the engine to stop. The
-supervisor keeps honoring this until `hawser start` — a stopped engine stays
-stopped. Only Hawser's own distro is touched, never other WSL distros.
+supervisor keeps honoring this until `skrog start` — a stopped engine stays
+stopped. Only Skrog's own distro is touched, never other WSL distros.
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -timeout duration
     	how long to wait for the engine to stop (default 1m0s)
 ```
@@ -960,35 +960,35 @@ stopped. Only Hawser's own distro is touched, never other WSL distros.
 serve the pipe and keep the engine alive (the always-on layer)
 
 ```
-usage: hawser supervise [flags]
+usage: skrog supervise [flags]
 
 The always-on layer: serves the docker pipe AND keeps the engine alive —
 crash restart with backoff, recovery from `wsl --shutdown` and sleep/resume,
-honoring `hawser stop` until `hawser start`. One instance per install.
+honoring `skrog stop` until `skrog start`. One instance per install.
 
-Runs in the foreground; `hawser start` spawns it in the background, and the
-logon autostart (`hawser autostart`) runs it for you. Logs go to supervisor.log in the
+Runs in the foreground; `skrog start` spawns it in the background, and the
+logon autostart (`skrog autostart`) runs it for you. Logs go to supervisor.log in the
 state directory (rotated) as well as stderr.
 
 flags:
   -distro string
     	WSL distro (default: from the install manifest)
   -no-context
-    	do not create or update the hawser docker context
+    	do not create or update the skrog docker context
   -pipe string
-    	pipe to serve (default: \\.\pipe\docker_engine, or Hawser's own if taken)
+    	pipe to serve (default: \\.\pipe\docker_engine, or Skrog's own if taken)
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## uninstall
 
-remove the engine distro and Hawser's state
+remove the engine distro and Skrog's state
 
 ```
-usage: hawser uninstall [--yes]
+usage: skrog uninstall [--yes]
 
-Unregisters the engine distro and removes Hawser's own state. Nothing else on
+Unregisters the engine distro and removes Skrog's own state. Nothing else on
 the system is touched.
 
 This DELETES the distro, and with it every image, container and volume it
@@ -1000,7 +1000,7 @@ flags:
   -distro string
     	WSL distro name (default: from the install manifest)
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -yes
     	skip the confirmation prompt
 ```
@@ -1010,13 +1010,13 @@ flags:
 am I current? app, engine and bundled CLI in one answer
 
 ```
-usage: hawser upgrade [--check|--dry-run] [--yes] [--offline] [--json]
+usage: skrog upgrade [--check|--dry-run] [--yes] [--offline] [--json]
 
 Reports whether the app, the engine and the bundled docker CLI are current,
 then brings forward the two it owns — after showing you what it will do.
 
-  hawser upgrade            everything
-  hawser engine upgrade     just the engine
+  skrog upgrade            everything
+  skrog engine upgrade     just the engine
 
 The app is REPORTED, never applied: a running .exe cannot cleanly replace
 itself on Windows, and a signed installer is the right owner of that path.
@@ -1025,9 +1025,9 @@ itself on Windows, and a signed installer is the right owner of that path.
   --dry-run   print exactly what would be applied, and apply nothing
   --yes       do not ask (runners)
 
-Why this is not just a convenience: the engines `hawser engine upgrade` can
+Why this is not just a convenience: the engines `skrog engine upgrade` can
 reach are pinned in THIS binary's manifest. A newer engine can therefore need
-a newer hawser first — so "engine: current" is only ever true of the build you
+a newer skrog first — so "engine: current" is only ever true of the build you
 are running, and this command says so when it matters.
 
 Nothing here auto-updates or polls in the background. It runs when you ask,
@@ -1038,7 +1038,7 @@ in), so `--offline` still reports those. Air-gapped installs should use it.
 The CLI is applied before the engine: it is a file copy that costs no
 downtime, where an engine upgrade stops and restarts the engine. A failed
 engine upgrade therefore leaves the CLI already current rather than nothing
-done, and `hawser engine rollback` reverses the engine half on its own.
+done, and `skrog engine rollback` reverses the engine half on its own.
 
 Exit codes: 0 nothing to do or everything applied, 1 error, 2 usage,
 3 something can be upgraded (--check and --dry-run only).
@@ -1053,7 +1053,7 @@ flags:
   -offline
     	skip the network check for the app version
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
   -timeout duration
     	how long to wait for the releases API (default 15s)
   -yes
@@ -1065,26 +1065,26 @@ flags:
 point docker inside your own WSL distros at the engine
 
 ```
-usage: hawser wsl-integrate <distro>       wire a distro to the engine
-       hawser wsl-integrate --remove <distro>
-       hawser wsl-integrate                without arguments: list wired distros
+usage: skrog wsl-integrate <distro>       wire a distro to the engine
+       skrog wsl-integrate --remove <distro>
+       skrog wsl-integrate                without arguments: list wired distros
 
-Points docker inside one of your own WSL distros at the Hawser engine, by
-writing /etc/profile.d/hawser.sh there (DOCKER_HOST to the engine socket shared at /mnt/wsl). Takes
+Points docker inside one of your own WSL distros at the Skrog engine, by
+writing /etc/profile.d/skrog.sh there (DOCKER_HOST to the engine socket shared at /mnt/wsl). Takes
 effect in new login shells. Never touches a distro you did not name, and
-`hawser uninstall` unwires everything it wired.
+`skrog uninstall` unwires everything it wired.
 
 Note: with an idle-timeout configured, in-flight work over the shared socket
 (a build or pull from the integrated distro) holds the engine up — it is never
 stopped mid-operation. But between operations the engine can still idle-stop,
 and a shared-socket client cannot wake a stopped engine on its own; run
-`hawser start` first (or keep idle-timeout off) for long in-distro sessions.
+`skrog start` first (or keep idle-timeout off) for long in-distro sessions.
 
 Exit codes: 0 ok, 1 error, 2 usage.
   -remove
     	unwire the distro instead
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```
 
 ## wsl-config
@@ -1092,16 +1092,16 @@ Exit codes: 0 ok, 1 error, 2 usage.
 right-size the WSL2 VM: show and apply ~/.wslconfig sizing, with consent
 
 ```
-usage: hawser wsl-config [show|apply] [--yes] [--json]
+usage: skrog wsl-config [show|apply] [--yes] [--json]
 
 Right-sizes the WSL2 VM the engine runs in: memory, processors, swap and
 autoMemoryReclaim. Those live in %USERPROFILE%\.wslconfig, which is GLOBAL —
 every WSL2 distro on this machine shares it, Docker Desktop's included — so
-Hawser records what you asked for and writes it only when you say so:
+Skrog records what you asked for and writes it only when you say so:
 
-  hawser config set wsl.memory 4GB
-  hawser config set wsl.processors 2
-  hawser wsl-config apply            # shows the diff, asks, then writes
+  skrog config set wsl.memory 4GB
+  skrog config set wsl.processors 2
+  skrog wsl-config apply            # shows the diff, asks, then writes
 
   show     the effective limits and any pending changes (default)
   apply    write the pending changes to ~/.wslconfig
@@ -1109,7 +1109,7 @@ Hawser records what you asked for and writes it only when you say so:
 --yes skips the prompt, for a runner where the owner has already decided;
 re-running it changes nothing.
 
-Sizing takes effect when the WSL VM next starts. Hawser will not restart it:
+Sizing takes effect when the WSL VM next starts. Skrog will not restart it:
 the only way is `wsl --shutdown`, which stops every distro on the machine.
 
 Exit codes: 0 ok, 1 error, 2 usage.
@@ -1120,7 +1120,7 @@ Exit codes: 0 ok, 1 error, 2 usage.
 report every component version and which docker.exe is active
 
 ```
-usage: hawser version [--json]
+usage: skrog version [--json]
 
 Reports every component version, which docker.exe actually runs, the active
 docker context, and the negotiated engine API version.
@@ -1131,5 +1131,5 @@ flags:
   -json
     	emit machine-readable JSON
   -state-dir string
-    	override Hawser's state directory
+    	override Skrog's state directory
 ```

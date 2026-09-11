@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/upgrade"
+	"github.com/wslkit/skrog/internal/upgrade"
 )
 
 func TestSummarizeNamesWhatIsBehind(t *testing.T) {
@@ -20,7 +20,7 @@ func TestSummarizeNamesWhatIsBehind(t *testing.T) {
 	if !got.Available {
 		t.Error("Available = false with two upgrades waiting")
 	}
-	for _, want := range []string{"hawser 0.4.0", "docker CLI 29.8.0"} {
+	for _, want := range []string{"skrog 0.4.0", "docker CLI 29.8.0"} {
 		if !strings.Contains(got.Summary, want) {
 			t.Errorf("summary %q is missing %q", got.Summary, want)
 		}
@@ -35,7 +35,7 @@ func TestSummarizeUsesUserFacingNames(t *testing.T) {
 	rep := upgrade.Report{Streams: []upgrade.Stream{
 		{Name: "app", Latest: "0.4.0", Status: upgrade.StatusAvailable},
 	}}
-	if got := summarize(rep).Summary; !strings.HasPrefix(got, "hawser 0.4.0") {
+	if got := summarize(rep).Summary; !strings.HasPrefix(got, "skrog 0.4.0") {
 		t.Errorf("summary = %q, want it to start with the product name", got)
 	}
 }
@@ -98,12 +98,12 @@ func TestParseUpgradesRejectsNonsense(t *testing.T) {
 }
 
 func TestParseUpgradesReadsTheCLIShape(t *testing.T) {
-	// Pinned against the real `hawser upgrade --json` output, so a change to
+	// Pinned against the real `skrog upgrade --json` output, so a change to
 	// the CLI's shape breaks here rather than silently in the tray.
 	const out = `{
 	  "streams": [
 	    {"name":"app","current":"0.3.0","latest":"0.4.0","status":"available",
-	     "command":"download from https://github.com/hawserhq/hawser/releases"},
+	     "command":"download from https://github.com/wslkit/skrog/releases"},
 	    {"name":"engine","current":"29.8.0","latest":"29.8.0","status":"current"},
 	    {"name":"cli","current":"29.8.0","latest":"29.8.0","status":"current"}
 	  ],
@@ -119,7 +119,7 @@ func TestParseUpgradesReadsTheCLIShape(t *testing.T) {
 		t.Fatalf("got %d streams, want 3", len(rep.Streams))
 	}
 	got := summarize(rep)
-	if !got.Available || !strings.Contains(got.Summary, "hawser 0.4.0") {
+	if !got.Available || !strings.Contains(got.Summary, "skrog 0.4.0") {
 		t.Errorf("summary = %+v", got)
 	}
 }

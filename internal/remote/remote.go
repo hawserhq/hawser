@@ -1,6 +1,6 @@
-// Package remote is the client side of `hawser serve` (#138). It registers a
+// Package remote is the client side of `skrog serve` (#138). It registers a
 // remote engine's address and mutual-TLS material under the state dir, and the
-// CLI backs a docker context (hawser-<name>) with them — so `docker`, and
+// CLI backs a docker context (skrog-<name>) with them — so `docker`, and
 // anything that follows the docker context (VS Code Dev Containers, compose),
 // can target a remote engine with one command instead of three environment
 // variables. Certificates are copied, never printed.
@@ -26,8 +26,8 @@ import (
 )
 
 // ContextPrefix is prepended to a remote's name to form its docker context, so
-// remotes are recognizable (and never collide with the local "hawser" context).
-const ContextPrefix = "hawser-"
+// remotes are recognizable (and never collide with the local "skrog" context).
+const ContextPrefix = "skrog-"
 
 // ContextName is the docker context backing remote name.
 func ContextName(name string) string { return ContextPrefix + name }
@@ -54,7 +54,7 @@ type Info struct {
 var nameRE = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)
 
 // ValidName bounds a remote name: it becomes a directory and a docker context
-// name. "local" is reserved for `hawser remote use local`.
+// name. "local" is reserved for `skrog remote use local`.
 func ValidName(name string) error {
 	if !nameRE.MatchString(name) || name == "local" {
 		return fmt.Errorf("invalid remote name %q: letters, digits, . _ - (max 64), and not \"local\"", name)
@@ -90,7 +90,7 @@ func (m *Manager) CertPaths(name string) (ca, cert, key string) {
 
 // Add registers a remote: validates the name and host, locates the CA, client
 // certificate and key in certsDir — docker's ca.pem/cert.pem/key.pem or
-// `hawser serve cert`'s ca.pem/client.pem/client-key.pem — parses the
+// `skrog serve cert`'s ca.pem/client.pem/client-key.pem — parses the
 // certificates (so a wrong file fails here, not on first connect), and copies
 // them under the state dir with the key at 0600. Re-adding a name overwrites it.
 func (m *Manager) Add(name, host, certsDir string) (Info, error) {

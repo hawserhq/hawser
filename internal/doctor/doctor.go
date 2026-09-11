@@ -6,7 +6,7 @@
 // lives once in Gather (host.go); everything downstream is deterministic.
 //
 // Checks are seeded from failures this project has actually hit, not
-// hypotheticals: a missing docker credential helper (which broke `hawser
+// hypotheticals: a missing docker credential helper (which broke `skrog
 // migrate` live), PATH shadowing, WSL version skew, the supervisor/status
 // disagreement, and session-0 readiness for unattended runs.
 package doctor

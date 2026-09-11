@@ -1,6 +1,6 @@
 # Spike B — session-0 / no-login WSL2 from a Windows service (issue #3)
 
-**The gate this decides.** PLAN §06 sells Hawser to self-hosted Windows CI runners, and
+**The gate this decides.** PLAN §06 sells Skrog to self-hosted Windows CI runners, and
 the differentiating claim there is *"works with no user logged in"* — something Docker
 Desktop never solved. If that claim is false, the wedge market narrows and PLAN §06 needs
 rewriting before v0.1 goes public. This spike settles it now rather than at v1.0.
@@ -10,7 +10,7 @@ rewriting before v0.1 goes public. This spike settles it now rather than at v1.0
 its own hive, so the distro the installing user imported may simply not exist as far as
 the service is concerned. That is the first thing the probe reports, because if it fails
 everything downstream is moot — and the fix (import the distro *as the service account*)
-changes what `hawser install --headless` has to do.
+changes what `skrog install --headless` has to do.
 
 ## Requirements
 
@@ -36,7 +36,7 @@ changes what `hawser install --headless` has to do.
 
 `agent/` is a small Go program that runs either as a console app (the interactive
 baseline) or as a Windows service, appending JSON lines to
-`C:\ProgramData\hawser-spike-b\probe.log`. It records, in order:
+`C:\ProgramData\skrog-spike-b\probe.log`. It records, in order:
 
 | phase | question |
 |---|---|
@@ -77,7 +77,7 @@ fleet-deployment story leans on MSI + version pinning instead.
   written to disk. It is passed to `sc.exe` and `schtasks`, so it is briefly visible in
   a process command line — acceptable for a throwaway spike, not a pattern for the
   product. A real installer should prefer a virtual service account
-  (`NT SERVICE\HawserEngine`) or a Group Managed Service Account.
+  (`NT SERVICE\SkrogEngine`) or a Group Managed Service Account.
 - The account is deliberately **not** added to Administrators; whether least privilege
   is sufficient is part of what is being measured.
 - `99-cleanup.ps1` cannot unregister a distro owned by another account directly, so it

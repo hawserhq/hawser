@@ -2,28 +2,35 @@ package provision
 
 import "strings"
 
-// The project moved from a personal account to the hawserhq organisation. An
-// install made before that recorded the old download URL in its manifest, and
-// GitHub's redirect is the only reason it still resolves (#212).
+// The project has moved twice: from a personal account to the hawserhq
+// organisation (#212), and then to wslkit when Hawser was renamed Skrog (#1).
+// An install made before either move recorded the download URL of the day in
+// its manifest, and GitHub's redirect is the only reason those still resolve.
 //
 // That redirect is not a durable guarantee. GitHub stops redirecting the
-// moment the old path is occupied again, and **anyone** can create a
-// repository at an abandoned name — so a recorded URL pointing at a former
-// home is both a broken link waiting to happen and a path an outsider can
-// come to own.
+// moment the old path is occupied again, and an abandoned repository name can
+// be claimed by anyone — so a recorded URL pointing at a former home is both a
+// broken link waiting to happen and a path an outsider can come to own.
 //
 // The SHA-256 pin means a substituted rootfs fails verification rather than
 // being imported, so this is not an integrity hole. It is a provenance and
 // durability one, and the fix is to stop trusting the redirect.
 const (
 	// currentRootfsHome is where releases are published now.
-	currentRootfsHome = "https://github.com/hawserhq/hawser/"
-	// formerRootfsHomes are paths this project has published from before.
-	// Append, never remove: an install can be arbitrarily old.
-	formerRootfsHome = "https://github.com/zcsizmadia/hawser/"
+	currentRootfsHome = "https://github.com/wslkit/skrog/"
 )
 
-var formerRootfsHomes = []string{formerRootfsHome}
+// formerRootfsHomes are paths this project has published from before, oldest
+// first.
+//
+// Append, never remove — and never rewrite when the project moves again.
+// These are historical facts about where bytes actually came from; a rename
+// pass that "updated" them would break exactly the old installs they exist to
+// rescue. An install can be arbitrarily old.
+var formerRootfsHomes = []string{
+	"https://github.com/zcsizmadia/hawser/", // the original personal account
+	"https://github.com/hawserhq/hawser/",   // the org, before the Skrog rename
+}
 
 // CanonicalRootfsURL rewrites a rootfs URL that points at a former home of
 // this project, so nothing downstream depends on a redirect that can lapse or

@@ -20,7 +20,7 @@ func touchForward(t *testing.T, p string) {
 }
 
 func TestWatcherSeesASettingChangeWithNoRestart(t *testing.T) {
-	// The bug this type exists for: `hawser config set audit on` had to be
+	// The bug this type exists for: `skrog config set audit on` had to be
 	// picked up by a process that was already running.
 	dir := t.TempDir()
 	w := NewWatcher(dir)

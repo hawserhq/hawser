@@ -1,7 +1,7 @@
 // Package prune reclaims disk on the engine (#145): stopped containers, unused
 // images, optionally volumes and the BuildKit cache. It drives the docker CLI,
 // so it acts on whatever docker currently targets — the local engine or a
-// `hawser remote` — and needs nothing installed in the distro. Runners die of
+// `skrog remote` — and needs nothing installed in the distro. Runners die of
 // full disks; this is the lever a post-job step or a scheduled task pulls.
 package prune
 

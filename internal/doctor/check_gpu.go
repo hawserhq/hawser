@@ -18,7 +18,7 @@ func checkGPU() Check {
 			// Not enabled. If we can see the GPU is present, nudge; otherwise stay quiet.
 			if g.Probed && g.Visible {
 				r := result(c, Skip, "an NVIDIA GPU is visible but passthrough is off")
-				r.Remedy = "run `hawser enable-gpu` to let containers use it " +
+				r.Remedy = "run `skrog enable-gpu` to let containers use it " +
 					"(`docker run --device nvidia.com/gpu=all ...`)."
 				return r
 			}
@@ -38,11 +38,11 @@ func checkGPU() Check {
 			r := result(c, Warn, "GPU passthrough is on but no GPU is visible in the distro")
 			r.Detail = []string{"  the NVIDIA driver or WSL may have changed"}
 			r.Remedy = "check the Windows NVIDIA driver and run `wsl --update`; " +
-				"`hawser enable-gpu --off` if this machine no longer has the GPU."
+				"`skrog enable-gpu --off` if this machine no longer has the GPU."
 			return r
 		default: // visible but spec missing
 			r := result(c, Warn, "GPU passthrough is on but the CDI spec is missing from the engine")
-			r.Remedy = "run `hawser restart` (re-installs the spec), or `hawser enable-gpu` again."
+			r.Remedy = "run `skrog restart` (re-installs the spec), or `skrog enable-gpu` again."
 			return r
 		}
 	}

@@ -26,7 +26,7 @@ func TestRelayArgsIdleTimeout(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := &WSLDialer{Distro: "hawser-engine", IdleTimeout: tt.timeout}
+			d := &WSLDialer{Distro: "skrog-engine", IdleTimeout: tt.timeout}
 			joined := strings.Join(d.relayArgs(DefaultSocketPath), " ")
 
 			if tt.absent {
@@ -43,9 +43,9 @@ func TestRelayArgsIdleTimeout(t *testing.T) {
 }
 
 func TestRelayArgsShape(t *testing.T) {
-	d := &WSLDialer{Distro: "hawser-engine", IdleTimeout: -1}
+	d := &WSLDialer{Distro: "skrog-engine", IdleTimeout: -1}
 	got := strings.Join(d.relayArgs("/var/run/docker.sock"), " ")
-	want := "-d hawser-engine -u root --exec socat STDIO UNIX-CONNECT:/var/run/docker.sock"
+	want := "-d skrog-engine -u root --exec socat STDIO UNIX-CONNECT:/var/run/docker.sock"
 	if got != want {
 		t.Errorf("args =\n  %q\nwant\n  %q", got, want)
 	}

@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Compare the binaries we ship against Docker's own static bundle.
 #
-# Hawser reimplements the packaging that Docker already does, so Docker's
+# Skrog reimplements the packaging that Docker already does, so Docker's
 # bundle is the reference for what a working engine needs. Comparing against it
 # is how `docker-init` was found — after `docker-proxy` had already shipped
 # missing and broken the first release. Discovering these one crash at a time is
 # avoidable: the reference is published and stable.
 #
-# The bundle is downloaded for comparison only. Hawser builds its binaries from
+# The bundle is downloaded for comparison only. Skrog builds its binaries from
 # source (PLAN §04); nothing here ends up in the artifact.
 #
 #   ./reference-diff.sh <out-dir>
@@ -19,7 +19,7 @@ out="${1:?usage: reference-diff.sh <out-dir>}"
 . "$here/versions.env"
 rootfs_version="${ENGINE_VERSION}-${ROOTFS_REVISION}"
 
-tarball="$out/hawser-rootfs-${rootfs_version}.tar.gz"
+tarball="$out/skrog-rootfs-${rootfs_version}.tar.gz"
 test -f "$tarball" || { echo "missing $tarball"; exit 1; }
 
 work="$(mktemp -d)"
@@ -46,7 +46,7 @@ sed 's|^|  |' "$work/ours.txt"
 
 echo "==> binaries Docker ships that we do not"
 # `docker` itself is deliberately absent: the CLI is a Windows-side concern,
-# bundled next to hawser.exe rather than inside the Linux rootfs (PLAN §04).
+# bundled next to skrog.exe rather than inside the Linux rootfs (PLAN §04).
 missing=""
 while read -r b; do
     case "$b" in

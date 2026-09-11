@@ -1,0 +1,4 @@
+---
+- name: skrog installed
+  ansible.builtin.debug:
+    msg: "skrog {{ skrog_version }} installed at {{ skrog_home }}\\bin"

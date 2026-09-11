@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/watchdog"
+	"github.com/wslkit/skrog/internal/watchdog"
 )
 
 var now = time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
@@ -67,7 +67,7 @@ func TestCrashBudgetStops(t *testing.T) {
 	if d.Restart {
 		t.Error("restarted past the crash budget")
 	}
-	if !strings.Contains(d.Reason, "giving up") || !strings.Contains(d.Reason, "hawser start") {
+	if !strings.Contains(d.Reason, "giving up") || !strings.Contains(d.Reason, "skrog start") {
 		t.Errorf("giving up should say so and how to recover: %q", d.Reason)
 	}
 }

@@ -29,7 +29,7 @@ func serve(t *testing.T, status int, body string) *GitHubReleases {
 
 func TestLatestAppIgnoresRootfsReleases(t *testing.T) {
 	// The rootfs versions are numerically far higher than the app's. Taking
-	// the newest release of any kind would report that hawser 0.3.0 should
+	// the newest release of any kind would report that skrog 0.3.0 should
 	// upgrade to 29.8.0.
 	g := serve(t, http.StatusOK, releasesJSON)
 	got, err := g.LatestApp(context.Background())

@@ -1,6 +1,6 @@
 name: release
 
-# Builds and attaches the hawser binaries when an app release is published.
+# Builds and attaches the skrog binaries when an app release is published.
 #
 # Rootfs releases are a separate namespace (tag prefix rootfs-) handled by
 # rootfs.yml; this workflow skips them so the two never cross-contaminate.
@@ -63,7 +63,7 @@ jobs:
           INPUT_VERSION: ${{ inputs.version }}
         run: |
           if ($env:GITHUB_EVENT_NAME -eq 'release') {
-            # Strip a leading v so `hawser version` reports 0.1.0, not v0.1.0.
+            # Strip a leading v so `skrog version` reports 0.1.0, not v0.1.0.
             $version = $env:TAG -replace '^v', ''
           } elseif ($env:INPUT_VERSION) {
             $version = $env:INPUT_VERSION
@@ -86,22 +86,22 @@ jobs:
           foreach ($arch in @('amd64', 'arm64')) {
             $env:GOOS = 'windows'
             $env:GOARCH = $arch
-            $out = "dist/hawser_${env:VERSION}_windows_$arch/hawser.exe"
+            $out = "dist/skrog_${env:VERSION}_windows_$arch/skrog.exe"
             New-Item -ItemType Directory -Force (Split-Path $out) | Out-Null
-            go build -trimpath -ldflags "-s -w -X main.buildVersion=$env:VERSION" -o $out ./cmd/hawser
+            go build -trimpath -ldflags "-s -w -X main.buildVersion=$env:VERSION" -o $out ./cmd/skrog
             if ($LASTEXITCODE -ne 0) { exit 1 }
-            # hawserw is the windowless logon launcher (GUI subsystem, so no
+            # skrogw is the windowless logon launcher (GUI subsystem, so no
             # console flashes at startup); autostart refuses without it.
-            $outw = "dist/hawser_${env:VERSION}_windows_$arch/hawserw.exe"
-            go build -trimpath -ldflags "-s -w -H=windowsgui" -o $outw ./cmd/hawserw
+            $outw = "dist/skrog_${env:VERSION}_windows_$arch/skrogw.exe"
+            go build -trimpath -ldflags "-s -w -H=windowsgui" -o $outw ./cmd/skrogw
             if ($LASTEXITCODE -ne 0) { exit 1 }
-            # hawsertray is the optional status-light tray (GUI subsystem); it
-            # shells out to hawser.exe for everything.
-            $outt = "dist/hawser_${env:VERSION}_windows_$arch/hawsertray.exe"
-            go build -trimpath -ldflags "-s -w -H=windowsgui" -o $outt ./cmd/hawsertray
+            # skrogtray is the optional status-light tray (GUI subsystem); it
+            # shells out to skrog.exe for everything.
+            $outt = "dist/skrog_${env:VERSION}_windows_$arch/skrogtray.exe"
+            go build -trimpath -ldflags "-s -w -H=windowsgui" -o $outt ./cmd/skrogtray
             if ($LASTEXITCODE -ne 0) { exit 1 }
             Copy-Item LICENSE, README.md (Split-Path $out)
-            Write-Host "built $out ($([math]::Round((Get-Item $out).Length/1MB,1)) MB) + hawserw + hawsertray"
+            Write-Host "built $out ($([math]::Round((Get-Item $out).Length/1MB,1)) MB) + skrogw + skrogtray"
           }
 
       - name: verify the version stamp and size budget
@@ -113,15 +113,15 @@ jobs:
           # the stamp actually took - a release reporting "dev" is a silent
           # embarrassment that is easy to ship and awkward to withdraw.
           #
-          # `hawser version` exits 3 when no engine is installed, which is
+          # `skrog version` exits 3 when no engine is installed, which is
           # exactly the state of a CI runner. GitHub's pwsh shell propagates
           # $LASTEXITCODE, so that expected 3 would fail this step; the exit
           # code is therefore checked deliberately rather than inherited.
-          $exe = "dist/hawser_${env:VERSION}_windows_amd64/hawser.exe"
+          $exe = "dist/skrog_${env:VERSION}_windows_amd64/skrog.exe"
           $json = & $exe version --json
           $code = $LASTEXITCODE
           if ($code -ne 0 -and $code -ne 3) {
-            Write-Host "::error::hawser version exited $code"
+            Write-Host "::error::skrog version exited $code"
             exit 1
           }
           $reported = ($json | ConvertFrom-Json).app
@@ -135,7 +135,7 @@ jobs:
           # Warn rather than fail: the budget covers the installed footprint, and
           # a release should not be blocked by a metric this workflow only
           # partially measures.
-          foreach ($f in Get-ChildItem dist -Recurse -Filter hawser.exe) {
+          foreach ($f in Get-ChildItem dist -Recurse -Filter skrog.exe) {
             $mb = [math]::Round($f.Length/1MB, 2)
             Write-Host "$($f.FullName): $mb MB"
             if ($mb -gt 15) { Write-Host "::warning::$($f.Name) is $mb MB, over the 15 MB budget" }
@@ -161,7 +161,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: hawser-binaries
+          name: skrog-binaries
           path: dist/
           retention-days: 14
 
@@ -181,7 +181,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: hawser-binaries
+          name: skrog-binaries
           path: dist
 
       # SLSA build provenance for every artifact: what built it, from which

@@ -76,7 +76,7 @@ func toSlash(p string) string { return strings.ReplaceAll(p, `\`, "/") }
 // Paths that are already POSIX (/mnt/c/src, /app) are returned unchanged, so
 // translation is idempotent and users who already speak WSL are not punished.
 //
-// A Windows named pipe (\\.\pipe\docker_engine, //./pipe/hawser_engine) maps to
+// A Windows named pipe (\\.\pipe\docker_engine, //./pipe/skrog_engine) maps to
 // the engine's own socket, /var/run/docker.sock: that is what Docker Desktop
 // does for its pipe, and what Testcontainers' Ryuk, docker-in-docker helpers and
 // `-v //./pipe/docker_engine:/var/run/docker.sock` expect. Whatever pipe the

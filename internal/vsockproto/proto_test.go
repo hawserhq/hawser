@@ -14,14 +14,14 @@ func TestHandshakeRoundTrip(t *testing.T) {
 	defer server.Close()
 
 	done := make(chan error, 1)
-	go func() { done <- ServerHandshake(server, "hawser-agent/1", "") }()
+	go func() { done <- ServerHandshake(server, "skrog-agent/1", "") }()
 
 	got, err := ClientHandshake(client, "")
 	if err != nil {
 		t.Fatalf("ClientHandshake: %v", err)
 	}
-	if got != "hawser-agent/1" {
-		t.Errorf("agent identity = %q, want hawser-agent/1", got)
+	if got != "skrog-agent/1" {
+		t.Errorf("agent identity = %q, want skrog-agent/1", got)
 	}
 	if err := <-done; err != nil {
 		t.Fatalf("ServerHandshake: %v", err)
@@ -40,7 +40,7 @@ func TestServerRejectsStrangerSilently(t *testing.T) {
 	// the handshake or the wrong service was dialed.
 	go client.Write([]byte("GET /_ping HTTP/1.1\n"))
 	if err := <-done; err == nil {
-		t.Fatal("ServerHandshake accepted a non-hawser hello")
+		t.Fatal("ServerHandshake accepted a non-skrog hello")
 	}
 
 	// And nothing was written back: the stranger learns nothing.
@@ -57,7 +57,7 @@ func TestClientRejectsNonAgentPeer(t *testing.T) {
 	defer server.Close()
 
 	go func() {
-		io.ReadFull(server, make([]byte, len("HAWSER/1\n")))
+		io.ReadFull(server, make([]byte, len("SKROG/1\n")))
 		server.Write([]byte("HTTP/1.1 400 Bad Request\n"))
 	}()
 	if _, err := ClientHandshake(client, ""); err == nil {
@@ -198,13 +198,13 @@ func TestMutualAuthRoundTrip(t *testing.T) {
 	const secret = "s3cr3t-per-install"
 
 	done := make(chan error, 1)
-	go func() { done <- ServerHandshake(server, "hawser-agent/1", secret) }()
+	go func() { done <- ServerHandshake(server, "skrog-agent/1", secret) }()
 
 	id, err := ClientHandshake(client, secret)
 	if err != nil {
 		t.Fatalf("ClientHandshake: %v", err)
 	}
-	if id != "hawser-agent/1" {
+	if id != "skrog-agent/1" {
 		t.Errorf("identity = %q", id)
 	}
 	if err := <-done; err != nil {
@@ -253,9 +253,9 @@ func TestSecretlessClientStillTalksToSecretlessAgent(t *testing.T) {
 	defer server.Close()
 
 	done := make(chan error, 1)
-	go func() { done <- ServerHandshake(server, "hawser-agent/1", "") }()
+	go func() { done <- ServerHandshake(server, "skrog-agent/1", "") }()
 	id, err := ClientHandshake(client, "")
-	if err != nil || id != "hawser-agent/1" {
+	if err != nil || id != "skrog-agent/1" {
 		t.Fatalf("v1 round-trip broke: id=%q err=%v", id, err)
 	}
 	<-done

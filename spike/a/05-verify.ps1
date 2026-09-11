@@ -1,6 +1,6 @@
 # Spike A step 5: automated checks against the relay. relay.exe must be running.
 $ErrorActionPreference = 'Stop'
-$env:DOCKER_HOST = 'npipe:////./pipe/hawser_spike'
+$env:DOCKER_HOST = 'npipe:////./pipe/skrog_spike'
 
 Write-Host "== docker version =="
 docker version

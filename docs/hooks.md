@@ -1,7 +1,7 @@
 # Lifecycle hooks
 
 Run your own script when the engine's state changes. A hook is just a path to an
-executable; Hawser runs it on the event, time-bounded and best-effort — a
+executable; Skrog runs it on the event, time-bounded and best-effort — a
 failing or slow hook is logged but never blocks the engine's lifecycle.
 
 ## Events
@@ -9,15 +9,15 @@ failing or slow hook is logged but never blocks the engine's lifecycle.
 | config key | fires |
 |---|---|
 | `hook.post-start` | after the engine starts (recovery or first start) |
-| `hook.pre-stop` | before the engine stops on `hawser stop` |
+| `hook.pre-stop` | before the engine stops on `skrog stop` |
 | `hook.on-idle-stop` | after the idle timeout stops the engine |
 | `hook.on-wake` | after the engine cold-starts on demand |
 
-Set one with `hawser config`, clear it with an empty value:
+Set one with `skrog config`, clear it with an empty value:
 
 ```
-hawser config set hook.post-start C:\Users\me\hawser\login.cmd
-hawser config set hook.post-start ""      # clear
+skrog config set hook.post-start C:\Users\me\skrog\login.cmd
+skrog config set hook.post-start ""      # clear
 ```
 
 The path must exist when you set it (a typo fails loudly rather than silently
@@ -28,18 +28,18 @@ anything else is executed directly.
 
 Every hook gets:
 
-- `HAWSER_EVENT` — the event name (`post-start`, `pre-stop`, …), so one script
+- `SKROG_EVENT` — the event name (`post-start`, `pre-stop`, …), so one script
   can serve several events.
-- `HAWSER_STATE_DIR` — Hawser's state directory.
+- `SKROG_STATE_DIR` — Skrog's state directory.
 
 ## Notes
 
 - Hooks are **best-effort**: they run off the reconciler with a 2-minute
   timeout, and their success or failure is written to the supervisor log
-  (`hawser` state dir), not surfaced to `docker`. They observe the lifecycle;
+  (`skrog` state dir), not surfaced to `docker`. They observe the lifecycle;
   they do not gate it.
 - Because they run inside the always-on supervisor, they fire whether the engine
-  moved because of you (`hawser stop`), the idle timeout, or a crash recovery.
+  moved because of you (`skrog stop`), the idle timeout, or a crash recovery.
 
 ## Recipes
 

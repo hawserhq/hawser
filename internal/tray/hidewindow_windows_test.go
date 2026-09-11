@@ -31,7 +31,7 @@ func TestHideWindowSuppressesTheConsole(t *testing.T) {
 func TestTrayCommandsAreWindowless(t *testing.T) {
 	// A path that cannot run: nothing is executed, the call just has to build
 	// its command and fail cleanly.
-	c := CLI{Exe: `C:\nonexistent\hawser.exe`}
+	c := CLI{Exe: `C:\nonexistent\skrog.exe`}
 
 	if got := c.Poll(context.Background()); got != (Status{}) {
 		t.Errorf("a missing CLI should poll to the zero Status, got %+v", got)

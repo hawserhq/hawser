@@ -56,14 +56,14 @@ func TestOpenMissingLock(t *testing.T) {
 	p := filepath.Join(dir, "b.zip")
 	makeZip(t, p, map[string]string{"unrelated.txt": "x"})
 	if _, err := Open(p); err == nil {
-		t.Fatal("Open should fail on a zip with no hawser.lock")
+		t.Fatal("Open should fail on a zip with no skrog.lock")
 	}
 }
 
 func TestOpenBadLock(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "b.zip")
-	makeZip(t, p, map[string]string{"hawser.lock": "{ not valid json"})
+	makeZip(t, p, map[string]string{"skrog.lock": "{ not valid json"})
 	if _, err := Open(p); err == nil {
 		t.Fatal("Open should fail on an unparseable lock")
 	}
@@ -73,7 +73,7 @@ func TestExtractMissingRootfsEntry(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "b.zip")
 	// A valid lock, but no rootfs entry alongside it.
-	makeZip(t, p, map[string]string{"hawser.lock": lockJSON(t)})
+	makeZip(t, p, map[string]string{"skrog.lock": lockJSON(t)})
 	b, err := Open(p)
 	if err != nil {
 		t.Fatal(err)

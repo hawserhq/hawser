@@ -19,7 +19,7 @@ type Engine interface {
 	Start(ctx context.Context) error
 	// Stop terminates the engine's own distro — and only that distro. Stopping
 	// anything wider (another distro, wsl --shutdown) is off the table by
-	// design: Hawser shares the machine (PLAN §02, the Docker Desktop incident
+	// design: Skrog shares the machine (PLAN §02, the Docker Desktop incident
 	// on #35).
 	Stop(ctx context.Context) error
 }
@@ -68,7 +68,7 @@ type Supervisor struct {
 	// Activity feeds idle detection (#41). Nil disables idle stops.
 	Activity Activity
 
-	// IdleTimeout is read every tick, so `hawser config set idle-timeout`
+	// IdleTimeout is read every tick, so `skrog config set idle-timeout`
 	// takes effect without a restart. Nil or a zero return disables idle
 	// stops.
 	IdleTimeout func() time.Duration
@@ -95,7 +95,7 @@ type Supervisor struct {
 	// can tell "down because I idled it" from "down unexpectedly" without
 	// re-reading, and re-adopted from the file after a supervisor restart.
 	idleStopped bool
-	// lifecycle and startedAt feed `hawser status --stats` (#179): counters the
+	// lifecycle and startedAt feed `skrog status --stats` (#179): counters the
 	// CLI cannot derive, because only this process sees the transitions.
 	lifecycle Lifecycle
 	startedAt time.Time
@@ -189,7 +189,7 @@ func (s *Supervisor) tick(ctx context.Context) {
 		// Down on purpose? The file is the shared truth: this supervisor may
 		// have idled the engine (idleStopped), or a previous incarnation did
 		// (file says idle after a restart) — either way the engine stays down
-		// until demand. Deleting the file is the wake-up poke (`hawser start`
+		// until demand. Deleting the file is the wake-up poke (`skrog start`
 		// does it), so a set flag with no file means someone asked.
 		fileIdle := ReadEngineState(s.Config.StateDir) == EngineIdle
 		if fileIdle {
@@ -238,7 +238,7 @@ func (s *Supervisor) tick(ctx context.Context) {
 	case desired == DesiredStopped && !up:
 		// Stopped and down is the state the user asked for — but the path
 		// into it may have gone through an idle stop, leaving the in-memory
-		// flag set (#80: `hawser stop` clears the FILE, not this process's
+		// flag set (#80: `skrog stop` clears the FILE, not this process's
 		// memory). Clear it here, or a later Demand would treat the engine as
 		// merely idle and resurrect what the user explicitly stopped.
 		if s.idleStopped {
@@ -350,7 +350,7 @@ func (s *Supervisor) Demand(ctx context.Context) error {
 		// and Demands agree, and refuse the wake.
 		s.idleStopped = false
 		WriteEngineState(s.Config.StateDir, EngineActive)
-		return errors.New("engine is stopped; run `hawser start` to use it")
+		return errors.New("engine is stopped; run `skrog start` to use it")
 	}
 	if time.Now().Before(s.nextTry) {
 		return fmt.Errorf("engine start is backing off after %d failure(s); retrying by %s",
@@ -395,7 +395,7 @@ func (s *Supervisor) backoff() time.Duration {
 }
 
 // EngineStatus reports the engine state the reconciler last observed, in the
-// same vocabulary `hawser status --json` uses: running, idle or stopped.
+// same vocabulary `skrog status --json` uses: running, idle or stopped.
 //
 // The point is that it costs nothing. The reconciler probes the engine every
 // tick regardless, so a reader -- the tray, through the published stats -- can

@@ -112,7 +112,7 @@ func TestTheCouplingIsStatedWhenTheAppIsBehind(t *testing.T) {
 	if !strings.Contains(joined, "pinned in this build's manifest") {
 		t.Errorf("no coupling note in %q", joined)
 	}
-	if !strings.Contains(joined, "upgrade hawser first") {
+	if !strings.Contains(joined, "upgrade skrog first") {
 		t.Errorf("the note must say which order to do it in, got %q", joined)
 	}
 }
@@ -219,7 +219,7 @@ func TestNotInstalledStreams(t *testing.T) {
 	rep := c.Check(context.Background())
 
 	eng := stream(t, rep, "engine")
-	if eng.Status != StatusNotInstalled || eng.Command != "hawser install" {
+	if eng.Status != StatusNotInstalled || eng.Command != "skrog install" {
 		t.Errorf("engine = %+v, want not-installed with an install command", eng)
 	}
 	cli := stream(t, rep, "cli")
@@ -244,11 +244,11 @@ func TestEngineUpgradeIsOfferedWhenTheManifestIsAhead(t *testing.T) {
 	rep := c.Check(context.Background())
 
 	eng := stream(t, rep, "engine")
-	if eng.Status != StatusAvailable || eng.Command != "hawser engine upgrade" {
+	if eng.Status != StatusAvailable || eng.Command != "skrog engine upgrade" {
 		t.Errorf("engine = %+v, want an upgrade with its command", eng)
 	}
 	cli := stream(t, rep, "cli")
-	if cli.Status != StatusAvailable || cli.Command != "hawser cli install" {
+	if cli.Status != StatusAvailable || cli.Command != "skrog cli install" {
 		t.Errorf("cli = %+v, want an upgrade with its command", cli)
 	}
 }

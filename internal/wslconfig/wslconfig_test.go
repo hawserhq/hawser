@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/wslconfig"
+	"github.com/wslkit/skrog/internal/wslconfig"
 )
 
 func write(t *testing.T, content string) string {
@@ -59,8 +59,8 @@ func TestPlanReportsAddsAndEdits(t *testing.T) {
 }
 
 func TestUnsetKeysAreNotOurs(t *testing.T) {
-	// A key Hawser has no opinion about must not be touched, even if the file
-	// sets it: `hawser config set wsl.memory` is not a claim over swap.
+	// A key Skrog has no opinion about must not be touched, even if the file
+	// sets it: `skrog config set wsl.memory` is not a claim over swap.
 	p := write(t, "[wsl2]\nswap=8GB\n")
 	f := load(t, p)
 	if plan := f.Plan(map[string]string{"memory": "4GB", "swap": ""}); len(plan) != 1 {

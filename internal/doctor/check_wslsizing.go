@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hawserhq/hawser/internal/wslconfig"
+	"github.com/wslkit/skrog/internal/wslconfig"
 )
 
 // smallHostBytes is where WSL's default sizing starts to hurt. Below ~8 GB of
@@ -48,7 +48,7 @@ func checkWSLSizing() Check {
 			r := result(c, Warn, fmt.Sprintf("%d sizing change(s) recorded but not applied to %s",
 				len(s.Pending), s.Path))
 			r.Detail = append(detail, "", "pending: "+strings.Join(s.Pending, ", "))
-			r.Remedy = "`hawser wsl-config apply` shows the diff and writes it (--yes on a runner).\n" +
+			r.Remedy = "`skrog wsl-config apply` shows the diff and writes it (--yes on a runner).\n" +
 				"      The new sizing takes effect when the WSL VM next starts."
 			return r
 		}
@@ -65,9 +65,9 @@ func checkWSLSizing() Check {
 					"  which looks like a slow laptop rather than an engine problem.",
 				}
 				r.Remedy = fmt.Sprintf("size it deliberately, then apply:\n"+
-					"        hawser config set wsl.memory %dGB\n"+
-					"        hawser config set wsl.processors 2\n"+
-					"        hawser wsl-config apply\n"+
+					"        skrog config set wsl.memory %dGB\n"+
+					"        skrog config set wsl.processors 2\n"+
+					"        skrog wsl-config apply\n"+
 					"      ~/.wslconfig is shared by every WSL2 distro, so apply shows the diff first.",
 					maxInt(2, int(s.HostBytes/(1<<30))/3))
 				return r

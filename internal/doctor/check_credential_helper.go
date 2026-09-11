@@ -8,7 +8,7 @@ import (
 // checkCredentialHelper verifies that every docker credential helper the CLI
 // config references actually resolves on PATH. This is not hypothetical: a
 // config pointing at docker-credential-desktop (or -wincred) that is not on
-// PATH made `hawser migrate` fail live — the docker CLI shells out to the
+// PATH made `skrog migrate` fail live — the docker CLI shells out to the
 // helper for `docker login`, pulls from private registries, and the save/load
 // migrate uses, and a missing helper aborts all of them.
 func checkCredentialHelper() Check {
@@ -40,7 +40,7 @@ func checkCredentialHelper() Check {
 			r.Remedy = "install the helper (Docker Desktop ships docker-credential-desktop; " +
 				"docker-credential-wincred ships with the docker CLI) and put it on PATH, " +
 				"or remove the reference from ~/.docker/config.json. docker login, private " +
-				"pulls, and `hawser migrate` fail until the helper resolves."
+				"pulls, and `skrog migrate` fail until the helper resolves."
 			return r
 		}
 

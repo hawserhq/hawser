@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/provision"
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/provision"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // fakeWSL is a scriptable stand-in for wsl.exe.
@@ -39,10 +39,10 @@ type fakeWSL struct {
 	socketUpAfter int
 	socketCalls   int
 
-	// engineVersionFile is what /etc/hawser/engine-version contains; empty
+	// engineVersionFile is what /etc/skrog/engine-version contains; empty
 	// means the file is absent.
 	engineVersionFile string
-	agentVersion      string // hawser-agent -version output
+	agentVersion      string // skrog-agent -version output
 
 	importErr error
 	statusErr error
@@ -130,7 +130,7 @@ func (f *fakeWSL) Exec(_ context.Context, _, _ string, args ...string) (string, 
 		}
 		return "", errors.New("exit status 1")
 	}
-	if len(args) >= 3 && args[0] == "sh" && strings.Contains(args[2], "hawser-agent -version") {
+	if len(args) >= 3 && args[0] == "sh" && strings.Contains(args[2], "skrog-agent -version") {
 		return f.agentVersion, nil
 	}
 	if len(args) >= 3 && args[0] == "sh" && strings.Contains(args[2], "agent-secret") {
@@ -193,7 +193,7 @@ func rootfsServer(t *testing.T, payload []byte) (url, sum string) {
 	}))
 	t.Cleanup(srv.Close)
 	h := sha256.Sum256(payload)
-	return srv.URL + "/hawser-rootfs-29.7.2.tar.gz", hex.EncodeToString(h[:])
+	return srv.URL + "/skrog-rootfs-29.7.2.tar.gz", hex.EncodeToString(h[:])
 }
 
 func testOptions(t *testing.T, url, sum string) provision.Options {
@@ -238,15 +238,15 @@ func TestInstallHappyPath(t *testing.T) {
 	}
 	// The vsock agent (#40) rides along with every engine start; its command
 	// carries its own "not in this rootfs" and "already running" guards.
-	if n := startedMatching(w, "hawser-agent"); n != 1 {
-		t.Errorf("hawser-agent started %d times, want 1", n)
+	if n := startedMatching(w, "skrog-agent"); n != 1 {
+		t.Errorf("skrog-agent started %d times, want 1", n)
 	}
 
 	if m.EngineVersion != "29.7.2" || m.WSLVersion != "2.7.8.0" {
 		t.Errorf("manifest = %+v", m)
 	}
 
-	// And it must be readable back, which is what `hawser version` relies on.
+	// And it must be readable back, which is what `skrog version` relies on.
 	back, err := p.ReadManifest(opts)
 	if err != nil {
 		t.Fatalf("ReadManifest: %v", err)
@@ -445,8 +445,8 @@ func TestStartEngineSkipsWhenAlreadyRunning(t *testing.T) {
 	}
 	// But the agent must still be ensured: a restarted supervisor finding a
 	// healthy engine cannot assume the vsock path is up.
-	if n := startedMatching(w, "hawser-agent"); n != 1 {
-		t.Errorf("hawser-agent ensured %d times, want 1", n)
+	if n := startedMatching(w, "skrog-agent"); n != 1 {
+		t.Errorf("skrog-agent ensured %d times, want 1", n)
 	}
 }
 
@@ -507,13 +507,13 @@ func TestUninstallOnCleanMachineIsNotAnError(t *testing.T) {
 func TestUninstallPrefersManifestOverOptions(t *testing.T) {
 	// The manifest records where the install actually went, which matters when
 	// the user installed with --distro or --data-dir and later runs a bare
-	// `hawser uninstall`.
+	// `skrog uninstall`.
 	url, sum := rootfsServer(t, []byte("rootfs"))
 	w := healthyWSL()
 	p := &provision.Provisioner{WSL: w, Logger: quietLogger()}
 
 	opts := testOptions(t, url, sum)
-	opts.Distro = "hawser-custom"
+	opts.Distro = "skrog-custom"
 	if _, err := p.Install(context.Background(), opts); err != nil {
 		t.Fatalf("Install: %v", err)
 	}
@@ -523,8 +523,8 @@ func TestUninstallPrefersManifestOverOptions(t *testing.T) {
 	if err := p.Uninstall(context.Background(), bare); err != nil {
 		t.Fatalf("Uninstall: %v", err)
 	}
-	if len(w.unregistered) != 1 || w.unregistered[0] != "hawser-custom" {
-		t.Errorf("unregistered = %v, want [hawser-custom]", w.unregistered)
+	if len(w.unregistered) != 1 || w.unregistered[0] != "skrog-custom" {
+		t.Errorf("unregistered = %v, want [skrog-custom]", w.unregistered)
 	}
 }
 
@@ -573,7 +573,7 @@ func TestInstallFromLocalRootfs(t *testing.T) {
 	// locally, before any release exists. Verification still applies.
 	payload := []byte("locally built rootfs")
 	dir := t.TempDir()
-	local := filepath.Join(dir, "hawser-rootfs-29.7.2.tar.gz")
+	local := filepath.Join(dir, "skrog-rootfs-29.7.2.tar.gz")
 	if err := os.WriteFile(local, payload, 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -634,8 +634,8 @@ func TestInstallMissingLocalRootfsIsClear(t *testing.T) {
 
 func TestInstallReadsEngineVersionFromRootfs(t *testing.T) {
 	// With --rootfs-url and no --engine-version there is no flag to trust, so
-	// the rootfs's own /etc/hawser/engine-version is the source of truth.
-	// Without this, `hawser version` reports "engine unknown" after a
+	// the rootfs's own /etc/skrog/engine-version is the source of truth.
+	// Without this, `skrog version` reports "engine unknown" after a
 	// development install - seen for real before this was added.
 	url, sum := rootfsServer(t, []byte("rootfs"))
 	w := healthyWSL()
@@ -767,8 +767,8 @@ func TestEnsureAgentSecretGatedOnAgentVersion(t *testing.T) {
 		version    string
 		wantSecret bool
 	}{
-		{"hawser-agent/2", true},
-		{"hawser-agent/1", false},
+		{"skrog-agent/2", true},
+		{"skrog-agent/1", false},
 		{"", false},
 	} {
 		w := newFake(tc.version)

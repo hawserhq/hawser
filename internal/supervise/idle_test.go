@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/wslkit/skrog/internal/supervise"
 )
 
 // fakeActivity is a scriptable supervise.Activity.
@@ -151,7 +151,7 @@ func TestDemandColdStartsIdleEngine(t *testing.T) {
 }
 
 func TestPokeWakesIdleEngine(t *testing.T) {
-	// `hawser start` deletes the engine-state file; the next tick must treat
+	// `skrog start` deletes the engine-state file; the next tick must treat
 	// that as demand and restart.
 	s, e, _, dir := idleSup(t)
 	runTicks(s, 3, 60*time.Millisecond) // idle it
@@ -211,7 +211,7 @@ func TestExplicitStopClearsIdle(t *testing.T) {
 
 func TestDemandRefusesWhenDesiredStopped(t *testing.T) {
 	// #80: an explicitly stopped engine is never resurrected by traffic. The
-	// nasty path is idle-stop THEN `hawser stop` while the engine is already
+	// nasty path is idle-stop THEN `skrog stop` while the engine is already
 	// down: the stop clears the file but not this process's memory.
 	s, e, _, dir := idleSup(t)
 	runTicks(s, 3, 60*time.Millisecond) // idle-stop it
@@ -244,13 +244,13 @@ func TestDemandRefusesWhenDesiredStopped(t *testing.T) {
 		t.Errorf("tick started a stopped engine %d times", starts)
 	}
 
-	// `hawser start` (desired=running, marker poked) revives it normally.
+	// `skrog start` (desired=running, marker poked) revives it normally.
 	if err := supervise.WriteDesired(dir, supervise.DesiredRunning); err != nil {
 		t.Fatal(err)
 	}
 	runTicks(s, 1, 0)
 	if !e.Running(context.Background()) {
-		t.Error("engine did not start after hawser start's desired=running")
+		t.Error("engine did not start after skrog start's desired=running")
 	}
 }
 

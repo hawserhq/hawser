@@ -1,7 +1,8 @@
 package main
 
-// genlogo generates the Hawser identity: a coiled heavy-rope mark (a hawser is
-// the thick line that moors a ship). The coil reads as a near-solid disc at
+// genlogo generates the Skrog identity: a coiled heavy-rope mark. The coil is
+// inherited from the project's former name (Hawser, the mooring line) and kept
+// as an abstract mark rather than a literal one. The coil reads as a near-solid disc at
 // 16px — good favicon behaviour — and shows the rope's twist grooves at large
 // sizes. Output is pure-geometry SVG (no fonts, no rasterizer), so the masters
 // are portable and hand-editable after generation.
@@ -76,11 +77,11 @@ func monoMark() string {
 // sans via <text>; the mark is the portable part.
 func logoLockup(brand string) string {
 	sp := spiralPath()
-	// A 640x256 canvas: mark on the left, "hawser" to its right.
+	// A 640x256 canvas: mark on the left, "skrog" to its right.
 	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 256" width="640" height="256" fill="none">` + "\n" +
 		fmt.Sprintf(`  <path d="%s" stroke="%s" stroke-width="%.0f" stroke-linecap="round" stroke-linejoin="round"/>`, sp, brand, ropeW) + "\n" +
 		fmt.Sprintf(`  <path d="%s" stroke="#000" stroke-opacity="0.22" stroke-width="%.0f" stroke-linecap="butt" stroke-dasharray="3 13"/>`, sp, ropeW-2) + "\n" +
-		fmt.Sprintf(`  <text x="272" y="158" font-family="Segoe UI, system-ui, -apple-system, Roboto, sans-serif" font-size="112" font-weight="700" letter-spacing="-2" fill="%s">hawser</text>`, brand) + "\n" +
+		fmt.Sprintf(`  <text x="272" y="158" font-family="Segoe UI, system-ui, -apple-system, Roboto, sans-serif" font-size="112" font-weight="700" letter-spacing="-2" fill="%s">skrog</text>`, brand) + "\n" +
 		"</svg>\n"
 }
 
@@ -90,11 +91,11 @@ func main() {
 		brandDark = "#CBD5DF" // light slate, for dark grounds (README dark mode).
 	)
 	must(os.MkdirAll("assets", 0o755))
-	must(os.WriteFile("assets/hawser-mark.svg", []byte(colorMark(brand)), 0o644))
-	must(os.WriteFile("assets/hawser-mark-ondark.svg", []byte(colorMark(brandDark)), 0o644))
-	must(os.WriteFile("assets/hawser-mark-mono.svg", []byte(monoMark()), 0o644))
-	must(os.WriteFile("assets/hawser-logo.svg", []byte(logoLockup(brand)), 0o644))
-	fmt.Println("wrote assets/hawser-mark.svg, hawser-mark-ondark.svg, hawser-mark-mono.svg, hawser-logo.svg")
+	must(os.WriteFile("assets/skrog-mark.svg", []byte(colorMark(brand)), 0o644))
+	must(os.WriteFile("assets/skrog-mark-ondark.svg", []byte(colorMark(brandDark)), 0o644))
+	must(os.WriteFile("assets/skrog-mark-mono.svg", []byte(monoMark()), 0o644))
+	must(os.WriteFile("assets/skrog-logo.svg", []byte(logoLockup(brand)), 0o644))
+	fmt.Println("wrote assets/skrog-mark.svg, skrog-mark-ondark.svg, skrog-mark-mono.svg, skrog-logo.svg")
 }
 
 func must(err error) {

@@ -35,7 +35,7 @@ func glyph(s Status) string {
 // WriteText renders results for a terminal: one block per check, remedies
 // indented under the checks that need them, and a one-line summary at the end.
 func WriteText(w io.Writer, app string, results []Result) error {
-	if _, err := fmt.Fprintf(w, "hawser doctor (hawser %s)\n\n", app); err != nil {
+	if _, err := fmt.Fprintf(w, "skrog doctor (skrog %s)\n\n", app); err != nil {
 		return err
 	}
 	var nWarn, nFail int
@@ -80,8 +80,8 @@ func WriteJSON(w io.Writer, app string, results []Result) error {
 // WriteMarkdownReport renders a report ready to paste into a GitHub issue: a
 // status table plus the remedies, so a bug report carries its own diagnosis.
 func WriteMarkdownReport(w io.Writer, app string, results []Result) error {
-	fmt.Fprintf(w, "## hawser doctor report\n\n")
-	fmt.Fprintf(w, "hawser version: `%s`\n\n", app)
+	fmt.Fprintf(w, "## skrog doctor report\n\n")
+	fmt.Fprintf(w, "skrog version: `%s`\n\n", app)
 	fmt.Fprintf(w, "| check | status | summary |\n|---|---|---|\n")
 	for _, r := range results {
 		fmt.Fprintf(w, "| %s | %s | %s |\n", r.Title, r.Status, mdCell(r.Summary))

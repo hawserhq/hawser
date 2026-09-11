@@ -11,12 +11,12 @@ import (
 )
 
 // DefaultPipeName is what stock docker.exe connects to when DOCKER_HOST is
-// unset. Hawser claims it only when Docker Desktop has not; the installer
+// unset. Skrog claims it only when Docker Desktop has not; the installer
 // falls back to FallbackPipeName so the two coexist (PLAN §02).
 const DefaultPipeName = `\\.\pipe\docker_engine`
 
-// FallbackPipeName is Hawser's own pipe, used when the default is taken.
-const FallbackPipeName = `\\.\pipe\hawser_engine`
+// FallbackPipeName is Skrog's own pipe, used when the default is taken.
+const FallbackPipeName = `\\.\pipe\skrog_engine`
 
 // defaultSDDL builds the pipe's security descriptor: full control for SYSTEM,
 // administrators, and the OWNING USER; nobody else connects at all.
@@ -32,7 +32,7 @@ const FallbackPipeName = `\\.\pipe\hawser_engine`
 // is GA because the owner legitimately both connects (client) and serves
 // (this process) — instance creation by the same user is not an escalation.
 //
-// TODO(#8): once `hawser install` creates the local "Hawser Users" group, a
+// TODO(#8): once `skrog install` creates the local "Skrog Users" group, a
 // GR|GW grant for that group lands here, matching Docker's docker-users
 // pattern, so OTHER accounts can be admitted deliberately with client-only
 // rights rather than by virtue of being interactive.

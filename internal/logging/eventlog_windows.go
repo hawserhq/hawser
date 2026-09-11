@@ -37,7 +37,7 @@ func NewEventLogHandler(inner slog.Handler, source string) slog.Handler {
 }
 
 // EventSource is the name entries appear under.
-const EventSource = "Hawser"
+const EventSource = "Skrog"
 
 // RegisterEventSource creates the HKLM registration so Event Viewer renders
 // entries cleanly. Needs elevation; callers treat failure as cosmetic.

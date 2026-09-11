@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/wslkit/skrog/internal/supervise"
 )
 
 // fakeEngine is a scriptable engine with call counting.
@@ -113,7 +113,7 @@ func TestRestartsAfterCrash(t *testing.T) {
 }
 
 func TestHonorsDesiredStopped(t *testing.T) {
-	// `hawser stop` must mean *stays* stopped: without honoring recorded
+	// `skrog stop` must mean *stays* stopped: without honoring recorded
 	// intent, the health loop would restart the engine the user just stopped.
 	e := &fakeEngine{running: true}
 	sup, dir := newSup(t, e, 20*time.Millisecond)
@@ -219,7 +219,7 @@ func TestDesiredStateRoundTrips(t *testing.T) {
 
 func TestGarbageDesiredStateReadsAsRunning(t *testing.T) {
 	// A corrupted file must fail toward the default, not toward stopped:
-	// silently keeping the engine down would read as "Hawser is broken".
+	// silently keeping the engine down would read as "Skrog is broken".
 	dir := t.TempDir()
 	if err := supervise.WriteDesired(dir, "garbage-value"); err != nil {
 		t.Fatal(err)

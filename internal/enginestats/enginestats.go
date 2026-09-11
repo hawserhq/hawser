@@ -1,7 +1,7 @@
 // Package enginestats reads what the engine, its disk and its VM are actually
 // doing (#179).
 //
-// Everything here is gated on the engine already running. `hawser status` must
+// Everything here is gated on the engine already running. `skrog status` must
 // never boot a stopped distro (#82) -- that is what makes the idle-stop RAM
 // story true -- so a stopped engine yields Probed=false and nothing is started
 // to find out more.
@@ -69,7 +69,7 @@ type DiskStats struct {
 	SizeOnDiskBytes uint64 `json:"sizeOnDiskBytes"`
 	GuestUsedBytes  uint64 `json:"guestUsedBytes,omitempty"`
 	// ReclaimableBytes is the difference: space the file holds that the guest
-	// is not using, i.e. roughly what `hawser compact` could return. An
+	// is not using, i.e. roughly what `skrog compact` could return. An
 	// estimate, not a promise -- compaction works in blocks, and a block with
 	// one live byte in it stays.
 	ReclaimableBytes uint64 `json:"reclaimableBytes,omitempty"`
@@ -77,7 +77,7 @@ type DiskStats struct {
 }
 
 // VMStats is the WSL2 VM's own resources: what it has, versus what
-// ~/.wslconfig asked for. The two disagreeing is the trap `hawser wsl-config`
+// ~/.wslconfig asked for. The two disagreeing is the trap `skrog wsl-config`
 // exists to close -- a limit recorded and never applied looks like a limit.
 type VMStats struct {
 	CPUs              int    `json:"cpus"`

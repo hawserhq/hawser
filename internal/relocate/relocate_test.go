@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // fakeWSL implements wsl.WSL. Export writes a stand-in tarball and Import
@@ -97,7 +97,7 @@ func newHarness(t *testing.T, vol fakeVolume) *harness {
 }
 
 func (h *harness) opts() Options {
-	return Options{Distro: "hawser-engine", From: h.from, To: h.to}
+	return Options{Distro: "skrog-engine", From: h.from, To: h.to}
 }
 
 // roomy is a volume with plenty of space for a small disk.

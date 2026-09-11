@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/hooks"
+	"github.com/wslkit/skrog/internal/hooks"
 )
 
 func TestHooksNoneInjected(t *testing.T) {
@@ -22,7 +22,7 @@ func TestHooksWarnsAndNamesTheModule(t *testing.T) {
 		{Name: "InProcessClient64.dll", Path: `C:\Program Files\SomeEDR\Agent\InProcessClient64.dll`},
 	}}
 	got := checkHooks().Run(f)
-	// Never Fail: these agents are mandatory on managed machines and Hawser
+	// Never Fail: these agents are mandatory on managed machines and Skrog
 	// works with them almost always. Naming it is the whole value.
 	if got.Status != Warn {
 		t.Errorf("status = %v, want Warn", got.Status)

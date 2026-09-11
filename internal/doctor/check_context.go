@@ -5,17 +5,17 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/remote"
+	"github.com/wslkit/skrog/internal/remote"
 )
 
 // certWarnWindow is how far ahead an expiring remote client certificate is
 // flagged: two weeks is enough to get a new one issued without a fire drill.
 const certWarnWindow = 14 * 24 * time.Hour
 
-// checkContext verifies docker is actually pointed at a Hawser engine — the
+// checkContext verifies docker is actually pointed at a Skrog engine — the
 // local one, or a registered remote (#138). A machine with Docker Desktop's
 // context still selected, or a stray DOCKER_HOST, talks to something other than
-// Hawser while looking like it should work — a common source of "hawser is
+// Skrog while looking like it should work — a common source of "skrog is
 // broken" reports that are really "docker is aimed elsewhere."
 func checkContext() Check {
 	c := Check{Name: "context", Title: "docker context"}
@@ -30,16 +30,16 @@ func checkContext() Check {
 		if ctx == "" {
 			r := result(c, Warn, "DOCKER_HOST overrides the docker context")
 			r.Detail = []string{"  source: " + src}
-			r.Remedy = "unset DOCKER_HOST to use the hawser context, or point it at " +
-				"the Hawser pipe (npipe:////./pipe/docker_engine) if you set it deliberately."
+			r.Remedy = "unset DOCKER_HOST to use the skrog context, or point it at " +
+				"the Skrog pipe (npipe:////./pipe/docker_engine) if you set it deliberately."
 			return r
 		}
 
-		if ctx == "hawser" {
-			return result(c, OK, fmt.Sprintf("docker context is hawser (%s)", src))
+		if ctx == "skrog" {
+			return result(c, OK, fmt.Sprintf("docker context is skrog (%s)", src))
 		}
 
-		// A hawser-<name> context is a remote engine. Known and healthy is OK;
+		// A skrog-<name> context is a remote engine. Known and healthy is OK;
 		// the failure that matters is a client certificate about to (or already)
 		// stop working, which otherwise surfaces as an opaque TLS error.
 		if name, ok := strings.CutPrefix(ctx, remote.ContextPrefix); ok {
@@ -52,31 +52,31 @@ func checkContext() Check {
 					r := result(c, Fail, fmt.Sprintf("remote %q client certificate expired on %s",
 						name, rem.CertNotAfter.Format("2006-01-02")))
 					r.Detail = []string{"  host: " + rem.Host}
-					r.Remedy = "on the server run `hawser serve cert` for a fresh client certificate, " +
-						"copy it over, then re-run `hawser remote add " + name + " ...`; " +
-						"or `hawser remote use local` to go back to the local engine."
+					r.Remedy = "on the server run `skrog serve cert` for a fresh client certificate, " +
+						"copy it over, then re-run `skrog remote add " + name + " ...`; " +
+						"or `skrog remote use local` to go back to the local engine."
 					return r
 				case !rem.CertNotAfter.IsZero() && time.Until(rem.CertNotAfter) < certWarnWindow:
 					r := result(c, Warn, fmt.Sprintf("remote %q client certificate expires %s",
 						name, rem.CertNotAfter.Format("2006-01-02")))
 					r.Detail = []string{"  host: " + rem.Host}
-					r.Remedy = "renew before it lapses: `hawser serve cert` on the server, then " +
-						"`hawser remote add " + name + " ...` with the new client certificate."
+					r.Remedy = "renew before it lapses: `skrog serve cert` on the server, then " +
+						"`skrog remote add " + name + " ...` with the new client certificate."
 					return r
 				}
 				return result(c, OK, fmt.Sprintf("docker context is remote:%s (%s)", name, rem.Host))
 			}
-			r := result(c, Warn, fmt.Sprintf("context %q looks like a Hawser remote, but none is registered", ctx))
+			r := result(c, Warn, fmt.Sprintf("context %q looks like a Skrog remote, but none is registered", ctx))
 			r.Detail = []string{"  source: " + src}
-			r.Remedy = "register it with `hawser remote add " + name + " --host ... --certs ...`, " +
-				"or `hawser remote use local`."
+			r.Remedy = "register it with `skrog remote add " + name + " --host ... --certs ...`, " +
+				"or `skrog remote use local`."
 			return r
 		}
 
-		r := result(c, Warn, fmt.Sprintf("the active docker context is %q, not hawser", ctx))
+		r := result(c, Warn, fmt.Sprintf("the active docker context is %q, not skrog", ctx))
 		r.Detail = []string{"  source: " + src}
-		r.Remedy = "run `hawser remote use local` (or `docker context use hawser`) so docker " +
-			"talks to the Hawser engine."
+		r.Remedy = "run `skrog remote use local` (or `docker context use skrog`) so docker " +
+			"talks to the Skrog engine."
 		return r
 	}
 	return c

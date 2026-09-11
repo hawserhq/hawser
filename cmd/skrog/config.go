@@ -1,0 +1,291 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"os"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/wslkit/skrog/internal/config"
+	"github.com/wslkit/skrog/internal/engineconfig"
+	"github.com/wslkit/skrog/internal/provision"
+	"github.com/wslkit/skrog/internal/supervise"
+	"github.com/wslkit/skrog/internal/wsl"
+)
+
+func runConfig(args []string) int {
+	fs := flag.NewFlagSet("config", flag.ContinueOnError)
+	var (
+		stateDir = fs.String("state-dir", "", "override Skrog's state directory")
+		asJSON   = fs.Bool("json", false, "emit machine-readable JSON (list)")
+	)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `usage: skrog config                    list all settings
+       skrog config get <key>          print one value
+       skrog config set <key> <value>  change one value
+       skrog config export             print the install as a skrog.yaml
+
+Skrog settings apply live: the supervisor re-reads this file when it changes,
+so nothing here needs a restart to take effect. Where "live" needs a
+qualifier, the setting below says so — settings that configure the engine
+itself land when the engine next starts, which `+"`skrog restart`"+` asks for.
+
+  %s   how long the bridge must be quiet (no connections, no running
+                 containers) before the engine is stopped to reclaim its RAM;
+                 the next docker command starts it again. A duration like 20m
+                 or 1h, or "off" (the default).
+  %s          record container-affecting API calls to audit.log in the state
+                 dir; on/off ("off" by default). Takes effect on the next
+                 docker call. See `+"`skrog audit tail`"+`.
+  %s  refuse the rootfs at install time unless its signature verifies
+  %s free-space floor under which `+"`skrog doctor`"+` warns, e.g. 10GB
+
+Engine settings (engine.<key>) are written into the engine's daemon.json,
+validated with `+"`dockerd --validate`"+` before they replace the live file, and
+applied by bouncing the engine (rolled back if it does not come back). Set an
+empty value to clear a key. Lists are comma-separated; maps are k=v,k=v.
+
+`, config.KeyIdleTimeout, config.KeyAudit, config.KeyVerifySignature, config.KeyDiskWarnBelow)
+		for _, k := range engineconfig.KeyHelp() {
+			fmt.Fprintf(os.Stderr, "  engine.%-24s %s\n", k.Name, k.Help)
+		}
+		fmt.Fprintf(os.Stderr, `
+Lifecycle hooks (hook.<event>) run a script on an engine event, time-bounded
+and best-effort (a failure is logged, never blocks the lifecycle). The script
+gets SKROG_EVENT and SKROG_STATE_DIR in its environment. Set an empty value
+to clear one. Events:
+  %s   after the engine starts (recovery or first start)
+  %s     before the engine stops on `+"`skrog stop`"+`
+  %s  after the idle timeout stops the engine
+  %s      after the engine cold-starts on demand
+`, config.KeyHookPostStart, config.KeyHookPreStop, config.KeyHookOnIdleStop, config.KeyHookOnWake)
+		fmt.Fprintf(os.Stderr, `
+Corporate network (applied to the engine on its next start; `+"`skrog restart`"+`
+asks for one):
+  %s          http(s):// proxy for the engine's registry pulls
+  %s       proxy bypass list (comma-separated)
+  %s   trust the host's root CA store inside the engine
+                             (the fix for a TLS-inspecting proxy; on/off)
+`, config.KeyProxy, config.KeyNoProxy, config.KeyImportHostCAs)
+		fmt.Fprintf(os.Stderr, "\nExit codes: 0 ok, %d error, %d usage.\n", exitError, exitUsage)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+
+	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
+	rest := fs.Args()
+
+	switch {
+	case len(rest) == 0:
+		return listAllConfig(opts, *asJSON)
+
+	case rest[0] == "get" && len(rest) == 2:
+		return getConfig(opts, rest[1])
+
+	case rest[0] == "set" && len(rest) == 3:
+		return setConfig(opts, rest[1], rest[2])
+
+	case rest[0] == "export" && len(rest) == 1:
+		return exportConfig(opts)
+
+	default:
+		fmt.Fprintf(os.Stderr, "skrog: config %s: unrecognized; see `skrog config --help`\n",
+			strings.Join(rest, " "))
+		return exitUsage
+	}
+}
+
+// exportConfig emits the current install as a skrog.yaml, so an existing
+// setup round-trips into a file that reproduces it with `skrog install --config`.
+func exportConfig(opts provision.Options) int {
+	f, err := exportSkrogFile(opts)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitNotFound
+	}
+	out, err := f.Marshal()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+	os.Stdout.Write(out)
+	return exitOK
+}
+
+func listAllConfig(opts provision.Options, asJSON bool) int {
+	all, err := config.All(opts.StateDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+
+	// Engine settings live in the distro; list them only when one is installed,
+	// so `skrog config` still works on a machine with no engine.
+	var eng map[string]string
+	if m, ok := engineManager(opts); ok {
+		eng, err = m.List(context.Background())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "skrog: reading engine config: %v\n", err)
+			return exitError
+		}
+		if eng == nil {
+			eng = map[string]string{} // installed with nothing set is {}, not null
+		}
+	}
+
+	if asJSON {
+		return emitJSON(configListJSON{Settings: all, Engine: eng})
+	}
+
+	keys := make([]string, 0, len(all))
+	for k := range all {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		fmt.Printf("%s = %s\n", k, all[k])
+	}
+	ekeys := make([]string, 0, len(eng))
+	for k := range eng {
+		ekeys = append(ekeys, k)
+	}
+	sort.Strings(ekeys)
+	for _, k := range ekeys {
+		fmt.Printf("%s = %s\n", k, eng[k])
+	}
+	return exitOK
+}
+
+func getConfig(opts provision.Options, key string) int {
+	if engineconfig.IsEngineKey(key) {
+		m, ok := engineManager(opts)
+		if !ok {
+			fmt.Fprintln(os.Stderr, "skrog: no engine installed; run `skrog install` first")
+			return exitNotFound
+		}
+		v, err := m.Get(context.Background(), engineconfig.StripPrefix(key))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+			return exitError
+		}
+		fmt.Println(v)
+		return exitOK
+	}
+
+	v, err := config.Get(opts.StateDir, key)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+	fmt.Println(v)
+	return exitOK
+}
+
+func setConfig(opts provision.Options, key, value string) int {
+	if engineconfig.IsEngineKey(key) {
+		m, ok := engineManager(opts)
+		if !ok {
+			fmt.Fprintln(os.Stderr, "skrog: no engine installed; run `skrog install` first")
+			return exitNotFound
+		}
+		res, err := m.Set(context.Background(), engineconfig.StripPrefix(key), value)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+			return exitError
+		}
+		fmt.Printf("%s = %s\n", key, res.Applied)
+		switch {
+		case res.Restarted:
+			fmt.Println("engine restarted to apply the change")
+		case res.PendingRestart:
+			fmt.Println("engine is not running; the change applies on the next start")
+		}
+		return exitOK
+	}
+
+	if err := config.Set(opts.StateDir, key, value); err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+	v, _ := config.Get(opts.StateDir, key)
+	fmt.Printf("%s = %s (%s)\n", key, v, config.Applies(key))
+	return exitOK
+}
+
+// engineManager builds an engineconfig.Manager for the installed engine, wiring
+// the running-check and restart hooks to the provisioner. Returns false when no
+// engine is installed.
+func engineManager(opts provision.Options) (*engineconfig.Manager, bool) {
+	log := cliLogger(true)
+	p := &provision.Provisioner{Logger: log}
+	distro, ok := resolveDistro(p, opts)
+	if !ok {
+		return nil, false
+	}
+	opts.Distro = distro
+
+	return &engineconfig.Manager{
+		WSL:    wsl.NewLocal(),
+		Distro: distro,
+		EngineRunning: func(ctx context.Context) bool {
+			return p.EngineRunning(ctx, opts)
+		},
+		// A nil return means the engine came back healthy — the signal Set needs
+		// to decide whether to roll back.
+		Restart: func(ctx context.Context) error {
+			return bounceEngine(ctx, p, opts)
+		},
+	}, true
+}
+
+// bounceEngine restarts the engine so dockerd re-reads daemon.json, returning
+// nil only once it answers again. When a supervisor holds the lock it is the
+// sole owner of the engine's lifecycle, so the bounce goes through the
+// desired-state file (stop, wait down, run, wait up) rather than a direct
+// stop/start that would race the reconciler. With no supervisor, it drives the
+// provisioner directly.
+func bounceEngine(ctx context.Context, p *provision.Provisioner, opts provision.Options) error {
+	const settle = 90 * time.Second
+
+	if !supervise.Held(opts.StateDir) {
+		if err := p.StopEngine(ctx, opts); err != nil {
+			return err
+		}
+		return p.StartEngine(ctx, opts)
+	}
+
+	if err := supervise.WriteDesired(opts.StateDir, supervise.DesiredStopped); err != nil {
+		return err
+	}
+	if !waitFor(ctx, settle, func() bool { return !p.EngineRunning(ctx, opts) }) {
+		return fmt.Errorf("engine did not stop within %s", settle)
+	}
+	if err := supervise.WriteDesired(opts.StateDir, supervise.DesiredRunning); err != nil {
+		return err
+	}
+	if !waitFor(ctx, settle, func() bool { return p.EngineRunning(ctx, opts) }) {
+		return fmt.Errorf("engine did not come back within %s", settle)
+	}
+	return nil
+}
+
+// waitFor polls cond until it is true or the timeout elapses.
+func waitFor(ctx context.Context, timeout time.Duration, cond func() bool) bool {
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		if cond() {
+			return true
+		}
+		select {
+		case <-ctx.Done():
+			return false
+		case <-time.After(1 * time.Second):
+		}
+	}
+	return cond()
+}

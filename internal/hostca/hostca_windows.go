@@ -1,4 +1,4 @@
-// Package hostca reads the Windows host's trusted root CA store, so Hawser can
+// Package hostca reads the Windows host's trusted root CA store, so Skrog can
 // (opt-in) trust the same roots inside the engine — the fix for a corporate
 // TLS-inspecting proxy whose root the engine does not know (#62).
 //

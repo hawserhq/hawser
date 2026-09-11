@@ -10,7 +10,7 @@ staged=$(git diff --cached --name-only --diff-filter=ACM | grep '\.sh$' || true)
 # -x follows `source=` directives, -P SCRIPTDIR resolves them next to each script.
 run_shellcheck() {
     # scripts/install-tools.ps1 drops a copy here when it isn't on PATH.
-    local_sc="${LOCALAPPDATA:-}/hawser-tools/shellcheck.exe"
+    local_sc="${LOCALAPPDATA:-}/skrog-tools/shellcheck.exe"
     if command -v shellcheck >/dev/null 2>&1; then
         shellcheck -x -P SCRIPTDIR "$@"
     elif [ -x "$local_sc" ]; then

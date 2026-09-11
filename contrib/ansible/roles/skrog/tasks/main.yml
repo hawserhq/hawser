@@ -1,0 +1,126 @@
+---
+# Converge a Windows host to "Skrog installed, engine imported, autostart
+# registered, doctor clean". Idempotent: every task either checks first or is
+# naturally idempotent, so a second run reports no changes.
+#
+# WSL2 must be present. Installing it needs a reboot, which a role should not
+# take on its own initiative -- so this checks and fails with the fix rather
+# than rebooting your fleet.
+
+- name: Check WSL2 is available
+  ansible.windows.win_command: wsl --status
+  register: skrog_wsl_status
+  changed_when: false
+  failed_when: false
+
+- name: Fail when WSL2 is missing
+  ansible.builtin.fail:
+    msg: >-
+      WSL2 is not available on {{ inventory_hostname }}. Run
+      `wsl --install --no-distribution` and reboot (or enable the
+      Microsoft-Windows-Subsystem-Linux and VirtualMachinePlatform features),
+      then run this role again.
+  when: skrog_wsl_status.rc != 0
+
+- name: Check the installed skrog version
+  ansible.windows.win_command: '{{ skrog_home }}\bin\skrog.exe --version'
+  register: skrog_installed
+  changed_when: false
+  failed_when: false
+
+- name: Fetch the setup-skrog install script
+  ansible.windows.win_get_url:
+    url: https://raw.githubusercontent.com/wslkit/setup-skrog/{{ skrog_setup_ref }}/scripts/install-skrog.ps1
+    dest: '{{ ansible_env.TEMP }}\install-skrog.ps1'
+    force: true
+  when: skrog_version not in (skrog_installed.stdout | default(''))
+
+- name: Install skrog.exe (verified against the release SHA256SUMS)
+  ansible.windows.win_command: >-
+    pwsh -NoProfile -File {{ ansible_env.TEMP }}\install-skrog.ps1
+    -Version {{ skrog_version }} -Install:$false -Dest {{ skrog_home }}
+  when: skrog_version not in (skrog_installed.stdout | default(''))
+  notify: skrog installed
+
+- name: Put skrog.exe on the machine PATH
+  ansible.windows.win_path:
+    elements: '{{ skrog_home }}\bin'
+    scope: machine
+    state: present
+
+- name: Check whether the engine is already installed
+  ansible.windows.win_command: '{{ skrog_home }}\bin\skrog.exe status --json'
+  register: skrog_status
+  changed_when: false
+  failed_when: false
+
+- name: Import the engine from an air-gap bundle
+  ansible.windows.win_command: >-
+    {{ skrog_home }}\bin\skrog.exe install --headless
+    --offline {{ skrog_bundle_path }}
+    {{ '' if skrog_autostart else '--no-autostart' }}
+  when:
+    - skrog_bundle_path | length > 0
+    - '"\"installed\": true" not in (skrog_status.stdout | default(""))'
+
+- name: Import the engine (downloading the pinned rootfs)
+  ansible.windows.win_command: >-
+    {{ skrog_home }}\bin\skrog.exe install --headless
+    {{ ('--locked ' + skrog_lockfile_path) if skrog_lockfile_path | length > 0 else '' }}
+    {{ '' if skrog_autostart else '--no-autostart' }}
+  when:
+    - skrog_bundle_path | length == 0
+    - '"\"installed\": true" not in (skrog_status.stdout | default(""))'
+
+# `skrog config set` is itself idempotent and reports the applied value; it
+# also validates engine keys with `dockerd --validate` before they land.
+- name: Apply Skrog settings
+  ansible.windows.win_command: '{{ skrog_home }}\bin\skrog.exe config set {{ item.key }} {{ item.value }}'
+  loop: '{{ skrog_config | dict2items }}'
+  changed_when: true
+
+- name: Apply engine settings
+  ansible.windows.win_command: '{{ skrog_home }}\bin\skrog.exe config set engine.{{ item.key }} {{ item.value }}'
+  loop: '{{ skrog_engine_config | dict2items }}'
+  changed_when: true
+
+- name: Register the logon autostart
+  ansible.windows.win_command: '{{ skrog_home }}\bin\skrog.exe autostart enable'
+  when: skrog_autostart
+  changed_when: true
+
+- name: Start the engine and wait for it to answer
+  ansible.windows.win_command: '{{ skrog_home }}\bin\skrog.exe healthcheck --wait 3m'
+  register: skrog_health
+  until: skrog_health.rc == 0
+  retries: 2
+  delay: 10
+  changed_when: false
+
+- name: Pre-pull the pinned image list
+  when: skrog_prewarm_images | length > 0
+  block:
+    - name: Write the prewarm list
+      ansible.windows.win_copy:
+        content: |
+          {% for image in skrog_prewarm_images %}
+          {{ image }}
+          {% endfor %}
+        dest: '{{ skrog_home }}\prewarm.txt'
+
+    - name: Prewarm
+      ansible.windows.win_command: '{{ skrog_home }}\bin\skrog.exe prewarm {{ skrog_home }}\prewarm.txt'
+      changed_when: true
+
+# Failures fail the play; warnings are reported and do not. The runner-setup
+# check warns until auto-logon is configured, which this role deliberately
+# leaves alone -- it would mean handling a password.
+- name: Run skrog doctor
+  ansible.windows.win_command: '{{ skrog_home }}\bin\skrog.exe doctor --json'
+  register: skrog_doctor
+  changed_when: false
+  failed_when: skrog_doctor_gate and skrog_doctor.rc != 0
+
+- name: Show the doctor report
+  ansible.builtin.debug:
+    var: skrog_doctor.stdout_lines

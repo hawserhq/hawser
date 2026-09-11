@@ -14,10 +14,10 @@ import (
 // resolve names — with no error that points at the VPN.
 //
 // Advisory about the GLOBAL settings, by design: the ~/.wslconfig keys affect
-// every WSL2 distro on the machine, not just Hawser's, so doctor NAMES the VPN
+// every WSL2 distro on the machine, not just Skrog's, so doctor NAMES the VPN
 // and shows the exact settings rather than editing global config behind your
 // back. The engine's own MTU is different -- that distro is ours -- so the
-// remedy names `hawser config set engine.mtu <n>` with the fingerprint's
+// remedy names `skrog config set engine.mtu <n>` with the fingerprint's
 // recommended value, which dockerd validates and rolls back if it breaks.
 func checkVPN() Check {
 	c := Check{Name: "vpn", Title: "corporate VPN"}
@@ -74,13 +74,13 @@ func checkVPN() Check {
 		// before it applies and the engine rolls back if it will not restart.
 		if bestMTU > 0 {
 			remedy.WriteString(fmt.Sprintf("      2. if the engine still stalls, clamp the engine's MTU:\n"+
-				"         hawser config set engine.mtu %d\n", bestMTU))
+				"         skrog config set engine.mtu %d\n", bestMTU))
 		} else {
 			remedy.WriteString("      2. if the engine still stalls, clamp the engine's MTU with " +
-				"`hawser config set engine.mtu <value>` (1400 is a common starting point).\n")
+				"`skrog config set engine.mtu <value>` (1400 is a common starting point).\n")
 		}
 		remedy.WriteString("      3. behind a TLS-inspecting VPN (e.g. Zscaler), also " +
-			"`hawser config set network.import-host-cas on` so pulls trust the VPN's root CA.")
+			"`skrog config set network.import-host-cas on` so pulls trust the VPN's root CA.")
 		r.Remedy = remedy.String()
 		return r
 	}

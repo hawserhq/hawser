@@ -3,7 +3,7 @@ package doctor
 import (
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/version"
+	"github.com/wslkit/skrog/internal/version"
 )
 
 func TestCheckEngine(t *testing.T) {
@@ -15,7 +15,7 @@ func TestCheckEngine(t *testing.T) {
 
 	installed := Facts{Report: report(version.Report{
 		WSL:    "2.7.8",
-		Engine: version.EngineInfo{Installed: true, Version: "29.7.2", Distro: "hawser-engine", WSLAtInstall: "2.7.8"},
+		Engine: version.EngineInfo{Installed: true, Version: "29.7.2", Distro: "skrog-engine", WSLAtInstall: "2.7.8"},
 	})}
 	if got := c.Run(installed).Status; got != OK {
 		t.Errorf("healthy: got %v, want OK", got)
@@ -23,7 +23,7 @@ func TestCheckEngine(t *testing.T) {
 
 	skewed := Facts{Report: report(version.Report{
 		WSL:    "2.8.0",
-		Engine: version.EngineInfo{Installed: true, Version: "29.7.2", Distro: "hawser-engine", WSLAtInstall: "2.7.8"},
+		Engine: version.EngineInfo{Installed: true, Version: "29.7.2", Distro: "skrog-engine", WSLAtInstall: "2.7.8"},
 	})}
 	if got := c.Run(skewed).Status; got != Warn {
 		t.Errorf("skew: got %v, want Warn", got)

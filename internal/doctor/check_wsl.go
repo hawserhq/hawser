@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/wslkit/skrog/internal/provision"
 )
 
-// checkWSL diagnoses the WSL2 platform Hawser stands on: present, a supported
+// checkWSL diagnoses the WSL2 platform Skrog stands on: present, a supported
 // release, and defaulting to version 2. It reuses provision's preflight
 // thresholds so "supported" means one thing across the codebase.
 func checkWSL() Check {
@@ -28,8 +28,8 @@ func checkWSL() Check {
 
 		if f.WSL.DefaultVersion == 1 {
 			r := result(c, Warn, "the default WSL version is 1")
-			r.Remedy = "run `hawser doctor --fix`, or `wsl --set-default-version 2`. " +
-				"Hawser imports its own distro as WSL 2 regardless, but this avoids " +
+			r.Remedy = "run `skrog doctor --fix`, or `wsl --set-default-version 2`. " +
+				"Skrog imports its own distro as WSL 2 regardless, but this avoids " +
 				"surprises with your other distros."
 			return r
 		}

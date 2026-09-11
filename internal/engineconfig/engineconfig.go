@@ -1,6 +1,6 @@
 // Package engineconfig is a safe, curated surface over the engine's
 // daemon.json (#68). Docker Desktop offers a raw JSON textbox that can brick
-// the daemon; Hawser instead exposes a validated allowlist of keys, refuses
+// the daemon; Skrog instead exposes a validated allowlist of keys, refuses
 // unknown ones loudly (the same philosophy as the `idle-timeout` config), and
 // runs `dockerd --validate` on every candidate before it replaces the live
 // file — the trick that already guards the rootfs pipeline.
@@ -13,9 +13,9 @@ import (
 	"strings"
 )
 
-// Prefix marks an engine (daemon.json) key on the `hawser config` surface, e.g.
+// Prefix marks an engine (daemon.json) key on the `skrog config` surface, e.g.
 // "engine.registry-mirrors". It keeps engine settings namespaced away from
-// Hawser's own settings so one command can route both.
+// Skrog's own settings so one command can route both.
 const Prefix = "engine."
 
 // Kind is how a key's raw CLI value is parsed and marshaled into daemon.json.
@@ -55,21 +55,21 @@ var keys = []Key{
 	{"max-concurrent-downloads", KindInt, "parallel layer pulls per image"},
 	{"max-concurrent-uploads", KindInt, "parallel layer pushes per image"},
 	{"mtu", KindInt, "MTU for the default bridge network -- lower it under a VPN that clamps the tunnel MTU, or pulls hang mid-layer (#63)"},
-	{"userland-proxy", KindBool, "relay published ports through docker-proxy instead of iptables NAT (Hawser defaults this to false: NAT is what makes -p ports reachable from Windows under mirrored networking)"},
+	{"userland-proxy", KindBool, "relay published ports through docker-proxy instead of iptables NAT (Skrog defaults this to false: NAT is what makes -p ports reachable from Windows under mirrored networking)"},
 }
 
-// Defaults are the daemon.json keys Hawser has an opinion about on an engine
+// Defaults are the daemon.json keys Skrog has an opinion about on an engine
 // that does not (the key is absent). They are written before dockerd launches,
 // so an install that predates a default still gets it, and a key the user set
-// explicitly -- `hawser config set engine.<key>` -- is never overridden.
+// explicitly -- `skrog config set engine.<key>` -- is never overridden.
 //
 // userland-proxy=false: with the proxy on, a connection from Windows to a
 // published port is DNAT'd to the container and, under mirrored networking,
 // arrives with a 127.0.0.1 source -- so the container answers into its own
 // loopback and the connection hangs (#163). With the proxy off, dockerd installs
 // the LOCAL-source MASQUERADE that makes that return path work. Mirrored
-// networking is what `hawser doctor` itself recommends for VPNs, so this is the
-// configuration Hawser has to be correct in.
+// networking is what `skrog doctor` itself recommends for VPNs, so this is the
+// configuration Skrog has to be correct in.
 var Defaults = map[string]string{
 	"userland-proxy": "false",
 }

@@ -60,7 +60,7 @@ func GenerateCA() (Bundle, error) {
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber:          sn,
-		Subject:               pkix.Name{CommonName: "Hawser Engine CA"},
+		Subject:               pkix.Name{CommonName: "Skrog Engine CA"},
 		NotBefore:             time.Now().Add(-time.Hour),
 		NotAfter:              time.Now().Add(caValidity),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageCRLSign,
@@ -110,7 +110,7 @@ func GenerateServer(ca Bundle, hosts []string) (Bundle, error) {
 	}
 	tmpl := &x509.Certificate{
 		SerialNumber: sn,
-		Subject:      pkix.Name{CommonName: "hawser-engine"},
+		Subject:      pkix.Name{CommonName: "skrog-engine"},
 		NotBefore:    time.Now().Add(-time.Hour),
 		NotAfter:     time.Now().Add(leafValidity),
 		KeyUsage:     x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,

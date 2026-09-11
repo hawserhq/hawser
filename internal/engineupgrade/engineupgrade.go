@@ -56,6 +56,10 @@ var EngineBinaries = []string{
 	"runc",
 	"buildkitd",
 	"buildctl",
+	// Either name: a tarball cut before the Skrog rename carries the old one
+	// (see agentBinaries in internal/provision). The extractor skips whichever
+	// is absent.
+	"skrog-agent",
 	"hawser-agent",
 	// Present from rootfs 29.7.2-4: moby registers its NVIDIA GPU driver at
 	// daemon start only when this exists (#139), so an upgrade that skipped it
@@ -145,7 +149,7 @@ type ErrNoPrevious struct{}
 
 func (*ErrNoPrevious) Error() string {
 	return "no previous engine is recorded, so there is nothing to roll back to " +
-		"(a rollback point is recorded by `hawser engine upgrade`)"
+		"(a rollback point is recorded by `skrog engine upgrade`)"
 }
 
 // Run performs the upgrade (or reports the plan under DryRun).
@@ -236,11 +240,11 @@ func (r *Runner) Run(ctx context.Context, opts Options) (Report, error) {
 func (r *Runner) selfHeal(ctx context.Context, opts Options, rep *Report, cause error) error {
 	if opts.From == "" || r.Restore == nil {
 		return fmt.Errorf("engineupgrade: %w (no rollback point recorded; "+
-			"`hawser engine install --to <ref>` or a snapshot restore is the way back)", cause)
+			"`skrog engine install --to <ref>` or a snapshot restore is the way back)", cause)
 	}
 	if err := r.Restore(ctx, opts.From); err != nil {
 		return fmt.Errorf("engineupgrade: %w -- AND restoring %s failed: %v; "+
-			"the engine may be down (`hawser status`, then `hawser engine rollback`)",
+			"the engine may be down (`skrog status`, then `skrog engine rollback`)",
 			cause, opts.From, err)
 	}
 	rep.RolledBack = true
@@ -383,7 +387,7 @@ func hostPathInDistro(p string) (string, error) {
 // brief reduces a start failure to something a person reads. StartEngine
 // reports the tail of the engine's own log, which is the right thing to keep
 // somewhere and the wrong thing to paste into a one-line failure: the useful
-// part is the first line, and `hawser logs --engine` has the rest.
+// part is the first line, and `skrog logs --engine` has the rest.
 func brief(err error) string {
 	if err == nil {
 		return ""
@@ -401,5 +405,5 @@ func brief(err error) string {
 	if len(line) > max {
 		line = line[:max] + "…"
 	}
-	return line + " (see `hawser logs --engine`)"
+	return line + " (see `skrog logs --engine`)"
 }

@@ -10,6 +10,6 @@ import (
 )
 
 func main() {
-	fmt.Fprintln(os.Stderr, "hawser-agent runs inside the engine distro; build with GOOS=linux")
+	fmt.Fprintln(os.Stderr, "skrog-agent runs inside the engine distro; build with GOOS=linux")
 	os.Exit(2)
 }

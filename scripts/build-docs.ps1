@@ -1,7 +1,7 @@
 # Stage docs/ into site/content/ and build the documentation site (#197).
 #
 # docs/ stays the source of truth. It is plain markdown that renders on GitHub,
-# reviews as a diff, and is what `hawser doctor` and every error message point
+# reviews as a diff, and is what `skrog doctor` and every error message point
 # at. The site is a *view* of it, so the only thing this script adds is the
 # front matter Hugo needs and the grouping site/data/nav.yaml already records.
 #
@@ -30,7 +30,7 @@ $content = Join-Path $site 'content'
 
 # Links that leave docs/ cannot resolve inside the site; send them to the file
 # on GitHub, which is where a reader of RELEASING.md wants to end up anyway.
-$blob = 'https://github.com/hawserhq/hawser/blob/main'
+$blob = 'https://github.com/wslkit/skrog/blob/main'
 
 function Read-Nav {
     # A deliberately small reader for the one shape site/data/nav.yaml uses.

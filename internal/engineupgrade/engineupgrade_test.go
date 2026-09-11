@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/engineupgrade"
+	"github.com/wslkit/skrog/internal/engineupgrade"
 )
 
 // fakeDistro records the shell commands an upgrade runs and answers the
@@ -59,7 +59,7 @@ func (f *fakeFetcher) FetchRootfs(_ context.Context, _, _, dest string) error {
 // binaries under usr/local/bin plus decoys that must be left alone.
 func makeRootfs(t *testing.T, dir string, binaries map[string]string) string {
 	t.Helper()
-	p := filepath.Join(dir, "hawser-rootfs-test.tar.gz")
+	p := filepath.Join(dir, "skrog-rootfs-test.tar.gz")
 	f, err := os.Create(p)
 	if err != nil {
 		t.Fatal(err)
@@ -98,10 +98,10 @@ func makeRootfs(t *testing.T, dir string, binaries map[string]string) string {
 func TestExtractBinariesTakesOnlyTheEngine(t *testing.T) {
 	dir := t.TempDir()
 	src := makeRootfs(t, dir, map[string]string{
-		"dockerd":      "dockerd-bytes",
-		"containerd":   "containerd-bytes",
-		"runc":         "runc-bytes",
-		"hawser-agent": "agent-bytes",
+		"dockerd":     "dockerd-bytes",
+		"containerd":  "containerd-bytes",
+		"runc":        "runc-bytes",
+		"skrog-agent": "agent-bytes",
 	})
 	dest := filepath.Join(dir, "staging")
 
@@ -109,7 +109,7 @@ func TestExtractBinariesTakesOnlyTheEngine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ExtractBinaries: %v", err)
 	}
-	want := []string{"containerd", "dockerd", "hawser-agent", "runc"}
+	want := []string{"containerd", "dockerd", "runc", "skrog-agent"}
 	if strings.Join(got, ",") != strings.Join(want, ",") {
 		t.Errorf("got %v, want %v", got, want)
 	}
@@ -173,11 +173,11 @@ func runner(t *testing.T, d *fakeDistro, f *fakeFetcher) (*engineupgrade.Runner,
 func opts(t *testing.T, dir string) engineupgrade.Options {
 	return engineupgrade.Options{
 		StateDir: dir,
-		Distro:   "hawser-engine",
+		Distro:   "skrog-engine",
 		From:     "29.7.2-3",
 		Target: engineupgrade.Engine{
 			Ref:    "29.7.2-4",
-			URL:    "https://example.invalid/hawser-rootfs-29.7.2-4.tar.gz",
+			URL:    "https://example.invalid/skrog-rootfs-29.7.2-4.tar.gz",
 			SHA256: "abc",
 		},
 	}
@@ -292,7 +292,7 @@ func TestFailedRollbackIsSaidPlainly(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected an error")
 	}
-	for _, want := range []string{"boom", "restore", "may be down", "hawser engine rollback"} {
+	for _, want := range []string{"boom", "restore", "may be down", "skrog engine rollback"} {
 		if !strings.Contains(err.Error(), want) {
 			t.Errorf("error is missing %q: %v", want, err)
 		}
@@ -381,7 +381,7 @@ func TestBriefKeepsFailuresReadable(t *testing.T) {
 	if strings.Contains(msg, "Last log lines:") {
 		t.Errorf("a label introducing nothing survived:\n%s", msg)
 	}
-	for _, want := range []string{"docker.sock", "hawser logs --engine", "rolled back to 29.7.2-3"} {
+	for _, want := range []string{"docker.sock", "skrog logs --engine", "rolled back to 29.7.2-3"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("message is missing %q:\n%s", want, msg)
 		}
@@ -404,7 +404,7 @@ func TestStagingIsNotLeftBehind(t *testing.T) {
 		t.Errorf("%s survived the upgrade (err=%v)", staging, err)
 	}
 	// The tarball must still be there: it is the rollback source.
-	if _, err := os.Stat(filepath.Join(dir, "rootfs", "hawser-rootfs-29.7.2-4.tar.gz")); err != nil {
+	if _, err := os.Stat(filepath.Join(dir, "rootfs", "skrog-rootfs-29.7.2-4.tar.gz")); err != nil {
 		t.Errorf("the cached rootfs was removed: %v", err)
 	}
 }

@@ -3,7 +3,7 @@ package doctor
 import "testing"
 
 func TestCheckCLI(t *testing.T) {
-	bin := `C:\Users\me\AppData\Local\Hawser\bin`
+	bin := `C:\Users\me\AppData\Local\Skrog\bin`
 	cases := []struct {
 		name string
 		cli  CLIStatus
@@ -17,7 +17,7 @@ func TestCheckCLI(t *testing.T) {
 		},
 		{
 			"installed, active is a case variant of the bundle",
-			CLIStatus{Installed: true, BinDir: bin, OnPath: true, ActiveDocker: `c:\users\me\appdata\local\hawser\bin\docker.exe`},
+			CLIStatus{Installed: true, BinDir: bin, OnPath: true, ActiveDocker: `c:\users\me\appdata\local\skrog\bin\docker.exe`},
 			OK,
 		},
 		{

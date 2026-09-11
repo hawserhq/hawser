@@ -1,4 +1,4 @@
-# Hawser · Execution Roadmap
+# Skrog · Execution Roadmap
 
 Companion to [PLAN.md](PLAN.md) §05 — that file says *what* each milestone contains and why; this one says *in what order, by when, gated on what*. Assumptions: one developer, weekend cadence (~2 focused days/weekend), calendar anchored to a start the week of **2026-09-07**. Dates are targets, not promises — the gates are the contract, the dates are the pace check.
 
@@ -30,7 +30,7 @@ Goal: CLI-only, fresh Windows 11 VM → `docker run hello-world` in <5 min. Ship
 |---|---|---|
 | W1 (Sep 12–13) | Pipe proxy v1: `go-winio` server, per-connection `wsl.exe` stdio relay; unit tests for half-close, hijacked streams (`exec -it`), concurrent connections | Spike A notes |
 | W2 (Sep 19–20) | Windows→WSL volume path translation in the proxy (`-v C:\src:/app`); provisioner: preflight (`wsl --status`, exact enable-and-reboot instructions), rootfs download+verify, `wsl --import`, `daemon.json` (log rotation, `host.docker.internal` with NAT/mirrored-aware host IP), `--headless`, `--engine-version`, `--data-dir` | 0.5 rootfs artifact |
-| W3 (Sep 26–27) | Bundle docker CLI + compose + buildx + wincred per version manifest; `hawser` context creation with Desktop-coexistence pipe fallback; PATH-shadowing detection; `hawser version --json`; `hawser uninstall`; acceptance runs on clean VM | W1 + W2 |
+| W3 (Sep 26–27) | Bundle docker CLI + compose + buildx + wincred per version manifest; `skrog` context creation with Desktop-coexistence pipe fallback; PATH-shadowing detection; `skrog version --json`; `skrog uninstall`; acceptance runs on clean VM | W1 + W2 |
 
 **Exit criteria (all must pass on a fresh Win11 VM):**
 - [ ] install → `docker run hello-world` < 5 min, user never touches WSL
@@ -40,7 +40,7 @@ Goal: CLI-only, fresh Windows 11 VM → `docker run hello-world` in <5 min. Ship
 - [ ] uninstall leaves the system byte-identical (context restored, no stray files)
 - [ ] coexists with an installed Docker Desktop (fallback pipe name, both contexts usable)
 
-**Retires risks:** architecture viability, Desktop coexistence, path translation. **Publish:** README with honest scope, comparison table stub, "wslc has no Docker API — Hawser is the real one" positioning paragraph.
+**Retires risks:** architecture viability, Desktop coexistence, path translation. **Publish:** README with honest scope, comparison table stub, "wslc has no Docker API — Skrog is the real one" positioning paragraph.
 
 ---
 
@@ -51,11 +51,11 @@ Goal: survives everything Windows throws at it, within a logged-on session (the 
 **S0 — Acceptance first (gates tagging v0.1, feeds everything after).**
 The e2e suite (#11) runs on any Windows machine with WSL2 — the development machine qualifies; a runner VM only automates it in CI later. Suite: install from the published release → proxy → hello-world, bind mount read *through a container*, exec, `logs -f` streaming, a compose stack, testcontainers-go, process-count-returns-to-baseline (#35's regression), Docker-Desktop-still-works, uninstall-leaves-nothing. `exec -it` with a real TTY stays a documented manual check. Green suite ⇒ tag v0.1.0 and cut the first app release.
 
-**S1 — Supervisor.** One long-lived `hawser supervise` process, started at logon (scheduled task; a session-0 service is not possible pending #3's re-test), owning what `hawser proxy` does today plus: engine health loop, crash and `wsl --shutdown` recovery with backoff, sleep/resume + power-event recovery, single-instance locking, Event Log + rotating file. `hawser start/stop/restart/status --json` become real commands. Hard constraint from the Docker Desktop incident: manage only processes it spawned and the distro it owns — never kill by image name, never `wsl --shutdown`.
+**S1 — Supervisor.** One long-lived `skrog supervise` process, started at logon (scheduled task; a session-0 service is not possible pending #3's re-test), owning what `skrog proxy` does today plus: engine health loop, crash and `wsl --shutdown` recovery with backoff, sleep/resume + power-event recovery, single-instance locking, Event Log + rotating file. `skrog start/stop/restart/status --json` become real commands. Hard constraint from the Docker Desktop incident: manage only processes it spawned and the distro it owns — never kill by image name, never `wsl --shutdown`.
 
 **S2 — vsock guest agent.** No longer just latency work: it is the *complete* fix for #35, since owning both ends makes client disconnects explicit instead of inferred, and it removes the socat dependency entirely. Ships inside the rootfs (rootfs re-release), started by the supervisor, with the socat relay kept as fallback. Begin with a half-day mini-spike: AF_HYPERV dial from Windows into the WSL utility VM, since VM-GUID discovery is the uncertain part.
 
-**S3 — Adoption levers.** On-demand start + `idle-timeout` via `hawser config` (answers the idle-RAM complaint); `wsl-integrate` (socket into the user's other distros via `/mnt/wsl`); `migrate --from-desktop` via `docker save/load` + volume tar streaming — slower than VHDX surgery but cannot corrupt the source, and Desktop stays untouched if interrupted.
+**S3 — Adoption levers.** On-demand start + `idle-timeout` via `skrog config` (answers the idle-RAM complaint); `wsl-integrate` (socket into the user's other distros via `/mnt/wsl`); `migrate --from-desktop` via `docker save/load` + volume tar streaming — slower than VHDX surgery but cannot corrupt the source, and Desktop stays untouched if interrupted.
 
 **S4 — Tray (6 items, forever) and the auto-logon runner playbook** (documented, never automated — PLAN §06).
 
@@ -69,7 +69,7 @@ The e2e suite (#11) runs on any Windows machine with WSL2 — the development ma
 - [ ] relay process count returns to baseline after killing clients mid-request (#35 closed, not bounded)
 - [ ] `migrate --from-desktop` round-trips images + volumes on a machine with real Desktop state
 - [ ] idle-timeout stops the VM; first `docker ps` after cold-starts it (measure the real number; "~2 s" is still an assumption)
-- [ ] Docker Desktop fully functional after a Hawser install → exercise → uninstall cycle
+- [ ] Docker Desktop fully functional after a Skrog install → exercise → uninstall cycle
 
 **Retires risks:** idle-RAM complaint, unattended recovery, the #35 leak. **Note:** wslc GA likely lands during this window — have the comparison post ready, and note wslc inherits the same session requirement.
 
@@ -87,14 +87,14 @@ Goal: turn the WSL2 quirk zoo into a diagnosable surface, make the engine work o
 | S1 | `doctor` framework (one check = one file + one test; `--json`, `--report` markdown, `--fix`), checks seeded from the real v0.1/v0.2 failure list and the S0 review findings; fix the supervisor-mutex bugs its checks reference | #61, #71 | S0 |
 | S2 | Corporate networks: CA-trust injection + proxy passthrough + registry mirrors; validated engine-config surface (`config set engine.<key>`, `dockerd --validate` before apply); VPN battery (consented platform fixes, fingerprint DB, MTU/DNS fallbacks) | #62, #68, #63 | S1 (doctor hosts the diagnoses) |
 | S3 | Housekeeping: sparse VHDX, `compact`, memory reclaim, `data-dir` relocation; `engine upgrade`/`rollback` staged swap; `stats` vmmem attribution; SSH-agent bridging | #64, #65 | v0.2 supervisor |
-| S4 | Self-contained & declarative: bundle docker CLI + compose + buildx + credential helper (pinned fetch at install); `hawser install --config hawser.yaml`; lifecycle hooks; Dev Containers + Visual Studio container-tools validation (shim if needed) | #66, #69, #70, #67 | S2 (config surface) |
+| S4 | Self-contained & declarative: bundle docker CLI + compose + buildx + credential helper (pinned fetch at install); `skrog install --config skrog.yaml`; lifecycle hooks; Dev Containers + Visual Studio container-tools validation (shim if needed) | #66, #69, #70, #67 | S2 (config surface) |
 
 **Exit criteria:**
 - [ ] doctor correctly diagnoses the **top 5 failure classes from actual v0.1/v0.2 issues** (measured against the tracker, not hypotheticals)
 - [ ] a VPN-equipped test machine reaches a private registry through the tunnel after `doctor --fix` (CA + proxy + DNS all diagnosed, not guessed)
 - [ ] `engine upgrade` → deliberate break → `rollback` restores a working engine with data intact
-- [ ] a clean machine **without Docker Desktop** installs Hawser and `docker run hello-world` works using only bundled binaries
-- [ ] `hawser install --config hawser.yaml` on a fresh machine converges to the same state as the equivalent flags, and re-running is a no-op
+- [ ] a clean machine **without Docker Desktop** installs Skrog and `docker run hello-world` works using only bundled binaries
+- [ ] `skrog install --config skrog.yaml` on a fresh machine converges to the same state as the equivalent flags, and re-running is a no-op
 - [ ] `docker build --ssh default` works via the SSH-agent bridge
 
 **Deliberately staged to v0.5, not lost:** network-aware profiles (#73), engine lockfile (#74), verified air-gap install (#75) — they compose the S2/S4 plumbing rather than precede it.
@@ -109,11 +109,11 @@ Goal: the difference between a repo and a tool people install at work. Holiday g
 
 | Weekend | Work | Depends on |
 |---|---|---|
-| W10 (Jan 9–10) | Code signing (Azure Trusted Signing or SignPath OSS — apply for SignPath **during v0.3**, approval takes weeks); winget/scoop/choco manifests; WiX MSI; ARM64 builds; `hawser update --check` | v0.3 tagged |
+| W10 (Jan 9–10) | Code signing (Azure Trusted Signing or SignPath OSS — apply for SignPath **during v0.3**, approval takes weeks); winget/scoop/choco manifests; WiX MSI; ARM64 builds; `skrog update --check` | v0.3 tagged |
 | W11 (Jan 23–24) | `expose --tcp` mTLS; LAN port mirroring (opt-in); ADMX/registry policy layer; Defender-for-Endpoint WSL-plugin validation + doc; docs site, demo GIF, comparison table, CONTRIBUTING, issue templates with `doctor --report` pre-wired | W10 |
 
 **Exit criteria:**
-- [ ] `winget install hawser` on a clean machine — no SmartScreen wall
+- [ ] `winget install skrog` on a clean machine — no SmartScreen wall
 - [ ] MSI deploys silently via Intune-style unattended flags
 - [ ] a security reviewer can walk checksum → SBOM → source commit for every shipped byte
 
@@ -148,7 +148,7 @@ Reliability guarantees, not features: self-hosted e2e runner with nested virtual
 | ~~Spike B fails all patterns~~ | **fired, week 1** | done: CI headline demoted, PLAN §03/§06/§09 rewritten before v0.1 published |
 | WSL gains service-context support | continuous | would restore true sessionless operation and remove the auto-logon requirement for every WSL-based engine at once — revisit PLAN §06 if it ships |
 | wslc GA announcement | fall 2026 (during v0.2) | publish comparison post same week; no roadmap change |
-| **microsoft/WSL#40976** gets a maintainer reply, milestone, or shipped endpoint | continuous | deliberate positioning review: Hawser's glue layer (doctor, service, policy, path-translating pipe) can sit atop wslc's endpoint |
+| **microsoft/WSL#40976** gets a maintainer reply, milestone, or shipped endpoint | continuous | deliberate positioning review: Skrog's glue layer (doctor, service, policy, path-translating pipe) can sit atop wslc's endpoint |
 | virtiofs reaches standard WSL distros | continuous | adopt immediately — attacks slow-9P bind mounts for free |
 | WSL platform memory-reclaim ships broadly | continuous | shrink `compact` to a thin wrapper |
 | Windows Insider feature-update flights | before each Windows FU | run e2e suite on Insider before the update GAs |
@@ -159,14 +159,14 @@ Ideas that could raise the project's ceiling, held here until a milestone earns 
 
 | Idea | Audience unlocked | Earliest slot |
 |---|---|---|
-| **`hawser enable-gpu`** — nvidia-container-toolkit in the rootfs, `docker run --gpus all` (WSL2 already passes CUDA through) | local-AI developers (Ollama, vLLM, CUDA builds) — the largest new Docker-on-Windows audience of 2025–26, and Desktop parity Hawser otherwise lacks | v0.5 |
-| **`hawser install --config hawser.yaml`** — declarative fleet config (engine version, mirrors, proxy, data-dir) checked into the runner-provisioning repo | platform teams; makes the CI story infrastructure-as-code instead of flag soup | v0.3 |
-| **`setup-hawser` GitHub Action + `hawser bake`** — prebaked ready-to-import VHDX for ephemeral runners (seconds, not minutes) | self-hosted CI at fleet scale; formalizes PLAN §06's caching aside into a product surface | v0.4 |
+| **`skrog enable-gpu`** — nvidia-container-toolkit in the rootfs, `docker run --gpus all` (WSL2 already passes CUDA through) | local-AI developers (Ollama, vLLM, CUDA builds) — the largest new Docker-on-Windows audience of 2025–26, and Desktop parity Skrog otherwise lacks | v0.5 |
+| **`skrog install --config skrog.yaml`** — declarative fleet config (engine version, mirrors, proxy, data-dir) checked into the runner-provisioning repo | platform teams; makes the CI story infrastructure-as-code instead of flag soup | v0.3 |
+| **`setup-skrog` GitHub Action + `skrog bake`** — prebaked ready-to-import VHDX for ephemeral runners (seconds, not minutes) | self-hosted CI at fleet scale; formalizes PLAN §06's caching aside into a product surface | v0.4 |
 | **Validated Dev Containers + Visual Studio Container Tools compatibility** — test, document, and fix the pipe against VS Code devcontainers and full Visual Studio's Docker tooling (which historically probes for Desktop specifically) | the exact .NET enterprise audience that left Desktop over licensing; a compat shim here may be the single highest-leverage enterprise unlock | validate in v0.1 acceptance, shim if needed in v0.3 |
-| **One-line bootstrap** — `irm https://hawser.dev/install.ps1 \| iex` (signed, checksum-verified) | everyone, pre-winget; the README's first command | v0.1 |
+| **One-line bootstrap** — `irm https://skrog.dev/install.ps1 \| iex` (signed, checksum-verified) | everyone, pre-winget; the README's first command | v0.1 |
 | **Publish the doctor VPN knowledge base as docs pages** — every fingerprinted failure gets a public URL | SEO: "WSL2 VPN DNS not working" searchers become users; turns support load into acquisition | v0.4 docs site |
-| **`hawser migrate --from-rancher / --from-podman`** — same lever as `--from-desktop` | the second- and third-place switcher pools | v0.5 |
-| **Opt-in local health metrics** — `hawser status --prometheus` textfile/endpoint (local only; the no-telemetry promise is about *us*, not about the user's own monitoring) | fleet operators who need runner health in their dashboards | v0.5 |
+| **`skrog migrate --from-rancher / --from-podman`** — same lever as `--from-desktop` | the second- and third-place switcher pools | v0.5 |
+| **Opt-in local health metrics** — `skrog status --prometheus` textfile/endpoint (local only; the no-telemetry promise is about *us*, not about the user's own monitoring) | fleet operators who need runner health in their dashboards | v0.5 |
 | **Sustainability** — GitHub Sponsors from day one; later a paid priority-support tier for fleets (the product stays 100 % free) | keeps the maintainer maintaining; enterprises *want* someone to pay | v0.4 |
 
 ## Working agreements

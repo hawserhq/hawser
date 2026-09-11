@@ -2,7 +2,7 @@
 //
 // Rotation is size-based and self-contained rather than a dependency: the
 // engine's own logs rotate inside the distro (daemon.json), so this only
-// covers Hawser's supervisor — a low-volume log that must simply never eat the
+// covers Skrog's supervisor — a low-volume log that must simply never eat the
 // disk on a machine that stays logged on for months (PLAN §05 v0.2).
 package logging
 
@@ -72,7 +72,7 @@ func (w *RotatingWriter) Write(p []byte) (int, error) {
 		if err := w.rotate(); err != nil {
 			// Rotation failing must not lose log lines; keep appending to the
 			// oversized file and let the next write retry the rotation.
-			fmt.Fprintf(os.Stderr, "hawser: log rotation failed: %v\n", err)
+			fmt.Fprintf(os.Stderr, "skrog: log rotation failed: %v\n", err)
 		}
 	}
 

@@ -38,7 +38,7 @@ func checkDisk() Check {
 		case d.FreeBytes < diskFailBytes:
 			r := result(c, Fail, fmt.Sprintf("only %s free for engine data", humanBytes(d.FreeBytes)))
 			r.Detail = detail
-			r.Remedy = "free space on that volume (`hawser prune --all --build-cache` reclaims " +
+			r.Remedy = "free space on that volume (`skrog prune --all --build-cache` reclaims " +
 				"engine disk), or move the engine data with `--data-dir` on install; pulls " +
 				"and builds fail when it runs out."
 			return r
@@ -46,7 +46,7 @@ func checkDisk() Check {
 			r := result(c, Warn, fmt.Sprintf("%s free for engine data (below the %s floor)",
 				humanBytes(d.FreeBytes), humanBytes(warn)))
 			r.Detail = detail
-			r.Remedy = "reclaim space with `hawser prune` (add --all --build-cache for the full " +
+			r.Remedy = "reclaim space with `skrog prune` (add --all --build-cache for the full " +
 				"sweep); large images or builds may exhaust it."
 			return r
 		default:

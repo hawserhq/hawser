@@ -2,10 +2,10 @@
 // driven by a desired state the CLI writes and the supervisor honors.
 //
 // The desired state lives in a file rather than a control socket on purpose.
-// `hawser stop` must mean *stays* stopped — without a recorded intent, the
+// `skrog stop` must mean *stays* stopped — without a recorded intent, the
 // health loop would helpfully restart the engine the user just stopped, and
 // the two would fight. A file also works when the supervisor is not running
-// at all, which is exactly when `hawser start` needs somewhere to leave its
+// at all, which is exactly when `skrog start` needs somewhere to leave its
 // instruction.
 package supervise
 
@@ -21,7 +21,7 @@ type Desired string
 
 const (
 	// DesiredRunning means the health loop keeps the engine up. The default:
-	// installing Hawser is itself the request to have a working engine.
+	// installing Skrog is itself the request to have a working engine.
 	DesiredRunning Desired = "running"
 	// DesiredStopped means the health loop keeps the engine down.
 	DesiredStopped Desired = "stopped"
@@ -62,7 +62,7 @@ func WriteDesired(stateDir string, d Desired) error {
 
 // EngineState is the supervisor's own record of *why* the engine is down —
 // distinct from Desired, which is what the user asked for. Its one non-default
-// value, idle, is what lets `hawser status` (and scripts) tell "stopped by
+// value, idle, is what lets `skrog status` (and scripts) tell "stopped by
 // design, will wake on demand" from "broken".
 type EngineState string
 

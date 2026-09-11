@@ -131,18 +131,18 @@ func main() {
 	// 128 is the VS Code Marketplace's icon size: the extension copies this
 	// file rather than keeping a second, hand-cut mark that can drift from the
 	// brand source.
-	writePNG("assets/icons/hawser-128.png", raster(128, brand))
-	writePNG("assets/icons/hawser-256.png", raster(256, brand))
-	writePNG("assets/icons/hawser-512.png", raster(512, brand))
+	writePNG("assets/icons/skrog-128.png", raster(128, brand))
+	writePNG("assets/icons/skrog-256.png", raster(256, brand))
+	writePNG("assets/icons/skrog-512.png", raster(512, brand))
 	writePNG("assets/icons/favicon-32.png", raster(32, brand))
 	writeSocial("assets/icons/social-preview.png")
 
 	// Windows .ico with the sizes Explorer, the taskbar and the tray use.
-	writeICO("assets/icons/hawser.ico", []int{16, 24, 32, 48, 64, 128, 256}, brand)
+	writeICO("assets/icons/skrog.ico", []int{16, 24, 32, 48, 64, 128, 256}, brand)
 
 	// Tray status icons: the mark tinted to the engine state (#76: compose
 	// status onto the mark, replacing the old plain dot).
-	writeTrayIcons("cmd/hawsertray/icons_windows.go")
+	writeTrayIcons("cmd/skrogtray/icons_windows.go")
 
 	fmt.Println("done")
 }
@@ -196,7 +196,7 @@ func writeTrayIcons(path string) {
 	var b bytes.Buffer
 	fmt.Fprint(&b, "//go:build windows\n\npackage main\n\n"+
 		"// Generated 16x16 coil status icons (green/grey/red). The tray shows the\n"+
-		"// Hawser mark in the engine's state color. Regenerate with `go run ./tools/genicons`.\n\n")
+		"// Skrog mark in the engine's state color. Regenerate with `go run ./tools/genicons`.\n\n")
 	for _, e := range icons {
 		data := dibICO(raster(16, e.c))
 		fmt.Fprintf(&b, "var %s = []byte{", e.name)

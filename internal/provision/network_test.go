@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // capWSL records the shell commands applyNetwork runs in the distro.
@@ -52,7 +52,7 @@ func TestApplyNetworkWritesProxyAndCA(t *testing.T) {
 	p.applyNetwork(context.Background(), opts.withDefaults())
 
 	joined := strings.Join(w.execs, "\n")
-	if !strings.Contains(joined, "/etc/hawser/network.env") {
+	if !strings.Contains(joined, "/etc/skrog/network.env") {
 		t.Errorf("network.env not written; execs=%v", w.execs)
 	}
 	if !strings.Contains(joined, hostCABundle) {
@@ -69,7 +69,7 @@ func TestApplyNetworkEmptyClearsCA(t *testing.T) {
 	p.applyNetwork(context.Background(), Options{Distro: "d", StateDir: t.TempDir()}.withDefaults())
 
 	joined := strings.Join(w.execs, "\n")
-	if !strings.Contains(joined, "/etc/hawser/network.env") {
+	if !strings.Contains(joined, "/etc/skrog/network.env") {
 		t.Errorf("network.env should still be written; execs=%v", w.execs)
 	}
 	if !strings.Contains(joined, "rm -f "+hostCAGlob) {

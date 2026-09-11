@@ -3,14 +3,14 @@ package version
 import (
 	"context"
 
-	"github.com/hawserhq/hawser/internal/provision"
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/provision"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // Collector assembles a Report from the machine. Every source is injectable so
 // the whole thing is testable without WSL, PATH, or an engine.
 type Collector struct {
-	// App is Hawser's own version string.
+	// App is Skrog's own version string.
 	App string
 	// Env supplies PATH and docker config discovery.
 	Env Env
@@ -26,7 +26,7 @@ type Collector struct {
 }
 
 // Collect gathers everything, degrading gracefully. A component that cannot be
-// determined is reported as unknown rather than failing the command: `hawser
+// determined is reported as unknown rather than failing the command: `skrog
 // version` is the first thing someone runs when things are broken, so it must
 // work on a half-installed machine.
 func (c *Collector) Collect(ctx context.Context) *Report {

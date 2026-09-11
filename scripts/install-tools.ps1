@@ -1,10 +1,10 @@
 # Install the local dev tools CI depends on, without needing admin or Docker.
-# Everything lands in %LOCALAPPDATA%\hawser-tools, which scripts/lint.ps1 checks.
+# Everything lands in %LOCALAPPDATA%\skrog-tools, which scripts/lint.ps1 checks.
 #
 #   pwsh -File scripts/install-tools.ps1
 $ErrorActionPreference = 'Stop'
 
-$tools = Join-Path $env:LOCALAPPDATA 'hawser-tools'
+$tools = Join-Path $env:LOCALAPPDATA 'skrog-tools'
 New-Item -ItemType Directory -Force $tools | Out-Null
 
 # --- shellcheck (matches the CI job) ---------------------------------------

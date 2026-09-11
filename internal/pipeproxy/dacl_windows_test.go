@@ -95,5 +95,5 @@ var pipeSeq atomic.Uint64
 
 func uniquePipeName(t *testing.T) string {
 	t.Helper()
-	return fmt.Sprintf(`\\.\pipe\hawser-dacl-test-%d-%d`, os.Getpid(), pipeSeq.Add(1))
+	return fmt.Sprintf(`\\.\pipe\skrog-dacl-test-%d-%d`, os.Getpid(), pipeSeq.Add(1))
 }

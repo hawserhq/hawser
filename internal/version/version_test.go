@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/version"
+	"github.com/wslkit/skrog/internal/version"
 )
 
 // fakeFS answers Stat from a set of paths, so PATH scanning needs no real files.
@@ -26,13 +26,13 @@ func fakeFS(present ...string) func(string) error {
 	}
 }
 
-func envWith(pathDirs []string, present []string, hawserBin string) version.Env {
+func envWith(pathDirs []string, present []string, skrogBin string) version.Env {
 	return version.Env{
-		PathVar:   strings.Join(pathDirs, string(os.PathListSeparator)),
-		PathExt:   ".EXE",
-		HawserBin: hawserBin,
-		Stat:      fakeFS(present...),
-		Getenv:    func(string) string { return "" },
+		PathVar:  strings.Join(pathDirs, string(os.PathListSeparator)),
+		PathExt:  ".EXE",
+		SkrogBin: skrogBin,
+		Stat:     fakeFS(present...),
+		Getenv:   func(string) string { return "" },
 	}
 }
 
@@ -40,15 +40,15 @@ func TestFindDockerBinariesResolutionOrder(t *testing.T) {
 	// The first match on PATH is the one that runs; everything else is context.
 	dirs := []string{
 		`C:\Program Files\Docker\Docker\resources\bin`,
-		`C:\Users\me\AppData\Local\Hawser\bin`,
+		`C:\Users\me\AppData\Local\Skrog\bin`,
 		`C:\ProgramData\chocolatey\bin`,
 	}
 	present := []string{
 		`C:\Program Files\Docker\Docker\resources\bin\docker.exe`,
-		`C:\Users\me\AppData\Local\Hawser\bin\docker.exe`,
+		`C:\Users\me\AppData\Local\Skrog\bin\docker.exe`,
 		`C:\ProgramData\chocolatey\bin\docker.exe`,
 	}
-	got := version.FindDockerBinaries(envWith(dirs, present, `C:\Users\me\AppData\Local\Hawser\bin`))
+	got := version.FindDockerBinaries(envWith(dirs, present, `C:\Users\me\AppData\Local\Skrog\bin`))
 
 	if len(got) != 3 {
 		t.Fatalf("found %d binaries %+v, want 3", len(got), got)
@@ -60,7 +60,7 @@ func TestFindDockerBinariesResolutionOrder(t *testing.T) {
 		t.Error("more than one entry marked First")
 	}
 	want := []version.Origin{
-		version.OriginDockerDesktop, version.OriginHawser, version.OriginChocolatey,
+		version.OriginDockerDesktop, version.OriginSkrog, version.OriginChocolatey,
 	}
 	for i, w := range want {
 		if got[i].Origin != w {
@@ -70,12 +70,12 @@ func TestFindDockerBinariesResolutionOrder(t *testing.T) {
 }
 
 func TestClassifyOrigins(t *testing.T) {
-	hawserBin := `C:\Tools\Hawser\bin`
+	skrogBin := `C:\Tools\Skrog\bin`
 	tests := []struct {
 		path string
 		want version.Origin
 	}{
-		{`C:\Tools\Hawser\bin\docker.exe`, version.OriginHawser},
+		{`C:\Tools\Skrog\bin\docker.exe`, version.OriginSkrog},
 		{`C:\Program Files\Docker\Docker\resources\bin\docker.exe`, version.OriginDockerDesktop},
 		{`C:\Users\me\AppData\Local\Programs\rancher-desktop\resources\bin\docker.exe`, version.OriginRancher},
 		{`C:\Users\me\AppData\Local\Microsoft\WinGet\Links\docker.exe`, version.OriginWinget},
@@ -86,7 +86,7 @@ func TestClassifyOrigins(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.want), func(t *testing.T) {
 			got := version.FindDockerBinaries(envWith(
-				[]string{filepath.Dir(tt.path)}, []string{tt.path}, hawserBin))
+				[]string{filepath.Dir(tt.path)}, []string{tt.path}, skrogBin))
 			if len(got) != 1 {
 				t.Fatalf("found %d, want 1", len(got))
 			}
@@ -110,7 +110,7 @@ func TestFindDockerBinariesOneEntryPerDirectory(t *testing.T) {
 	// Docker Desktop ships both docker.exe and an extensionless docker in the
 	// same directory. PATH resolves one file per directory, so reporting two
 	// would dress noise up as a second installation. Found by running
-	// `hawser version` on a machine with Docker Desktop installed.
+	// `skrog version` on a machine with Docker Desktop installed.
 	dir := `C:\Program Files\Docker\Docker\resources\bin`
 	env := envWith([]string{dir}, []string{dir + `\docker.exe`, dir + `\docker`}, "")
 
@@ -147,7 +147,7 @@ func TestDockerContextPrecedence(t *testing.T) {
 		e := base
 		e.Getenv = func(k string) string {
 			if k == "DOCKER_HOST" {
-				return "npipe:////./pipe/hawser_engine"
+				return "npipe:////./pipe/skrog_engine"
 			}
 			return ""
 		}
@@ -210,18 +210,18 @@ func TestDockerContextPrecedence(t *testing.T) {
 }
 
 func TestWarnsOnPathShadowing(t *testing.T) {
-	// The headline diagnostic: the hawser context is active but Docker
+	// The headline diagnostic: the skrog context is active but Docker
 	// Desktop's binary runs first. Commands succeed while doing something the
 	// user did not intend, which is why this needs saying out loud.
-	dirs := []string{`C:\Program Files\Docker\Docker\resources\bin`, `C:\Hawser\bin`}
+	dirs := []string{`C:\Program Files\Docker\Docker\resources\bin`, `C:\Skrog\bin`}
 	present := []string{
 		`C:\Program Files\Docker\Docker\resources\bin\docker.exe`,
-		`C:\Hawser\bin\docker.exe`,
+		`C:\Skrog\bin\docker.exe`,
 	}
-	env := envWith(dirs, present, `C:\Hawser\bin`)
+	env := envWith(dirs, present, `C:\Skrog\bin`)
 	env.Getenv = func(k string) string {
 		if k == "DOCKER_CONTEXT" {
-			return "hawser"
+			return "skrog"
 		}
 		return ""
 	}
@@ -240,16 +240,16 @@ func TestWarnsOnPathShadowing(t *testing.T) {
 	}
 }
 
-func TestNoShadowingWarningWhenHawserIsFirst(t *testing.T) {
-	dirs := []string{`C:\Hawser\bin`, `C:\Program Files\Docker\Docker\resources\bin`}
+func TestNoShadowingWarningWhenSkrogIsFirst(t *testing.T) {
+	dirs := []string{`C:\Skrog\bin`, `C:\Program Files\Docker\Docker\resources\bin`}
 	present := []string{
-		`C:\Hawser\bin\docker.exe`,
+		`C:\Skrog\bin\docker.exe`,
 		`C:\Program Files\Docker\Docker\resources\bin\docker.exe`,
 	}
-	env := envWith(dirs, present, `C:\Hawser\bin`)
+	env := envWith(dirs, present, `C:\Skrog\bin`)
 	env.Getenv = func(k string) string {
 		if k == "DOCKER_CONTEXT" {
-			return "hawser"
+			return "skrog"
 		}
 		return ""
 	}
@@ -285,17 +285,17 @@ func TestWarnsWhenNoEngineInstalled(t *testing.T) {
 	}
 	found := false
 	for _, w := range r.Warnings {
-		if strings.Contains(w, "hawser install") {
+		if strings.Contains(w, "skrog install") {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("warnings = %+v, want one suggesting hawser install", r.Warnings)
+		t.Errorf("warnings = %+v, want one suggesting skrog install", r.Warnings)
 	}
 }
 
 func TestAPIProbeIsBestEffort(t *testing.T) {
-	// `hawser version` is what someone runs when things are broken, so an
+	// `skrog version` is what someone runs when things are broken, so an
 	// unreachable engine must not fail the command.
 	env := envWith([]string{`C:\bin`}, []string{`C:\bin\docker.exe`}, "")
 
@@ -339,15 +339,15 @@ func TestJSONIsStableForScripts(t *testing.T) {
 }
 
 func TestWriteTextIncludesTheDecisiveFacts(t *testing.T) {
-	dirs := []string{`C:\Program Files\Docker\Docker\resources\bin`, `C:\Hawser\bin`}
+	dirs := []string{`C:\Program Files\Docker\Docker\resources\bin`, `C:\Skrog\bin`}
 	present := []string{
 		`C:\Program Files\Docker\Docker\resources\bin\docker.exe`,
-		`C:\Hawser\bin\docker.exe`,
+		`C:\Skrog\bin\docker.exe`,
 	}
-	env := envWith(dirs, present, `C:\Hawser\bin`)
+	env := envWith(dirs, present, `C:\Skrog\bin`)
 	env.Getenv = func(k string) string {
 		if k == "DOCKER_CONTEXT" {
-			return "hawser"
+			return "skrog"
 		}
 		return ""
 	}
@@ -361,9 +361,9 @@ func TestWriteTextIncludesTheDecisiveFacts(t *testing.T) {
 
 	for _, want := range []string{
 		"1.2.3",             // app version
-		"hawser",            // context
+		"skrog",             // context
 		"docker-desktop",    // the competing binary is named
-		`C:\Hawser\bin`,     // and so is ours
+		`C:\Skrog\bin`,      // and so is ours
 		"resolves first",    // the shadowing warning
 		"the one that runs", // the legend explaining the marker
 	} {

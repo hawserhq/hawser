@@ -2,11 +2,11 @@ package config
 
 import "strings"
 
-// Applies says when a change to key actually takes effect, so `hawser config
+// Applies says when a change to key actually takes effect, so `skrog config
 // set` can tell the user instead of leaving them to find out (#202).
 //
 // This exists because the CLI and the supervisor drifted apart: the help text
-// told people to run `hawser restart` to enable the audit log, and `restart`
+// told people to run `skrog restart` to enable the audit log, and `restart`
 // bounces the engine, not the supervisor that held the setting. Turning the
 // audit log on therefore did nothing and said nothing. Keeping the answer in
 // one exported function, next to the keys themselves and covered by a test
@@ -32,10 +32,10 @@ func Applies(key string) string {
 	return AppliesNow
 }
 
-// The sentences `hawser config set` prints. Phrased as what the user gets,
+// The sentences `skrog config set` prints. Phrased as what the user gets,
 // not as what the implementation does.
 const (
 	AppliesNow     = "in effect now"
-	AppliesOnStart = "applies to the engine on its next start (`hawser restart`)"
+	AppliesOnStart = "applies to the engine on its next start (`skrog restart`)"
 	AppliesOnUse   = "applies the next time it is read"
 )

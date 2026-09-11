@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/compact"
-	"github.com/hawserhq/hawser/internal/vhdx"
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/compact"
+	"github.com/wslkit/skrog/internal/vhdx"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // fakeWSL records what was asked of it and answers from canned state.
@@ -61,7 +61,7 @@ func (d *fakeDisk) SizeOnDisk(string) (uint64, error) { return d.size, nil }
 
 func opts() compact.Options {
 	return compact.Options{
-		Distro:   "hawser-engine",
+		Distro:   "skrog-engine",
 		DiskPath: `C:\data\ext4.vhdx`,
 		Wait:     time.Second,
 		Poll:     time.Millisecond,
@@ -70,7 +70,7 @@ func opts() compact.Options {
 
 func TestHappyPathOrdersTrimStopTerminateCompact(t *testing.T) {
 	w := &fakeWSL{
-		distros:   []wsl.Distro{{Name: "hawser-engine", State: "Running"}, {Name: "Ubuntu", State: "Stopped"}},
+		distros:   []wsl.Distro{{Name: "skrog-engine", State: "Running"}, {Name: "Ubuntu", State: "Stopped"}},
 		fstrimOut: "/: 1078939029504 bytes were trimmed",
 	}
 	d := &fakeDisk{size: 14 << 30, after: 9 << 30}
@@ -94,8 +94,8 @@ func TestHappyPathOrdersTrimStopTerminateCompact(t *testing.T) {
 	if !started {
 		t.Error("--restart did not start the engine again")
 	}
-	if got := strings.Join(w.calls, "|"); !strings.Contains(got, "exec:hawser-engine:fstrim -v /") ||
-		!strings.Contains(got, "terminate:hawser-engine") {
+	if got := strings.Join(w.calls, "|"); !strings.Contains(got, "exec:skrog-engine:fstrim -v /") ||
+		!strings.Contains(got, "terminate:skrog-engine") {
 		t.Errorf("calls = %s", got)
 	}
 	// fstrim's figure must be reported as offered, never as reclaimed.
@@ -111,10 +111,10 @@ func TestHappyPathOrdersTrimStopTerminateCompact(t *testing.T) {
 }
 
 func TestRefusesWhenAnotherDistroIsRunning(t *testing.T) {
-	// The whole point: Hawser never runs `wsl --shutdown`, so it refuses and
+	// The whole point: Skrog never runs `wsl --shutdown`, so it refuses and
 	// names who is holding the disk instead of killing someone's containers.
 	w := &fakeWSL{distros: []wsl.Distro{
-		{Name: "hawser-engine", State: "Running"},
+		{Name: "skrog-engine", State: "Running"},
 		{Name: "docker-desktop", State: "Running"},
 		{Name: "Ubuntu", State: "Running"},
 	}}
@@ -129,7 +129,7 @@ func TestRefusesWhenAnotherDistroIsRunning(t *testing.T) {
 	if len(held.Holders) != 2 {
 		t.Errorf("Holders = %v, want the two other distros", held.Holders)
 	}
-	if strings.Contains(strings.Join(held.Holders, ","), "hawser-engine") {
+	if strings.Contains(strings.Join(held.Holders, ","), "skrog-engine") {
 		t.Error("our own distro was counted as a holder")
 	}
 	// Nothing destructive may have happened.
@@ -141,7 +141,7 @@ func TestRefusesWhenAnotherDistroIsRunning(t *testing.T) {
 func TestReportsStillHeldWhenNothingElseRuns(t *testing.T) {
 	// Different message on purpose: telling someone to stop distros they have
 	// already stopped is no help.
-	w := &fakeWSL{distros: []wsl.Distro{{Name: "hawser-engine", State: "Running"}}}
+	w := &fakeWSL{distros: []wsl.Distro{{Name: "skrog-engine", State: "Running"}}}
 	d := &fakeDisk{size: 1 << 30, freeAfter: 1 << 30} // never frees
 	r := &compact.Runner{WSL: w, Disk: d}
 
@@ -159,7 +159,7 @@ func TestReportsStillHeldWhenNothingElseRuns(t *testing.T) {
 }
 
 func TestWaitsForReleaseThenCompacts(t *testing.T) {
-	w := &fakeWSL{distros: []wsl.Distro{{Name: "hawser-engine", State: "Running"}}}
+	w := &fakeWSL{distros: []wsl.Distro{{Name: "skrog-engine", State: "Running"}}}
 	d := &fakeDisk{size: 10 << 30, after: 8 << 30, freeAfter: 3}
 	r := &compact.Runner{WSL: w, Disk: d}
 
@@ -179,7 +179,7 @@ func TestWaitsForReleaseThenCompacts(t *testing.T) {
 }
 
 func TestDryRunTouchesNothing(t *testing.T) {
-	w := &fakeWSL{distros: []wsl.Distro{{Name: "hawser-engine", State: "Running"}}}
+	w := &fakeWSL{distros: []wsl.Distro{{Name: "skrog-engine", State: "Running"}}}
 	d := &fakeDisk{size: 12 << 30}
 	var stopped bool
 	r := &compact.Runner{WSL: w, Disk: d, Stop: func(context.Context) error { stopped = true; return nil }}
@@ -203,7 +203,7 @@ func TestDryRunTouchesNothing(t *testing.T) {
 }
 
 func TestNoTrimSkipsFstrim(t *testing.T) {
-	w := &fakeWSL{distros: []wsl.Distro{{Name: "hawser-engine", State: "Running"}}}
+	w := &fakeWSL{distros: []wsl.Distro{{Name: "skrog-engine", State: "Running"}}}
 	d := &fakeDisk{size: 5 << 30, after: 5 << 30}
 	r := &compact.Runner{WSL: w, Disk: d}
 	o := opts()
@@ -226,7 +226,7 @@ func TestNoTrimSkipsFstrim(t *testing.T) {
 func TestAGrownDiskIsAFailure(t *testing.T) {
 	// If the file ended up bigger, something wrote to the disk mid-compaction
 	// and the result cannot be trusted.
-	w := &fakeWSL{distros: []wsl.Distro{{Name: "hawser-engine", State: "Running"}}}
+	w := &fakeWSL{distros: []wsl.Distro{{Name: "skrog-engine", State: "Running"}}}
 	d := &fakeDisk{size: 8 << 30, after: 9 << 30}
 	r := &compact.Runner{WSL: w, Disk: d}
 
@@ -244,7 +244,7 @@ func TestAGrownDiskIsAFailure(t *testing.T) {
 
 func TestFstrimFailureStopsBeforeTerminating(t *testing.T) {
 	w := &fakeWSL{
-		distros:   []wsl.Distro{{Name: "hawser-engine", State: "Running"}},
+		distros:   []wsl.Distro{{Name: "skrog-engine", State: "Running"}},
 		fstrimErr: errors.New("exit status 1"),
 		fstrimOut: "fstrim: /: FITRIM ioctl failed: Operation not supported",
 	}
@@ -264,7 +264,7 @@ func TestFstrimFailureStopsBeforeTerminating(t *testing.T) {
 func TestParsesFstrimlessOutput(t *testing.T) {
 	// Some fstrim builds say nothing parseable; that must not be an error.
 	w := &fakeWSL{
-		distros:   []wsl.Distro{{Name: "hawser-engine", State: "Running"}},
+		distros:   []wsl.Distro{{Name: "skrog-engine", State: "Running"}},
 		fstrimOut: "",
 	}
 	d := &fakeDisk{size: 4 << 30, after: 3 << 30}
@@ -286,7 +286,7 @@ func TestDryRunReportsHoldersInsteadOfRefusing(t *testing.T) {
 	// "What would happen?" deserves an answer, and the answer is "it would
 	// refuse, because these are running" -- not an error.
 	w := &fakeWSL{distros: []wsl.Distro{
-		{Name: "hawser-engine", State: "Running"},
+		{Name: "skrog-engine", State: "Running"},
 		{Name: "docker-desktop", State: "Running"},
 	}}
 	d := &fakeDisk{size: 6 << 30}
@@ -309,7 +309,7 @@ func TestDryRunReportsHoldersInsteadOfRefusing(t *testing.T) {
 func TestHoldersAreReportedOnASuccessfulRunToo(t *testing.T) {
 	// Nothing else running: Holders must be empty, so a caller can trust it as
 	// "would this refuse?" rather than having to interpret an error.
-	w := &fakeWSL{distros: []wsl.Distro{{Name: "hawser-engine", State: "Running"}}}
+	w := &fakeWSL{distros: []wsl.Distro{{Name: "skrog-engine", State: "Running"}}}
 	d := &fakeDisk{size: 7 << 30, after: 6 << 30}
 	r := &compact.Runner{WSL: w, Disk: d}
 

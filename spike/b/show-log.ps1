@@ -1,7 +1,7 @@
 # Render the probe log readably. Optional -Mode filters to console or service runs.
 param([string]$Mode)
 
-$log = 'C:\ProgramData\hawser-spike-b\probe.log'
+$log = 'C:\ProgramData\skrog-spike-b\probe.log'
 if (-not (Test-Path $log)) { Write-Host "no log yet at $log" -ForegroundColor Yellow; return }
 
 Get-Content $log | ForEach-Object {

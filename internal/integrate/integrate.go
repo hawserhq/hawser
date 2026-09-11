@@ -1,11 +1,11 @@
-// Package integrate shares the Hawser engine into the user's own WSL distros
+// Package integrate shares the Skrog engine into the user's own WSL distros
 // (#42): Desktop parity for people whose workflow lives inside a distro.
 //
 // The transport is the /mnt/wsl bind mount the provisioner publishes
 // (provision.SharedSocketPath); this package only wires the target distro's
 // environment to it, via a profile.d script. Consent is the command itself —
 // nothing here runs unless the user asked for that specific distro — and
-// every integration is recorded so `hawser uninstall` can reverse it.
+// every integration is recorded so `skrog uninstall` can reverse it.
 package integrate
 
 import (
@@ -18,12 +18,12 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // ProfilePath is the script written inside a target distro. profile.d keeps
 // it out of the user's own dotfiles and makes removal a single rm.
-const ProfilePath = "/etc/profile.d/hawser.sh"
+const ProfilePath = "/etc/profile.d/skrog.sh"
 
 // Manager wires and unwires distros.
 type Manager struct {
@@ -58,8 +58,8 @@ func (m *Manager) Integrate(ctx context.Context, target, engineDistro, socketPat
 	// The script announces its origin and its undo, because the person who
 	// finds it in six months may not be the person who ran the command.
 	content := fmt.Sprintf(
-		"# Written by `hawser wsl-integrate %s`; remove with `hawser wsl-integrate --remove %s`.\n"+
-			"# Points docker at the Hawser engine shared from the %s distro.\n"+
+		"# Written by `skrog wsl-integrate %s`; remove with `skrog wsl-integrate --remove %s`.\n"+
+			"# Points docker at the Skrog engine shared from the %s distro.\n"+
 			`export DOCKER_HOST="unix://%s"`+"\n",
 		target, target, engineDistro, socketPath)
 

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/enginestats"
+	"github.com/wslkit/skrog/internal/enginestats"
 )
 
 // fakeDistro answers the four shell commands the reader runs, and records them
@@ -86,7 +86,7 @@ func TestReadGathersEverything(t *testing.T) {
 		meminfo: "MemAvailable:   1048576 kB\nSwapTotal:       2097152 kB\n",
 	}
 	s := reader(d, fakeDisk{size: 500000000, free: 90000000000}).
-		Read(context.Background(), "hawser-engine", `C:\d\ext4.vhdx`, true)
+		Read(context.Background(), "skrog-engine", `C:\d\ext4.vhdx`, true)
 
 	if !s.Probed {
 		t.Fatal("Probed is false with a running engine")
@@ -134,7 +134,7 @@ func TestReadStartsNothingWhenTheEngineIsDown(t *testing.T) {
 	// stopped distro (#82), so a down engine costs zero WSL calls.
 	d := &fakeDistro{info: infoJSON, df: dfJSON}
 	s := reader(d, fakeDisk{size: 1}).
-		Read(context.Background(), "hawser-engine", `C:\d\ext4.vhdx`, false)
+		Read(context.Background(), "skrog-engine", `C:\d\ext4.vhdx`, false)
 
 	if s.Probed {
 		t.Error("Probed true for a stopped engine")
@@ -158,7 +158,7 @@ func TestPartialFailuresAreReportedNotFatal(t *testing.T) {
 		fail:    map[string]error{"df": fmt.Errorf("timed out")},
 	}
 	s := reader(d, fakeDisk{size: 100}).
-		Read(context.Background(), "hawser-engine", `C:\d\ext4.vhdx`, true)
+		Read(context.Background(), "skrog-engine", `C:\d\ext4.vhdx`, true)
 
 	if s.Engine.Containers != 5 {
 		t.Errorf("counts lost with df failing: %+v", s.Engine)
@@ -178,7 +178,7 @@ func TestACancelledRequestIsNotAnEmptyEngine(t *testing.T) {
 	// if it ever comes back.
 	d := &fakeDistro{info: "null", df: dfJSON, dfOut: "/dev/sdc 1 1 0 100% /", meminfo: ""}
 	s := reader(d, fakeDisk{size: 1}).
-		Read(context.Background(), "hawser-engine", `C:\d\ext4.vhdx`, true)
+		Read(context.Background(), "skrog-engine", `C:\d\ext4.vhdx`, true)
 
 	if len(s.Errors) == 0 {
 		t.Fatal("a null /info body was accepted as an empty engine")
@@ -193,7 +193,7 @@ func TestNonSuccessStatusIsAnError(t *testing.T) {
 	// treating the status line as authoritative is what stops it reading as
 	// zeroes.
 	r := &enginestats.Reader{WSL: &statusDistro{code: 499, info: infoJSON}, Disk: fakeDisk{size: 1}}
-	s := r.Read(context.Background(), "hawser-engine", `C:\d\ext4.vhdx`, true)
+	s := r.Read(context.Background(), "skrog-engine", `C:\d\ext4.vhdx`, true)
 	joined := strings.Join(s.Errors, " ")
 	if !strings.Contains(joined, "499") {
 		t.Errorf("errors = %v, want the 499 surfaced", s.Errors)

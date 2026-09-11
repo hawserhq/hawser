@@ -1,5 +1,5 @@
 // Package migrate moves images and volumes from Docker Desktop into the
-// Hawser engine (#43): "try Hawser" as a reversible experiment, not a fresh
+// Skrog engine (#43): "try Skrog" as a reversible experiment, not a fresh
 // start.
 //
 // The approach is deliberately the safe-but-slower one. Images move by
@@ -38,7 +38,7 @@ type Volume struct {
 }
 
 // Engine enumerates a docker engine's migratable state. Both the source
-// (Docker Desktop) and destination (Hawser) are Engines.
+// (Docker Desktop) and destination (Skrog) are Engines.
 type Engine interface {
 	Images(ctx context.Context) ([]Image, error)
 	Volumes(ctx context.Context) ([]Volume, error)

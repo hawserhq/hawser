@@ -6,13 +6,13 @@ this is the "set up a dev environment, snapshot it, trash it during a risky test
 restore it in seconds" answer.
 
 ```
-hawser snapshot save before-upgrade   # capture the current state
-hawser snapshot list
-hawser snapshot restore before-upgrade --yes
-hawser snapshot delete before-upgrade
+skrog snapshot save before-upgrade   # capture the current state
+skrog snapshot list
+skrog snapshot restore before-upgrade --yes
+skrog snapshot delete before-upgrade
 ```
 
-Only Hawser's own distro is ever touched.
+Only Skrog's own distro is ever touched.
 
 ## Runners: a golden snapshot as the clean slate
 
@@ -21,15 +21,15 @@ image pulls**. A golden snapshot gives both. Bake it once, reset to it before
 each job:
 
 ```
-hawser install --headless
-docker pull node:20 && docker pull mcr.microsoft.com/devcontainers/base:ubuntu   # or: hawser prewarm images.txt
-hawser snapshot save golden
+skrog install --headless
+docker pull node:20 && docker pull mcr.microsoft.com/devcontainers/base:ubuntu   # or: skrog prewarm images.txt
+skrog snapshot save golden
 
 # in the runner's before_script / job setup:
-hawser reset --to golden
+skrog reset --to golden
 ```
 
-`hawser reset --to` is `snapshot restore` with the interactive guards implied —
+`skrog reset --to` is `snapshot restore` with the interactive guards implied —
 no `--yes`, no running-container check — because a job script has already
 decided. It reports how long the cycle took (`--json` → `ms`), which is the
 number to budget against: today that is the archive checksum pass plus
@@ -38,7 +38,7 @@ tens of seconds, not the single digits the ideal wants. The fast path to get
 there is exporting the golden as a VHDX (`wsl --export --vhd`) and using
 `wsl --import-in-place`, which turns the restore into a file copy — tracked as
 the follow-up on
-[#142](https://github.com/hawserhq/hawser/issues/142) with real timings from
+[#142](https://github.com/wslkit/skrog/issues/142) with real timings from
 the acceptance suite, which resets to a fresh snapshot on every run.
 
 ## How it works
@@ -64,6 +64,6 @@ the acceptance suite, which resets to a fresh snapshot on every run.
 ## Notes
 
 - Snapshots are full engine images, so they are large (hundreds of MB to GB) —
-  `hawser snapshot list` shows sizes. Delete ones you no longer need.
-- Pairs with reproducible installs: a `hawser.lock` pins *which engine*, a
+  `skrog snapshot list` shows sizes. Delete ones you no longer need.
+- Pairs with reproducible installs: a `skrog.lock` pins *which engine*, a
   snapshot captures *what is in it*.

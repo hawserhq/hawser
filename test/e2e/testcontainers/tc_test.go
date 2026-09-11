@@ -1,7 +1,7 @@
 //go:build e2e
 
-// Testcontainers against the Hawser engine (#144): the library talks to
-// DOCKER_HOST (the suite points it at Hawser's pipe), starts a container with a
+// Testcontainers against the Skrog engine (#144): the library talks to
+// DOCKER_HOST (the suite points it at Skrog's pipe), starts a container with a
 // published port, waits for it over that port from the host, and lets the Ryuk
 // reaper — a container that mounts the engine's own docker socket — clean up.
 // Every one of those is a place a Windows-pipe-fronted engine could differ from

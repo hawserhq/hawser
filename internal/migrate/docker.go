@@ -20,7 +20,7 @@ type DockerCLI struct {
 	Exe string
 	// Context selects a docker context (docker --context <name>).
 	Context string
-	// Host selects an engine directly (docker -H <host>), e.g. the Hawser
+	// Host selects an engine directly (docker -H <host>), e.g. the Skrog
 	// pipe. Takes precedence over Context when set.
 	Host string
 

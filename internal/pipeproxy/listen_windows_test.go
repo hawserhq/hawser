@@ -12,14 +12,14 @@ import (
 	"time"
 
 	"github.com/Microsoft/go-winio"
-	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/pipeproxy"
 )
 
-// testPipeName keeps concurrent runs (and a developer's real Hawser install)
+// testPipeName keeps concurrent runs (and a developer's real Skrog install)
 // from colliding.
 func testPipeName(t *testing.T) string {
 	t.Helper()
-	return fmt.Sprintf(`\\.\pipe\hawser-test-%d-%s`, os.Getpid(), t.Name())
+	return fmt.Sprintf(`\\.\pipe\skrog-test-%d-%s`, os.Getpid(), t.Name())
 }
 
 // TestListenServesOverRealPipe exercises the actual named pipe rather than a

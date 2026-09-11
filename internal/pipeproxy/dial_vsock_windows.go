@@ -12,11 +12,11 @@ import (
 
 	"github.com/Microsoft/go-winio"
 	"github.com/Microsoft/go-winio/pkg/guid"
-	"github.com/hawserhq/hawser/internal/vsockproto"
+	"github.com/wslkit/skrog/internal/vsockproto"
 	"golang.org/x/sys/windows/registry"
 )
 
-// VsockDialer reaches the engine through the in-distro hawser-agent over
+// VsockDialer reaches the engine through the in-distro skrog-agent over
 // AF_HYPERV — the v0.2 transport (#40), validated by Spike C. Per-connection
 // cost is ~0.6 ms against socat's ~165 ms, and both ends support half-close,
 // which removes the leak class of #35 outright.
@@ -141,7 +141,7 @@ func (d *VsockDialer) rawDial(ctx context.Context, vmid guid.GUID) (io.ReadWrite
 
 // dialVM makes one verified connection: transport dial plus the vsockproto
 // handshake. The handshake is what turns "some listener answered on our port
-// in some VM" into "this is a hawser agent" — non-WSL utility VMs can appear
+// in some VM" into "this is a skrog agent" — non-WSL utility VMs can appear
 // in the compute-system list, and the port space inside the WSL VM is shared
 // with every other distro.
 func (d *VsockDialer) dialVM(ctx context.Context, vmid guid.GUID) (io.ReadWriteCloser, error) {
@@ -224,5 +224,5 @@ func (d *VsockDialer) dialAny(ctx context.Context, cached *guid.GUID) (io.ReadWr
 		d.mu.Unlock()
 		return conn, nil
 	}
-	return nil, fmt.Errorf("pipeproxy: no hawser agent reachable: %w", lastErr)
+	return nil, fmt.Errorf("pipeproxy: no skrog agent reachable: %w", lastErr)
 }

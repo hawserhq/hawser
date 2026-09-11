@@ -11,7 +11,7 @@ func checkEngine() Check {
 		e := f.Report.Engine
 		if !e.Installed {
 			r := result(c, Warn, "no engine installed")
-			r.Remedy = "run `hawser install` to provision the engine distro."
+			r.Remedy = "run `skrog install` to provision the engine distro."
 			return r
 		}
 
@@ -27,7 +27,7 @@ func checkEngine() Check {
 			r := result(c, Warn, fmt.Sprintf(
 				"WSL was %s at install and is %s now", e.WSLAtInstall, f.Report.WSL))
 			r.Detail = detail
-			r.Remedy = "if the engine misbehaves (networking, mounts), `hawser restart`; " +
+			r.Remedy = "if the engine misbehaves (networking, mounts), `skrog restart`; " +
 				"a reinstall picks up WSL's newer defaults if problems persist."
 			return r
 		}

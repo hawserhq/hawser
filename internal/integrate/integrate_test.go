@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // fakeWSL records Execs and serves a fixed distro list.
@@ -45,10 +45,10 @@ func manager(t *testing.T, distros ...string) (*Manager, *fakeWSL) {
 }
 
 func TestIntegrateWritesProfileAndRecords(t *testing.T) {
-	m, f := manager(t, "Ubuntu", "hawser-engine")
+	m, f := manager(t, "Ubuntu", "skrog-engine")
 
-	if err := m.Integrate(context.Background(), "Ubuntu", "hawser-engine",
-		"/mnt/wsl/hawser-engine/docker.sock"); err != nil {
+	if err := m.Integrate(context.Background(), "Ubuntu", "skrog-engine",
+		"/mnt/wsl/skrog-engine/docker.sock"); err != nil {
 		t.Fatalf("Integrate: %v", err)
 	}
 
@@ -64,7 +64,7 @@ func TestIntegrateWritesProfileAndRecords(t *testing.T) {
 	}
 	// The export travels as a positional parameter, not spliced into the
 	// script — and names the socket.
-	if !strings.Contains(joined, `DOCKER_HOST="unix:///mnt/wsl/hawser-engine/docker.sock"`) {
+	if !strings.Contains(joined, `DOCKER_HOST="unix:///mnt/wsl/skrog-engine/docker.sock"`) {
 		t.Errorf("profile content missing the DOCKER_HOST export: %s", joined)
 	}
 
@@ -75,8 +75,8 @@ func TestIntegrateWritesProfileAndRecords(t *testing.T) {
 }
 
 func TestIntegrateRefusesEngineDistro(t *testing.T) {
-	m, f := manager(t, "hawser-engine")
-	if err := m.Integrate(context.Background(), "hawser-engine", "hawser-engine", "/s"); err == nil {
+	m, f := manager(t, "skrog-engine")
+	if err := m.Integrate(context.Background(), "skrog-engine", "skrog-engine", "/s"); err == nil {
 		t.Fatal("integrated the engine distro into itself")
 	}
 	if len(f.execs) != 0 {
@@ -86,7 +86,7 @@ func TestIntegrateRefusesEngineDistro(t *testing.T) {
 
 func TestIntegrateRefusesUnknownDistro(t *testing.T) {
 	m, _ := manager(t, "Ubuntu")
-	err := m.Integrate(context.Background(), "Debain", "hawser-engine", "/s")
+	err := m.Integrate(context.Background(), "Debain", "skrog-engine", "/s")
 	if err == nil {
 		t.Fatal("integrated a distro that does not exist")
 	}
@@ -97,8 +97,8 @@ func TestIntegrateRefusesUnknownDistro(t *testing.T) {
 }
 
 func TestRemoveUnwiresAndUnrecords(t *testing.T) {
-	m, f := manager(t, "Ubuntu", "hawser-engine")
-	if err := m.Integrate(context.Background(), "Ubuntu", "hawser-engine", "/s"); err != nil {
+	m, f := manager(t, "Ubuntu", "skrog-engine")
+	if err := m.Integrate(context.Background(), "Ubuntu", "skrog-engine", "/s"); err != nil {
 		t.Fatal(err)
 	}
 	if err := m.Remove(context.Background(), "Ubuntu"); err != nil {
@@ -116,8 +116,8 @@ func TestRemoveUnwiresAndUnrecords(t *testing.T) {
 func TestRemoveVanishedDistroUnrecords(t *testing.T) {
 	// The distro was integrated and later deleted by the user; uninstall must
 	// still come clean instead of failing on it.
-	m, f := manager(t, "Ubuntu", "hawser-engine")
-	if err := m.Integrate(context.Background(), "Ubuntu", "hawser-engine", "/s"); err != nil {
+	m, f := manager(t, "Ubuntu", "skrog-engine")
+	if err := m.Integrate(context.Background(), "Ubuntu", "skrog-engine", "/s"); err != nil {
 		t.Fatal(err)
 	}
 	f.distros = f.distros[1:] // Ubuntu is gone
@@ -131,9 +131,9 @@ func TestRemoveVanishedDistroUnrecords(t *testing.T) {
 }
 
 func TestRemoveAllBestEffort(t *testing.T) {
-	m, f := manager(t, "Ubuntu", "Debian", "hawser-engine")
-	m.Integrate(context.Background(), "Ubuntu", "hawser-engine", "/s")
-	m.Integrate(context.Background(), "Debian", "hawser-engine", "/s")
+	m, f := manager(t, "Ubuntu", "Debian", "skrog-engine")
+	m.Integrate(context.Background(), "Ubuntu", "skrog-engine", "/s")
+	m.Integrate(context.Background(), "Debian", "skrog-engine", "/s")
 
 	f.execErr = errors.New("distro broken")
 	m.RemoveAll(context.Background()) // must not panic or stop at the first failure

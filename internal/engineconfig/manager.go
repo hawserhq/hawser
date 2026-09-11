@@ -239,7 +239,7 @@ func (m *Manager) commit(ctx context.Context, cfg map[string]any) (SetResult, er
 		// the last-good file and bounce again; report the original failure.
 		if rbErr := m.rollback(ctx); rbErr != nil {
 			return SetResult{}, fmt.Errorf("engine failed to restart with the new config (%w) "+
-				"AND rollback failed (%v); the engine may be down — check `hawser status`", err, rbErr)
+				"AND rollback failed (%v); the engine may be down — check `skrog status`", err, rbErr)
 		}
 		return SetResult{}, fmt.Errorf("engine failed to restart with the new config; "+
 			"rolled back to the previous daemon.json: %w", err)

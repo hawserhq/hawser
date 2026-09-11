@@ -1,7 +1,7 @@
 # Spike B step 5: evaluate the no-login window and print the verdict.
 $ErrorActionPreference = 'Stop'
-$log = 'C:\ProgramData\hawser-spike-b\probe.log'
-$marker = 'C:\ProgramData\hawser-spike-b\nologin-start.txt'
+$log = 'C:\ProgramData\skrog-spike-b\probe.log'
+$marker = 'C:\ProgramData\skrog-spike-b\nologin-start.txt'
 
 if (-not (Test-Path $log)) { throw "no probe log at $log" }
 
@@ -54,7 +54,7 @@ Write-Host @"
 GO   if distro-visible, distro-exec and socket-up are OK in service mode AND
      the no-login window shows healthy heartbeats. Record which pattern worked
      (LocalSystem from 02, or dedicated account from 03) - that decides what
-     `hawser install --headless` has to do in v0.2.
+     `skrog install --headless` has to do in v0.2.
 
 NO-GO / PARTIAL if the no-login window fails. That does not kill the project:
      it demotes "no user logged in" from a headline claim to "requires auto-logon",

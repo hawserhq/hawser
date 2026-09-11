@@ -1,11 +1,11 @@
 // Package version answers "which docker am I actually running?" as a command
 // rather than an archaeology project (PLAN §04).
 //
-// The interesting question is not Hawser's own version but which docker.exe
+// The interesting question is not Skrog's own version but which docker.exe
 // wins on PATH and whose it is. A machine that has had Docker Desktop, winget,
-// Chocolatey and Hawser on it can easily have four, and a stale one resolving
-// first while the hawser context is active produces symptoms that look like
-// Hawser is broken.
+// Chocolatey and Skrog on it can easily have four, and a stale one resolving
+// first while the skrog context is active produces symptoms that look like
+// Skrog is broken.
 package version
 
 import (
@@ -19,7 +19,7 @@ import (
 type Origin string
 
 const (
-	OriginHawser        Origin = "hawser"
+	OriginSkrog         Origin = "skrog"
 	OriginDockerDesktop Origin = "docker-desktop"
 	OriginRancher       Origin = "rancher-desktop"
 	OriginWinget        Origin = "winget"
@@ -41,13 +41,13 @@ type Binary struct {
 // Path-based rather than signature-based on purpose: it needs no I/O, works for
 // a binary the user cannot execute, and the answer is only ever advisory — the
 // authoritative facts are the path itself, which is always reported.
-func classify(path, hawserBin string) Origin {
+func classify(path, skrogBin string) Origin {
 	p := strings.ToLower(filepath.ToSlash(path))
 
-	if hawserBin != "" {
-		hb := strings.ToLower(filepath.ToSlash(hawserBin))
+	if skrogBin != "" {
+		hb := strings.ToLower(filepath.ToSlash(skrogBin))
 		if strings.HasPrefix(p, strings.TrimSuffix(hb, "/")+"/") {
-			return OriginHawser
+			return OriginSkrog
 		}
 	}
 
@@ -62,8 +62,8 @@ func classify(path, hawserBin string) Origin {
 		return OriginChocolatey
 	case strings.Contains(p, "/scoop/"):
 		return OriginScoop
-	case strings.Contains(p, "/hawser/"):
-		return OriginHawser
+	case strings.Contains(p, "/skrog/"):
+		return OriginSkrog
 	default:
 		return OriginUnknown
 	}
@@ -75,8 +75,8 @@ type Env struct {
 	PathVar string
 	// PathExt is the raw PATHEXT value; only used to decide executable suffixes.
 	PathExt string
-	// HawserBin is Hawser's own bin directory, used to recognize its binaries.
-	HawserBin string
+	// SkrogBin is Skrog's own bin directory, used to recognize its binaries.
+	SkrogBin string
 	// Getenv reads other variables. Empty uses os.Getenv.
 	Getenv func(string) string
 	// Stat reports whether a path exists. Empty uses os.Stat.
@@ -132,7 +132,7 @@ func FindDockerBinaries(env Env) []Binary {
 			seen[strings.ToLower(dir)] = true
 			out = append(out, Binary{
 				Path:   candidate,
-				Origin: classify(candidate, env.HawserBin),
+				Origin: classify(candidate, env.SkrogBin),
 				First:  len(out) == 0,
 			})
 			break

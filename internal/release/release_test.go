@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/release"
+	"github.com/wslkit/skrog/internal/release"
 )
 
 func TestEmbeddedManifestIsValid(t *testing.T) {
@@ -46,7 +46,7 @@ func TestEmbeddedManifestIsValid(t *testing.T) {
 }
 
 func TestEmbeddedManifestMatchesRootfsPins(t *testing.T) {
-	// The manifest and the rootfs build must agree, or `hawser version` would
+	// The manifest and the rootfs build must agree, or `skrog version` would
 	// report components the installed rootfs does not contain.
 	m, err := release.Load()
 	if err != nil {
@@ -80,9 +80,9 @@ func TestEmbeddedManifestMatchesRootfsPins(t *testing.T) {
 	// The rootfs URL must point at the *revisioned* artifact
 	// (ENGINE_VERSION-ROOTFS_REVISION): a revision bump that forgets the
 	// manifest would otherwise keep installing the previous rootfs while
-	// `hawser version` claims the new one's contents.
+	// `skrog version` claims the new one's contents.
 	if rev := pins["ROOTFS_REVISION"]; rev != "" {
-		wantName := "hawser-rootfs-" + pins["ENGINE_VERSION"] + "-" + rev + ".tar.gz"
+		wantName := "skrog-rootfs-" + pins["ENGINE_VERSION"] + "-" + rev + ".tar.gz"
 		if !strings.HasSuffix(e.Rootfs.URL, "/"+wantName) {
 			t.Errorf("manifest rootfs URL %q does not end in %q (versions.env ROOTFS_REVISION=%s)",
 				e.Rootfs.URL, wantName, rev)

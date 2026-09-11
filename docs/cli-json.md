@@ -1,12 +1,12 @@
 # The `--json` contract
 
-Every Hawser command that reports state can emit machine-readable JSON with
+Every Skrog command that reports state can emit machine-readable JSON with
 `--json`. This is **the contract** that tools build on — the
-[VS Code extension](https://github.com/hawserhq/hawser-vscode), CI scripts,
+[VS Code extension](https://github.com/wslkit/skrog-vscode), CI scripts,
 fleet health checks — so it is governed by three rules:
 
 1. **Additive only.** Fields are added, never renamed or removed. A consumer
-   that ignores unknown fields keeps working across Hawser versions.
+   that ignores unknown fields keeps working across Skrog versions.
 2. **Exit codes mean the same thing as the human output** — `0` ok, `1` error,
    `2` usage, `3` not installed / not found — and a non-zero exit still emits
    the JSON when there is something to say (e.g. `version --json` exits 3 with
@@ -14,15 +14,15 @@ fleet health checks — so it is governed by three rules:
 3. **Arrays are arrays.** An empty list is `[]`, never `null`. Where `null` is
    used it is deliberate and documented (`config --json` → `engine`).
 
-Shapes are pinned by `cmd/hawser/jsonshapes_test.go`.
+Shapes are pinned by `cmd/skrog/jsonshapes_test.go`.
 
-## `hawser status --json`
+## `skrog status --json`
 
 ```json
 {
   "installed": true,
-  "distro": "hawser-engine",
-  "stateDir": "C:\\Users\\me\\AppData\\Local\\Hawser",
+  "distro": "skrog-engine",
+  "stateDir": "C:\\Users\\me\\AppData\\Local\\Skrog",
   "supervisor": "running",
   "engine": "running",
   "desired": "running",
@@ -35,7 +35,7 @@ Shapes are pinned by `cmd/hawser/jsonshapes_test.go`.
 - `engine`: `running` | `idle` | `stopped`. **`idle`** is the engine stopped by the
   idle timeout — healthy, it wakes on the next `docker` call. Scripts can tell
   it from broken.
-- `desired`: `running` | `stopped` (what `hawser start`/`stop` last asked for).
+- `desired`: `running` | `stopped` (what `skrog start`/`stop` last asked for).
 - `profile`: omitted when no profile is active.
 - `gpu`: `visible` and `specInstalled` are **only probed while the engine is
   running and `enabled` is true** — status never boots a stopped distro (#82).
@@ -43,18 +43,18 @@ Shapes are pinned by `cmd/hawser/jsonshapes_test.go`.
 
 Exit `0` always (an uninstalled machine is `installed: false`, not an error).
 
-## `hawser version --json`
+## `skrog version --json`
 
-`{ "app": "0.3.0", ... }` — the full component picture; see `hawser version`.
+`{ "app": "0.3.0", ... }` — the full component picture; see `skrog version`.
 Exits `3` when no engine is installed (still emits JSON).
 
-## `hawser doctor --json`
+## `skrog doctor --json`
 
 An array of check results: `{ "name", "title", "status", "summary", "detail",
 "remedy", "fixed" }` with `status` one of `ok` | `skip` | `warn` | `fail`.
 Exit code is the worst status (`0` ok/skip, `1` warn, `2`… see `doctor --help`).
 
-## `hawser config --json`
+## `skrog config --json`
 
 ```json
 {
@@ -69,14 +69,14 @@ Exit code is the worst status (`0` ok/skip, `1` warn, `2`… see `doctor --help`
   installed; `{}` when installed with nothing set.** The two are different
   answers.
 
-## `hawser cli status --json`
+## `skrog cli status --json`
 
 ```json
 {
   "arch": "amd64",
-  "binDir": "C:\\...\\Hawser\\bin",
+  "binDir": "C:\\...\\Skrog\\bin",
   "onPath": true,
-  "activeDocker": "C:\\...\\Hawser\\bin\\docker.exe",
+  "activeDocker": "C:\\...\\Skrog\\bin\\docker.exe",
   "tools": [
     { "name": "docker",  "version": "29.8.0", "role": "cli",    "path": "...", "installed": true, "available": true },
     { "name": "compose", "version": "5.5.1",  "role": "plugin", "path": "...", "installed": true, "available": true }
@@ -89,7 +89,7 @@ Exit code is the worst status (`0` ok/skip, `1` warn, `2`… see `doctor --help`
 - `activeDocker`: the `docker` that resolves on PATH; omitted if none.
 - Exits `3` when an available tool is not installed.
 
-## `hawser snapshot … --json`
+## `skrog snapshot … --json`
 
 - `snapshot list --json` → array (always) of
   `{ "name", "created", "engineVersion", "distro", "sha256", "sizeBytes" }`.
@@ -97,9 +97,9 @@ Exit code is the worst status (`0` ok/skip, `1` warn, `2`… see `doctor --help`
 - `snapshot restore <name> --yes --json` → `{ "restored": "<name>" }`.
 - `snapshot delete <name> --json` → `{ "deleted": "<name>" }`.
 
-Flags come **before** the verb: `hawser snapshot --json list`.
+Flags come **before** the verb: `skrog snapshot --json list`.
 
-## `hawser profile … --json`
+## `skrog profile … --json`
 
 - `profile --json` (list) →
   `{ "active": "work", "profiles": [ { "name": "work", "active": true }, … ] }`
@@ -108,7 +108,7 @@ Flags come **before** the verb: `hawser snapshot --json list`.
   holds: `distro`, `data-dir`, `engine-version`, `idle-timeout`, `autostart`,
   `engine`, `hooks`, `integrations` (unset fields omitted).
 
-## `hawser audit tail`
+## `skrog audit tail`
 
 The audit log **is already JSON lines** — one `audit.Event` per line:
 
@@ -124,12 +124,12 @@ from the request line only, never the body.
 - `audit tail --json`: the same records as **one JSON array**, for a single
   parse. `[]` when the log does not exist yet.
 
-## `hawser install --json`
+## `skrog install --json`
 
 The resulting install manifest: `{ "distro", "dataDir", "rootfsUrl",
 "rootfsSha256", "engineVersion", "installedAt", "wslVersion" }`.
 
-## `hawser remote … --json`
+## `skrog remote … --json`
 
 - `remote --json` (list) →
 
@@ -143,13 +143,13 @@ The resulting install manifest: `{ "distro", "dataDir", "rootfsUrl",
   }
   ```
 
-  `current` is `"local"` when docker is on the `hawser` context, a remote's name
-  when on `hawser-<name>`, and `""` when docker is on some other context
+  `current` is `"local"` when docker is on the `skrog` context, a remote's name
+  when on `skrog-<name>`, and `""` when docker is on some other context
   entirely. `remotes` is always an array.
 - `remote test <name> --json` → `{ "name", "serverVersion", "ms" }`. Exits `1`
   when the remote does not answer, `3` when no such remote.
 
-## `hawser audit trace --json -- <cmd> [args]`
+## `skrog audit trace --json -- <cmd> [args]`
 
 Runs the command, then reports what it did to the engine from the audit records
 appended while it ran:
@@ -177,7 +177,7 @@ appended while it ran:
 - Requires `audit` to be on; otherwise exits `1` with the recipe.
 - `--raw` instead prints the matching records as JSON lines.
 
-## `hawser healthcheck --json`
+## `skrog healthcheck --json`
 
 A readiness probe for runner warm-ups and orchestrators:
 
@@ -191,16 +191,16 @@ A readiness probe for runner warm-ups and orchestrators:
 - Ready means a docker command would succeed now: the supervisor is serving the
   pipe **and** the engine is `running` or `idle` (idle wakes on demand).
 - `--wait <duration>` keeps probing until ready or the deadline; nothing is
-  started by the probe itself — pair it with `hawser start`.
+  started by the probe itself — pair it with `skrog start`.
 
-## `hawser logs --json`
+## `skrog logs --json`
 
 One object per line, the **same envelope for every source** so a log shipper
 needs one pipeline:
 
 ```json
 {"source":"dockerd","line":"time=\"2026-09-09T16:44:18Z\" level=info msg=\"Daemon has completed initialization\""}
-{"source":"supervisor","line":"time=... level=INFO msg=\"engine socket is up\" distro=hawser-engine"}
+{"source":"supervisor","line":"time=... level=INFO msg=\"engine socket is up\" distro=skrog-engine"}
 {"source":"audit","line":"{\"time\":\"...\",\"action\":\"image-pull\",...}"}
 ```
 
@@ -210,7 +210,7 @@ needs one pipeline:
   or the audit event's JSON.
 - Exits `3` for `--source dockerd` with no engine installed.
 
-## `hawser prewarm --json <images.txt>`
+## `skrog prewarm --json <images.txt>`
 
 Pulls a pinned image list ahead of need (runner warm-up, golden-image bake,
 post-start hook), through whatever docker currently targets:
@@ -235,7 +235,7 @@ post-start hook), through whatever docker currently targets:
 - The list file: one reference per line, `#` comments and blank lines ignored,
   duplicates dropped. Digest pins encouraged.
 
-## `hawser runner check --json`
+## `skrog runner check --json`
 
 One verdict on whether an unattended host will bring the engine back after a
 reboot (see [auto-logon-runner.md](auto-logon-runner.md)):
@@ -250,7 +250,7 @@ reboot (see [auto-logon-runner.md](auto-logon-runner.md)):
       "summary": "the auto-logon password is stored in clear text in the registry (Winlogon\\DefaultPassword)",
       "remedy": "use Sysinternals Autologon, which stores it as an LSA secret, then delete the DefaultPassword registry value (docs/auto-logon-runner.md §3)." },
     { "name": "autostart", "status": "fail", "summary": "no logon autostart; the session will start but the supervisor will not",
-      "remedy": "run `hawser autostart enable` as the auto-logon account (needs hawserw.exe beside hawser.exe)." },
+      "remedy": "run `skrog autostart enable` as the auto-logon account (needs skrogw.exe beside skrog.exe)." },
     { "name": "supervisor", "status": "ok", "summary": "supervisor is running" },
     { "name": "engine", "status": "ok", "summary": "engine is running" }
   ]
@@ -263,7 +263,7 @@ reboot (see [auto-logon-runner.md](auto-logon-runner.md)):
 - Read-only and unelevated. The auto-logon account is **compared, never
   printed**, and the password value is probed for existence only.
 
-## `hawser reset --to <snapshot> --json`
+## `skrog reset --to <snapshot> --json`
 
 The runner's clean slate — `snapshot restore` with the interactive guards
 implied (no `--yes`, no running-container check):
@@ -278,7 +278,7 @@ implied (no `--yes`, no running-container check):
 - Exit `3` when the snapshot does not exist or nothing is installed; `1` when
   the restore failed (the engine is brought back best-effort either way).
 
-## `hawser prune --json`
+## `skrog prune --json`
 
 Reclaims disk on whatever docker currently targets:
 
@@ -302,14 +302,14 @@ Reclaims disk on whatever docker currently targets:
   keeps anything newer; `--build-cache` and `--volumes` widen the sweep
   (volumes hold data, so off by default).
 
-## `hawser compact --json`
+## `skrog compact --json`
 
 Shrinks the engine's virtual disk (fstrim + CompactVirtualDisk):
 
 ```json
 {
-  "distro": "hawser-engine",
-  "path": "C:\\Users\\me\\AppData\\Local\\Hawser\\distro\\ext4.vhdx",
+  "distro": "skrog-engine",
+  "path": "C:\\Users\\me\\AppData\\Local\\Skrog\\distro\\ext4.vhdx",
   "trimmed": true,
   "offeredBytes": 1078939029504,
   "beforeBytes": 15032385536,
@@ -334,15 +334,15 @@ Shrinks the engine's virtual disk (fstrim + CompactVirtualDisk):
 - Exit codes: `0` ok, `1` error, `2` usage, `3` not installed, `11` the disk is
   held.
 
-## `hawser relocate --json`
+## `skrog relocate --json`
 
 Moves the engine's data directory to another drive:
 
 ```json
 {
-  "distro": "hawser-engine",
-  "from": "C:\Users\me\AppData\Local\Hawser\distro",
-  "to": "D:\hawser",
+  "distro": "skrog-engine",
+  "from": "C:\Users\me\AppData\Local\Skrog\distro",
+  "to": "D:\skrog",
   "movedBytes": 439422976,
   "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
   "needBytes": 1098907648,
@@ -366,13 +366,13 @@ Moves the engine's data directory to another drive:
 - Exit codes: `0` ok, `1` error, `2` usage, `3` not installed, `12` not enough
   space.
 
-## `hawser policy show --json` / `hawser policy test --json`
+## `skrog policy show --json` / `skrog policy test --json`
 
 Admission control (#120). `show` reports the rules in effect:
 
 ```json
 {
-  "path": "C:\Users\me\AppData\Local\Hawser\policy.yaml",
+  "path": "C:\Users\me\AppData\Local\Skrog\policy.yaml",
   "exists": true,
   "active": true,
   "enforced": true,
@@ -398,7 +398,7 @@ Admission control (#120). `show` reports the rules in effect:
   the rules deny it. 13 is separate so "refused" is distinguishable from
   "the command went wrong".
 
-## `hawser engine list --json`
+## `skrog engine list --json`
 
 What this build can install, what is installed, and where a rollback goes:
 
@@ -419,7 +419,7 @@ What this build can install, what is installed, and where a rollback goes:
 - `installed` and `previous` are omitted when unknown; `available` is always an
   array.
 
-## `hawser engine upgrade --json` / `hawser engine rollback --json`
+## `skrog engine upgrade --json` / `skrog engine rollback --json`
 
 ```json
 {
@@ -437,7 +437,7 @@ What this build can install, what is installed, and where a rollback goes:
 - `rolledBack: true` with a **non-zero exit** is the interesting case: the
   upgrade failed and the previous engine was restored, so the engine is up.
 - `replaced` and `engineVersion` are absent on a dry run.
-## `hawser wsl-config show|apply --json`
+## `skrog wsl-config show|apply --json`
 
 The WSL2 VM''s sizing, from the global `~/.wslconfig` (#148):
 
@@ -452,7 +452,7 @@ The WSL2 VM''s sizing, from the global `~/.wslconfig` (#148):
 }
 ```
 
-- `effective` is what the file says now; `desired` is what Hawser's own
+- `effective` is what the file says now; `desired` is what Skrog's own
   settings ask for; `pending` is the difference — so a converge script can tell
   "already right" from "would change something" without parsing prose.
 - `pending` is omitted when there is nothing to do, which is the signal that a
@@ -460,7 +460,7 @@ The WSL2 VM''s sizing, from the global `~/.wslconfig` (#148):
 - `applied` is `true` only when this invocation wrote the file.
 - `apply --json` requires `--yes`: there is no way to ask a question in JSON, so
   it exits `2` rather than appearing to hang.
-## `hawser status --stats --json`
+## `skrog status --stats --json`
 
 `--stats` **adds** a `stats` object; the rest of the shape above is unchanged,
 because it is a readiness-probe contract. Statistics are opt-in for two
@@ -469,7 +469,7 @@ only meaningful when the engine is already running.
 
 ```json
 {
-  "installed": true, "distro": "hawser-engine", "engine": "running",
+  "installed": true, "distro": "skrog-engine", "engine": "running",
   "stats": {
     "probed": true,
     "supervisor": {
@@ -490,7 +490,7 @@ only meaningful when the engine is already running.
       "buildCacheBytes": 0, "reclaimableBytes": 490
     },
     "disk": {
-      "path": "C:\\Users\\me\\AppData\\Local\\Hawser\\distro\\ext4.vhdx",
+      "path": "C:\\Users\\me\\AppData\\Local\\Skrog\\distro\\ext4.vhdx",
       "sizeOnDiskBytes": 415236096, "guestUsedBytes": 305328128,
       "reclaimableBytes": 109907968, "hostFreeBytes": 428330541056
     },
@@ -513,18 +513,18 @@ only meaningful when the engine is already running.
   trust them as current.
 - **`bridge.transport`** is `vsock` (fast path, ~0.6 ms per connection),
   `fallback` (the socat relay, ~165 ms — the vsock agent is unreachable),
-  `socat` (that path pinned by `HAWSER_NO_VSOCK`) or `unknown`. This is the
+  `socat` (that path pinned by `SKROG_NO_VSOCK`) or `unknown`. This is the
   field that explains a slow `docker` with a perfectly healthy engine.
-- **`engine.reclaimableBytes`** is what `hawser prune` could free;
+- **`engine.reclaimableBytes`** is what `skrog prune` could free;
   **`disk.reclaimableBytes`** is size-on-disk minus guest-used, roughly what
-  `hawser compact` could return — an estimate, since compaction works in
+  `skrog compact` could return — an estimate, since compaction works in
   blocks.
 - **`vm.configured*`** is what `~/.wslconfig` asks for, omitted when it asks
   for nothing. Comparing it with `memTotalBytes` and `cpus` catches the trap
-  `hawser wsl-config` closes: a limit recorded and never applied.
+  `skrog wsl-config` closes: a limit recorded and never applied.
 - **`errors`** names anything that could not be read, so a partial reading is
   honest rather than silently short.
 ## The rule for new commands
 
 Anything that gains state reporting must gain `--json` in the same change and
-be added here; its shape goes in `cmd/hawser/jsonshapes.go` with a test.
+be added here; its shape goes in `cmd/skrog/jsonshapes.go` with a test.

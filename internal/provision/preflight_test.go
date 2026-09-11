@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/provision"
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/provision"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // quietLogger keeps expected-failure tests from filling the test output.
@@ -96,7 +96,7 @@ func TestPreflightWarnsOnOldWSL(t *testing.T) {
 }
 
 func TestPreflightWarnsOnDefaultVersion1(t *testing.T) {
-	// Hawser imports with --version 2 regardless, so this only warns.
+	// Skrog imports with --version 2 regardless, so this only warns.
 	w := &fakeWSL{status: wsl.Status{Installed: true, DefaultVersion: 1, Version: "2.7.8.0"}}
 	p := &provision.Provisioner{WSL: w, Logger: quietLogger()}
 
@@ -122,7 +122,7 @@ func TestPreflightDetectsExistingDistroCaseInsensitively(t *testing.T) {
 	// WSL distro names are case-insensitive, so a differently-cased match must
 	// still be caught or the import would collide.
 	w := healthyWSL()
-	w.distros = []wsl.Distro{{Name: "Hawser-Engine", State: "Running", Version: 2}}
+	w.distros = []wsl.Distro{{Name: "Skrog-Engine", State: "Running", Version: 2}}
 	p := &provision.Provisioner{WSL: w, Logger: quietLogger()}
 
 	r, err := p.Preflight(context.Background(), provision.Options{StateDir: t.TempDir()})
@@ -194,11 +194,11 @@ func TestExistingDistroPointsAtEngineUpgrade(t *testing.T) {
 	}
 	var found bool
 	for _, pr := range r.Problems {
-		if strings.Contains(pr.Remedy, "hawser engine upgrade") {
+		if strings.Contains(pr.Remedy, "skrog engine upgrade") {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("the refusal should name `hawser engine upgrade`; problems: %+v", r.Problems)
+		t.Errorf("the refusal should name `skrog engine upgrade`; problems: %+v", r.Problems)
 	}
 }

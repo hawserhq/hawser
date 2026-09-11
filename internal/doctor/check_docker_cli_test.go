@@ -3,18 +3,18 @@ package doctor
 import (
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/version"
+	"github.com/wslkit/skrog/internal/version"
 )
 
 func report(r version.Report) *version.Report { return &r }
 
 func TestCheckDockerCLI(t *testing.T) {
-	hawserFirst := []version.Binary{
-		{Path: `C:\hawser\docker.exe`, Origin: version.OriginHawser, First: true},
+	skrogFirst := []version.Binary{
+		{Path: `C:\skrog\docker.exe`, Origin: version.OriginSkrog, First: true},
 	}
 	ddFirst := []version.Binary{
 		{Path: `C:\dd\docker.exe`, Origin: version.OriginDockerDesktop, First: true},
-		{Path: `C:\hawser\docker.exe`, Origin: version.OriginHawser},
+		{Path: `C:\skrog\docker.exe`, Origin: version.OriginSkrog},
 	}
 
 	cases := []struct {
@@ -23,9 +23,9 @@ func TestCheckDockerCLI(t *testing.T) {
 		want Status
 	}{
 		{"none on path", Facts{Report: report(version.Report{})}, Fail},
-		{"hawser first", Facts{Report: report(version.Report{Docker: hawserFirst, Context: "hawser"})}, OK},
-		{"shadowed by docker desktop", Facts{Report: report(version.Report{Docker: ddFirst, Context: "hawser"})}, Warn},
-		{"foreign first but not hawser context", Facts{Report: report(version.Report{Docker: ddFirst, Context: "default"})}, OK},
+		{"skrog first", Facts{Report: report(version.Report{Docker: skrogFirst, Context: "skrog"})}, OK},
+		{"shadowed by docker desktop", Facts{Report: report(version.Report{Docker: ddFirst, Context: "skrog"})}, Warn},
+		{"foreign first but not skrog context", Facts{Report: report(version.Report{Docker: ddFirst, Context: "default"})}, OK},
 	}
 	c := checkDockerCLI()
 	for _, tc := range cases {

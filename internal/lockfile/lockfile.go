@@ -1,4 +1,4 @@
-// Package lockfile is the reproducible-engine format (#74): hawser.lock pins the
+// Package lockfile is the reproducible-engine format (#74): skrog.lock pins the
 // exact engine — version, rootfs URL and SHA-256, and component versions — so a
 // team checks one file into a repo and every developer and CI runner installs
 // the same verified engine. It is the embedded release manifest, externalized.
@@ -11,13 +11,13 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/hawserhq/hawser/internal/release"
+	"github.com/wslkit/skrog/internal/release"
 )
 
 // SchemaVersion is bumped only on an incompatible change to the file shape.
 const SchemaVersion = 1
 
-// Lock is the parsed hawser.lock. The rootfs URL + SHA-256 are the guarantee:
+// Lock is the parsed skrog.lock. The rootfs URL + SHA-256 are the guarantee:
 // `install --locked` fetches exactly that URL and refuses on any checksum
 // mismatch. Components are informational (they live inside that rootfs).
 type Lock struct {
@@ -51,7 +51,7 @@ func FromEngine(e *release.Engine) Lock {
 	return l
 }
 
-// Load reads and validates a hawser.lock from disk.
+// Load reads and validates a skrog.lock from disk.
 func Load(path string) (Lock, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
@@ -60,14 +60,14 @@ func Load(path string) (Lock, error) {
 	return Parse(b)
 }
 
-// Parse decodes and validates a hawser.lock. Unknown fields are rejected so a
-// lock written by a newer Hawser is not silently misread by an older one.
+// Parse decodes and validates a skrog.lock. Unknown fields are rejected so a
+// lock written by a newer Skrog is not silently misread by an older one.
 func Parse(b []byte) (Lock, error) {
 	dec := json.NewDecoder(strings.NewReader(string(b)))
 	dec.DisallowUnknownFields()
 	var l Lock
 	if err := dec.Decode(&l); err != nil {
-		return Lock{}, fmt.Errorf("parsing hawser.lock: %w", err)
+		return Lock{}, fmt.Errorf("parsing skrog.lock: %w", err)
 	}
 	if err := l.Validate(); err != nil {
 		return Lock{}, err

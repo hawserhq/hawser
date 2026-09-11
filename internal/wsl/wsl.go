@@ -4,7 +4,7 @@ package wsl
 
 import "context"
 
-// WSL is the seam between hawser and the wsl.exe binary. Production code
+// WSL is the seam between skrog and the wsl.exe binary. Production code
 // depends on this interface, never on exec.Command directly.
 type WSL interface {
 	// Status reports whether WSL2 and virtualization are available.

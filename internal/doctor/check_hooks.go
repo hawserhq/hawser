@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// checkHooks reports third-party DLLs injected into Hawser's own process (#166).
+// checkHooks reports third-party DLLs injected into Skrog's own process (#166).
 //
 // Endpoint-security agents load a DLL into every process and rewrite function
 // prologues to route through their trampolines. Those trampolines assume a C
@@ -18,7 +18,7 @@ import (
 //
 // So this check exists to hand over the one fact the dump cannot: something
 // else is inside this process. It is a Warn, never a Fail: these agents are
-// mandatory on most managed machines, Hawser works with them the overwhelming
+// mandatory on most managed machines, Skrog works with them the overwhelming
 // majority of the time, and a module being loaded is not proof it broke
 // anything.
 func checkHooks() Check {
@@ -44,15 +44,15 @@ func checkHooks() Check {
 			"the supervisor exiting with a Go runtime fatal error (a corrupted stack), which",
 			"takes the docker pipe with it until it restarts.")
 		r.Remedy = "nothing to do unless the supervisor is dying unexpectedly. If it is:\n" +
-			"      1. `hawser logs --supervisor` and supervisor-stderr.log in the state dir — a\n" +
-			"         \"fatal error: ...\" with no Hawser frame at the top is the signature.\n" +
-			"      2. hawserw.exe already restarts it (about a second of downtime); check\n" +
+			"      1. `skrog logs --supervisor` and supervisor-stderr.log in the state dir — a\n" +
+			"         \"fatal error: ...\" with no Skrog frame at the top is the signature.\n" +
+			"      2. skrogw.exe already restarts it (about a second of downtime); check\n" +
 			"         watchdog.log to see how often that is happening.\n" +
-			"      3. ask whoever manages the agent for an exclusion for hawser.exe and\n" +
-			"         hawserw.exe — that is the actual fix, and it is a policy change, not a\n" +
+			"      3. ask whoever manages the agent for an exclusion for skrog.exe and\n" +
+			"         skrogw.exe — that is the actual fix, and it is a policy change, not a\n" +
 			"         code change.\n" +
-			"      4. HAWSER_NO_VSOCK=1 narrows the window at the cost of the slower transport.\n" +
-			"      See https://github.com/hawserhq/hawser/issues/166."
+			"      4. SKROG_NO_VSOCK=1 narrows the window at the cost of the slower transport.\n" +
+			"      See https://github.com/wslkit/skrog/issues/166."
 		return r
 	}
 	return c

@@ -31,7 +31,7 @@ type Lock struct {
 }
 
 // lockPath is the claim file inside the (normalized) state dir — per-install
-// by construction: two Hawser installs with different state dirs (the e2e
+// by construction: two Skrog installs with different state dirs (the e2e
 // suite next to a real install) must not exclude each other. Normalization
 // (#71) makes `--state-dir C:/x`, `C:\x`, and relative spellings agree.
 func lockPath(stateDir string) string {
@@ -47,7 +47,7 @@ type ErrAlreadyRunning struct{ StateDir string }
 
 func (e *ErrAlreadyRunning) Error() string {
 	return fmt.Sprintf("a supervisor for %s is already running "+
-		"(two would fight over the pipe); use `hawser status` to see it", e.StateDir)
+		"(two would fight over the pipe); use `skrog status` to see it", e.StateDir)
 }
 
 // Acquire claims the single-instance lock, failing fast if held elsewhere —
@@ -93,7 +93,7 @@ func Acquire(stateDir string) (*Lock, error) {
 }
 
 // Held reports whether some process holds the lock, without taking it. Used by
-// `hawser status` and by `hawser start` to decide whether to spawn a
+// `skrog status` and by `skrog start` to decide whether to spawn a
 // supervisor.
 //
 // The probe opens with zero access, which bypasses sharing checks: it can

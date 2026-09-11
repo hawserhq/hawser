@@ -21,7 +21,7 @@ func checkSession0() Check {
 			"for a build agent or server that must run before any user logs in, the",
 			"engine needs the WSL VM's service account to hold the service logon right",
 		}
-		r.Remedy = "for interactive machines, run `hawser autostart enable`. For " +
+		r.Remedy = "for interactive machines, run `skrog autostart enable`. For " +
 			"unattended hosts, follow docs/auto-logon-runner.md (grants NT VIRTUAL " +
 			"MACHINE\\Virtual Machines the 'Log on as a service' right)."
 		return r

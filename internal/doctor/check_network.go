@@ -13,7 +13,7 @@ func checkNetwork() Check {
 			r := result(c, Warn, "a proxy is set but the host's CA store is not trusted by the engine")
 			r.Detail = []string{"  proxy: " + f.Proxy}
 			r.Remedy = "if pulls fail with x509 / certificate errors behind a TLS-inspecting " +
-				"proxy, run `hawser config set network.import-host-cas on` then `hawser restart`."
+				"proxy, run `skrog config set network.import-host-cas on` then `skrog restart`."
 			return r
 		case f.ImportHostCAs && f.Proxy != "":
 			return result(c, OK, "proxy set and host CAs trusted by the engine")

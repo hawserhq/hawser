@@ -9,15 +9,15 @@
 # runs the service must be the account that owns the distro; and running
 # `wsl --import` as another account from outside needs stored-credential rights
 # a bare service account does not have (schtasks fails with "A specified logon
-# session does not exist"). Self-import is also what `hawser install --headless`
+# session does not exist"). Self-import is also what `skrog install --headless`
 # would have to do in production, so it is the more useful thing to measure.
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
-$svc = 'HawserSpikeB'
-$user = 'hawser-svc'
-$distro = 'hawser-spike-b-svc'
+$svc = 'SkrogSpikeB'
+$user = 'skrog-svc'
+$distro = 'skrog-spike-b-svc'
 $exe = Join-Path $here 'agent\probe.exe'
-$dataRoot = 'C:\ProgramData\hawser-spike-b'
+$dataRoot = 'C:\ProgramData\skrog-spike-b'
 
 if (-not (Test-Path $exe)) { throw "run 01-preflight.ps1 first (probe.exe missing)" }
 
@@ -103,7 +103,7 @@ $sec = ConvertTo-SecureString $pw -AsPlainText -Force
 if (-not (Get-LocalUser $user -ErrorAction SilentlyContinue)) {
     Write-Host "== creating local account $user ==" -ForegroundColor Cyan
     New-LocalUser -Name $user -Password $sec -PasswordNeverExpires `
-        -AccountNeverExpires -Description "Hawser Spike B service account" | Out-Null
+        -AccountNeverExpires -Description "Skrog Spike B service account" | Out-Null
     # Deliberately not added to Administrators: whether least privilege
     # suffices is part of what is being measured.
 } else {
@@ -150,15 +150,15 @@ if (Get-Service $svc -ErrorAction SilentlyContinue) {
     Start-Sleep -Seconds 1
 }
 sc.exe create $svc binPath= "`"$exe`"" start= demand obj= ".\$user" password= "$pw" `
-    DisplayName= "Hawser Spike B (dedicated account)" | Out-Null
+    DisplayName= "Skrog Spike B (dedicated account)" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "sc create failed" }
 
-# The probe reads these; HAWSER_SPIKE_ROOTFS is what tells it to self-import.
+# The probe reads these; SKROG_SPIKE_ROOTFS is what tells it to self-import.
 $key = "HKLM:\SYSTEM\CurrentControlSet\Services\$svc"
 Set-ItemProperty $key -Name Environment -Type MultiString -Value @(
-    "HAWSER_SPIKE_DISTRO=$distro",
-    "HAWSER_SPIKE_ROOTFS=$rootfs",
-    "HAWSER_SPIKE_VHD=$vhd"
+    "SKROG_SPIKE_DISTRO=$distro",
+    "SKROG_SPIKE_ROOTFS=$rootfs",
+    "SKROG_SPIKE_VHD=$vhd"
 )
 
 $pw = $null  # drop it from this session

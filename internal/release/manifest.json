@@ -3,16 +3,16 @@
   "comment": [
     "The locked version manifest (PLAN section 04). Nothing is fetched as",
     "'latest at install time': this file is compiled into the binary, so a",
-    "given Hawser build always installs exactly these components.",
+    "given Skrog build always installs exactly these components.",
     "",
     "rootfs.sha256 is filled in when a rootfs release is published, copied from",
     "the .sha256 asset the rootfs workflow attaches. While it is empty,",
-    "`hawser install` refuses and tells the user to pass --rootfs-url and",
+    "`skrog install` refuses and tells the user to pass --rootfs-url and",
     "--rootfs-sha256 explicitly, rather than silently installing something",
     "unverified. Keep these values in step with guest/rootfs/versions.env.",
     "",
     "Older engines stay listed after a bump, with their checksums intact: they",
-    "are what `hawser engine list` offers and what `hawser engine rollback`",
+    "are what `skrog engine list` offers and what `skrog engine rollback`",
     "goes back to. See docs/bumping-upstream.md."
   ],
   "engines": [
@@ -20,7 +20,7 @@
       "version": "29.8.0",
       "default": true,
       "rootfs": {
-        "url": "https://github.com/hawserhq/hawser/releases/download/rootfs-v29.8.0-1/hawser-rootfs-29.8.0-1.tar.gz",
+        "url": "https://github.com/wslkit/skrog/releases/download/rootfs-v29.8.0-1/skrog-rootfs-29.8.0-1.tar.gz",
         "sha256": "76101881a8b56ce7fc25b947f2b31dca0aeda6ff3e76d8d7a5fbe3a3be782635"
       },
       "components": {
@@ -36,7 +36,7 @@
       "version": "29.7.2",
       "default": false,
       "rootfs": {
-        "url": "https://github.com/hawserhq/hawser/releases/download/rootfs-v29.7.2-4/hawser-rootfs-29.7.2-4.tar.gz",
+        "url": "https://github.com/wslkit/skrog/releases/download/rootfs-v29.7.2-4/skrog-rootfs-29.7.2-4.tar.gz",
         "sha256": "8a9cb099b6fa58e8633c7612cb9b16ce0284e257ec9bf8a4c594844131f370a1"
       },
       "components": {
