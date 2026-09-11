@@ -114,7 +114,7 @@ engine stopped.
 
 *The mechanics above — unelevated compaction, the utility VM's release timing,
 and `fstrim`'s misleading figure — come from the research in
-[zcsizmadia/wsldisk](https://github.com/zcsizmadia/wsldisk), which does this
+[hawserhq/wsldisk](https://github.com/hawserhq/wsldisk), which does this
 for any WSL distro (and for Docker Desktop's own `docker_data.vhdx`).*
 
 ## Moving the engine to another drive: `hawser relocate`
