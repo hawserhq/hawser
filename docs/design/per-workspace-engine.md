@@ -68,17 +68,35 @@ pinned tarball, verified once, imported N times).
 
 ## CLI shape
 
+The instance verbs live under `target`, not `engine`. `hawser engine` already
+ships as the **version** dimension — `engine list` is "which dockerd releases
+can this build install", and `engine upgrade|rollback` move between them — so
+`engine list` cannot also mean "which engines do I have". Decision 2 already
+named the right noun; these are targets.
+
 ```
-hawser engine create <name> [--engine-version <v>] [--locked hawser.lock]
-hawser engine list [--json]              # name, engine version, state, disk, current
-hawser engine remove <name> [--yes]      # unregister distro, delete state, drop context
+hawser target create <name> [--engine-version <v>] [--locked hawser.lock]
+hawser target list [--json]              # remotes + local engines + `local`; state, disk, current
+hawser target remove <name> [--yes]      # unregister distro, delete state, drop context
 hawser use <name>|local                  # switch docker (and Dev Containers) to it
 hawser status --state-dir …              # everything else already works per engine
+
+hawser engine list|upgrade|rollback      # unchanged: the VERSION of the current target
 ```
 
-`engine create` is `install` into the engine's state dir with the engine's
+Reading the two nouns together: a *target* is which engine you are talking to;
+the *engine* commands are which dockerd version that one runs. `target list` is
+also the only sensible home for Decision 2's shared namespace, since remotes
+are not engines anyone can create.
+
+**Consequence:** `engine upgrade`, `engine rollback` and `config set engine.*`
+become scoped to the current target. That keeps `hawser use` the single switch
+anybody has to learn, and it is the least surprising rule when more than one
+engine exists.
+
+`target create` is `install` into the engine's state dir with the engine's
 distro name and pipe, honoring the same pins (`--engine-version`, `--locked`,
-`--offline` bundle). `engine remove` is `uninstall` scoped to that engine. Both
+`--offline` bundle). `target remove` is `uninstall` scoped to that engine. Both
 are thin: the work is in `provision`, which already takes these as options.
 
 ## Workspace file
@@ -112,7 +130,13 @@ key on workspace open and runs `hawser use`. A workspace without the key uses
 Each engine is a WSL distro with its own VHDX: hundreds of MB of base plus
 whatever it pulls, per engine. RAM is fine (idle-stop); **disk adds up**, which
 is why `hawser prune` and the sparse-VHDX default (#145) matter more once this
-lands. `engine list` shows per-engine disk so the sprawl is visible.
+lands. `target list` shows per-engine **and total** disk so the sprawl is visible.
+
+Doctor's free-space floor (`disk.warn-below`, #145) needs to follow. It checks
+the data volume for *the* engine today; with N engines on one drive the honest
+question is the sum, and disk sprawl is precisely the failure this feature
+invites. Left as-is, the first symptom would be a full drive.
+
 
 ## Sharing
 
@@ -120,21 +144,45 @@ Two workspaces that name the same engine share it — that is simply the default
 engine's behavior with a name. There is no per-engine ACL; isolation is between
 engines, not between users of one engine (the pipe ACL is per user as today).
 
+## The tray
+
+The tray is one status dot with a six-item cap (PLAN §03) and today it shows
+*the* engine. With N engines it has to mean something specific: the dot follows
+the **current target**, and the tooltip names it. That needs no new menu item
+and no new decision surface. Anything richer — a list of engines with per-engine
+state — is a control panel, which is the scope tripwire.
+
+It also reads the supervisor's published state from one state dir (#192), so
+per-engine state dirs mean reading the current target's.
+
 ## Phasing
 
-1. **`engine create|list|remove` + `use`** — the model, on top of what
+1. **`target create|list|remove` + `use`** — the model, on top of what
    `provision` already supports. Ships with `--json` and e2e (the suite already
    proves a second engine beside a real one; it gains a `hawser use` round trip
    that switches back, since it must not leave the machine's context changed).
 2. **`hawser.yaml` `engine:`** and the extension picking it up (hawser-vscode #8).
-3. **Per-engine autostart policy** and `engine list` disk accounting.
+3. **Per-engine autostart policy**, `target list` disk accounting, and
+   doctor's free-space floor across every engine.
 
 ## Open questions for review
 
-- Should `engine create` default the engine version to the default engine's, or
-  to the build's default? (Proposal: the build's default, like `install`.)
-- Should `hawser use` also export `DOCKER_HOST` for shells that ignore contexts?
-  (Proposal: no — contexts are the contract; document `DOCKER_CONTEXT` for
-  scripts.)
-- Cap on the number of engines, or just visibility via `engine list`?
-  (Proposal: visibility.)
+Still the owner's to settle; each carries a recommendation and the reasoning
+behind it.
+
+- **Version for a new target: the default engine's, or the build's?**
+  *Recommend the build's default, like `install`.* Inheriting the shared
+  engine's version makes the result depend on invisible local history — the
+  same `target create` on two machines, or before and after an upgrade, would
+  produce different engines. `hawser.yaml` already has `engine-version:` for
+  anyone who wants to pin deliberately.
+- **Should `hawser use` export `DOCKER_HOST`?**
+  *Recommend no, firmly.* A process cannot set a variable in its parent shell,
+  so this would have to become something you `eval` — a different and worse
+  UX. It would also bypass the context that Dev Containers and the extension
+  read, leaving the two disagreeing about which engine you are on, which is the
+  confusion this feature exists to remove. `DOCKER_CONTEXT` covers scripts.
+- **Cap the number of engines?**
+  *Recommend visibility, not a cap* — provided visibility includes the total
+  disk and doctor's floor accounts for every engine (see Cost above). A cap
+  would be an arbitrary number that a fleet eventually needs to exceed.
