@@ -35,15 +35,29 @@ Requirements: Windows 11 with WSL2, and a `docker` CLI. Docker Desktop's works (
 coexists with it), or install Hawser's own bundled CLI with `hawser cli install` and drop
 Docker Desktop entirely — see [docs/docker-cli.md](docs/docker-cli.md).
 
-1. Download the zip for your architecture from the
-   [latest release](https://github.com/hawserhq/hawser/releases) and verify it against
-   `SHA256SUMS` (binaries are not yet signed; SmartScreen will warn)
-2. `hawser.exe install` — downloads the checksum-verified engine rootfs, imports it as the
+```powershell
+irm https://hawserhq.github.io/hawser/install.ps1 | iex
+```
+
+That downloads the newest release, **verifies it against the release's `SHA256SUMS`**,
+unpacks it to `%LOCALAPPDATA%\Programs\hawser` and adds it to your PATH. It stops there
+on purpose — it does not provision anything. Then:
+
+1. `hawser install` — downloads the checksum-verified engine rootfs, imports it as the
    `hawser-engine` WSL2 distro, starts the engine, wires a `hawser` docker context, and
    registers the supervisor to start at logon (`--no-autostart` opts out)
-3. `hawser.exe start` — brings up the always-on bridge now (from your next logon it starts
+2. `hawser start` — brings up the always-on bridge now (from your next logon it starts
    itself)
-4. `docker --context hawser run --rm hello-world`
+3. `docker --context hawser run --rm hello-world`
+
+Binaries are not signed yet, so SmartScreen will warn on first run. Prefer to do it by
+hand? Download the zip for your architecture from the
+[latest release](https://github.com/hawserhq/hawser/releases), check it against
+`SHA256SUMS`, and unpack it anywhere on your PATH — the script does nothing else.
+[Read it first](scripts/install.ps1) if you would rather not pipe a URL into your shell;
+it is the same file that URL serves.
+
+On a CI runner, use [setup-hawser](https://github.com/hawserhq/setup-hawser) instead.
 
 `hawser.exe uninstall` removes everything Hawser created — the distro and all images and
 volumes in it, the autostart entry, any distro integrations — and restores your previous
