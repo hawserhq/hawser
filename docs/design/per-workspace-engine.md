@@ -1,8 +1,13 @@
 # Design: per-workspace engines
 
-Status: **accepted design, not scheduled**. The shape and trade-offs for
-[#140](https://github.com/hawserhq/hawser/issues/140); every open question
-is settled below. Deliberately not built yet — see Sequencing.
+Status: **approved, not scheduled**. The shape and trade-offs for
+[#140](https://github.com/hawserhq/hawser/issues/140); every open question is
+settled below.
+
+The `target` namespace below is **approved and binding** — settled early
+because a rename is cheap before `engine` and `target` appear in anyone's
+scripts and expensive after. The implementation is deliberately deferred; see
+Sequencing.
 
 ## The capability
 
@@ -66,6 +71,14 @@ An engine named `<name>` is a complete, independent Hawser install:
 
 Nothing is shared between engines except the rootfs download cache (the same
 pinned tarball, verified once, imported N times).
+
+The per-engine **docker context** in that table is not cosmetic. One shared
+`hawser` context across several installs is exactly the collision that
+[#217](https://github.com/hawserhq/hawser/issues/217) turned out to be: a
+second install silently took the context, and uninstalling it deleted the
+first install's. That is fixed for the two-install case, but `hawser-<name>`
+per engine is what makes the problem structurally impossible rather than
+handled.
 
 ## CLI shape
 
@@ -205,16 +218,29 @@ the rest of the project rather than this feature.
 (`target`, plus `use`). The naming collisions found in a single day of work —
 `install` versus `engine upgrade`, `update` versus `upgrade`, `engine list`
 meaning two different things in the first draft of this very document — say
-that the vocabulary needs to stop moving before another noun joins it. #77
-(package IDs) and #1 (naming) are what settle it. Introducing `target` before
-then is how the next collision happens.
+that the vocabulary needs to stop moving before another noun joins it.
+Introducing `target` before then is how the next collision happens.
 
-**Per-engine supervisors multiply an existing hole.** Decision 1 means one
-supervisor per engine, and #202 records that today *nothing restarts even
-one*: `hawser restart` bounces the engine, not the supervisor. Whatever is
+Narrower than it was, but still standing. Settled since: `upgrade` is the verb
+at both scopes ([#191](https://github.com/hawserhq/hawser/issues/191), shipped),
+the `target` rename above is approved, and
+[#209](https://github.com/hawserhq/hawser/issues/209) now generates the command
+reference from the binary, so a future collision is visible in a diff. Still
+open: #77 (package IDs) and #1 (the product name), which are what finally fix
+the vocabulary.
+
+**~~Per-engine supervisors multiply an existing hole.~~ Cleared.** This blocker
+is gone: [#202](https://github.com/hawserhq/hawser/issues/202) landed with both
+halves — settings are re-read live wherever they are consumed, and `hawser
+restart --supervisor` replaces the supervisor process. One supervisor per
+engine no longer multiplies a gap, because the gap is closed.
+
+The original reasoning, kept because it is why the order mattered: Decision 1
+means one supervisor per engine, and #202 recorded that *nothing restarted even
+one*: `hawser restart` bounces the engine, not the supervisor. Whatever was
 decided there — a supervisor-restart command, live-reloading settings, or
-both — should land first, or this feature turns one awkward gap into N of
-them.
+both — had to land first, or this feature would have turned one awkward gap
+into N of them. It was both.
 
 **The piece worth building early**, if movement is wanted before either
 clears, is `target list` on its own: read-only, showing remotes, local engines

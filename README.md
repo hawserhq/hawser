@@ -213,7 +213,8 @@ page is reachable from here.
 **Contributing**
 [Releasing](RELEASING.md) ·
 [Bumping the engine and docker CLI](docs/bumping-upstream.md) ·
-[Design notes](docs/design/)
+[Design notes](docs/design/) ·
+[Per-workspace engines](docs/design/per-workspace-engine.md)
 
 Editing the docs edits the site: `pwsh -File scripts/build-docs.ps1 -Serve`
 previews it locally, and merging to `main` publishes it. Nothing in `site/` is
