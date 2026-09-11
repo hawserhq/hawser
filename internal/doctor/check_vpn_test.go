@@ -82,3 +82,50 @@ func TestParseThenDetect(t *testing.T) {
 		t.Fatalf("want AnyConnect detected, got %+v", got)
 	}
 }
+
+func TestCheckVPNRemedyNamesTheEngineMTUCommand(t *testing.T) {
+	// The whole point of #63's MTU half: the fingerprint DB already knows the
+	// recommended value, so the remedy must hand over a command the user can
+	// run rather than "clamp its interface MTU inside the distro" with no
+	// tooling behind it.
+	f := Facts{VPNs: []vpnfingerprint.Match{{
+		Fingerprint: vpnfingerprint.Fingerprint{Name: "Palo Alto GlobalProtect", MTU: 1400},
+		Adapter:     vpnfingerprint.Adapter{Name: "Ethernet 4", Up: true},
+	}}}
+	got := checkVPN().Run(f)
+	if !strings.Contains(got.Remedy, "hawser config set engine.mtu 1400") {
+		t.Errorf("remedy should name the exact command with the recommended value:\n%s", got.Remedy)
+	}
+}
+
+func TestCheckVPNMTUUsesTheSmallestClamp(t *testing.T) {
+	// Two tunnels up at once (it happens: a client VPN inside a corporate
+	// one). The larger MTU still fragments, so the smaller has to win.
+	f := Facts{VPNs: []vpnfingerprint.Match{
+		{
+			Fingerprint: vpnfingerprint.Fingerprint{Name: "Zscaler", MTU: 1400},
+			Adapter:     vpnfingerprint.Adapter{Name: "zscaler0", Up: true},
+		},
+		{
+			Fingerprint: vpnfingerprint.Fingerprint{Name: "Cisco AnyConnect", MTU: 1300},
+			Adapter:     vpnfingerprint.Adapter{Name: "vpn0", Up: true},
+		},
+	}}
+	got := checkVPN().Run(f)
+	if !strings.Contains(got.Remedy, "engine.mtu 1300") {
+		t.Errorf("remedy should use the smallest clamp (1300):\n%s", got.Remedy)
+	}
+}
+
+func TestCheckVPNWithoutRecommendedMTUStillGivesACommand(t *testing.T) {
+	// An unfingerprinted VPN has no MTU in the DB. The advice must still be
+	// actionable rather than silently dropping the step.
+	f := Facts{VPNs: []vpnfingerprint.Match{{
+		Fingerprint: vpnfingerprint.Fingerprint{Name: "Some Corp VPN"},
+		Adapter:     vpnfingerprint.Adapter{Name: "vpn9", Up: true},
+	}}}
+	got := checkVPN().Run(f)
+	if !strings.Contains(got.Remedy, "hawser config set engine.mtu") {
+		t.Errorf("remedy should still name the command:\n%s", got.Remedy)
+	}
+}

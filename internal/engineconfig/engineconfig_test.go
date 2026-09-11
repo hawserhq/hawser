@@ -86,3 +86,21 @@ func TestIsEngineKey(t *testing.T) {
 		t.Fatal("StripPrefix wrong")
 	}
 }
+
+func TestMTUIsAnAllowlistedIntKey(t *testing.T) {
+	// #63: doctor's VPN remedy points at engine.mtu, so the key has to exist
+	// and has to reject a non-integer before it ever reaches daemon.json.
+	var found *Key
+	all := KeyHelp()
+	for i := range all {
+		if all[i].Name == "mtu" {
+			found = &all[i]
+		}
+	}
+	if found == nil {
+		t.Fatal("mtu is not in the allowlist; doctor's VPN remedy would name a command that fails")
+	}
+	if found.Kind != KindInt {
+		t.Errorf("mtu Kind = %v, want KindInt", found.Kind)
+	}
+}

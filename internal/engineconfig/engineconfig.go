@@ -54,6 +54,7 @@ var keys = []Key{
 	{"log-opts", KindStringMap, "logging driver options, e.g. max-size=10m,max-file=3"},
 	{"max-concurrent-downloads", KindInt, "parallel layer pulls per image"},
 	{"max-concurrent-uploads", KindInt, "parallel layer pushes per image"},
+	{"mtu", KindInt, "MTU for the default bridge network -- lower it under a VPN that clamps the tunnel MTU, or pulls hang mid-layer (#63)"},
 	{"userland-proxy", KindBool, "relay published ports through docker-proxy instead of iptables NAT (Hawser defaults this to false: NAT is what makes -p ports reachable from Windows under mirrored networking)"},
 }
 

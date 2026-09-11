@@ -55,8 +55,19 @@ autoProxy=true
 `dnsTunneling` and `autoProxy` require WSL 2.0.9+ (`wsl --version`). After editing,
 restart WSL for the change to take effect, then `hawser start`.
 
-If the engine still stalls on large pulls, the remaining lever is the interface
-MTU inside the distro — clamp it to the value `doctor` reports.
+If the engine still stalls on large pulls, the remaining lever is the engine's
+own MTU. Unlike `~/.wslconfig`, that is Hawser's distro, so there is a command
+for it — use the value `doctor` reports:
+
+```
+hawser config set engine.mtu 1400
+```
+
+It goes into the engine's `daemon.json` as the MTU for the default bridge
+network, is checked with `dockerd --validate` before it applies, and rolls back
+if the engine will not come back. With two tunnels up at once, `doctor`
+recommends the **smallest** clamp, because the larger one still fragments.
+
 
 Behind a VPN that also inspects TLS (Zscaler especially), the engine must trust
 the VPN's root CA as well, or pulls fail with an x509 error before MTU ever
@@ -92,11 +103,16 @@ The one thing the userland proxy still does better is publishing on an address
 the NAT path cannot see; if you need that, turn it back on and reach containers
 by their IP instead.
 
-## Why advisory, not automatic
+## Why the global settings stay advisory
 
 `hawser doctor` names the VPN and shows the exact settings rather than applying
 them, because the effective fix (`~/.wslconfig`) is global to your WSL
 environment. That is a change you should make deliberately, seeing the diff —
-not one a `docker` wrapper should make behind your back. The MTU and DNS values
-are conservative starting points; a particular deployment's tunnel overhead may
-want a lower MTU still.
+not one a `docker` wrapper should make behind your back.
+
+The engine's own settings are a different matter: `engine.mtu` and `engine.dns`
+change only Hawser's distro, so those are commands rather than advice. The line
+is ownership — Hawser configures what it owns and tells you about the rest.
+
+The MTU and DNS values are conservative starting points; a particular
+deployment's tunnel overhead may want a lower MTU still.
