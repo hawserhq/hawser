@@ -829,6 +829,13 @@ func (p *Provisioner) ReadManifest(opts Options) (*Manifest, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("parsing manifest: %w", err)
 	}
+	// An install made before the move to the hawserhq organisation recorded a
+	// URL that only resolves through GitHub's redirect (#212). Correcting it
+	// here means every reader — `engine rollback`, which re-fetches from this
+	// exact URL, above all — stops depending on that redirect. The file on
+	// disk is rewritten by the next manifest write; nothing needs migrating
+	// for behaviour to be right in the meantime.
+	m.RootfsURL, _ = CanonicalRootfsURL(m.RootfsURL)
 	return &m, nil
 }
 
