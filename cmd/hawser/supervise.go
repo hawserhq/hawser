@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/hawserhq/hawser/internal/audit"
@@ -27,25 +28,61 @@ import (
 type engineAdapter struct {
 	p    *provision.Provisioner
 	opts provision.Options
+	cfg  *config.Watcher
+	log  *slog.Logger
+
+	// Enumerating the Windows root store costs real time, and an idle wake is
+	// an engine start, so the PEM is read once and reused. A read that failed
+	// is not cached: the next start tries again.
+	mu     sync.Mutex
+	caPEM  []byte
+	caRead bool
 }
 
-func (e engineAdapter) Running(ctx context.Context) bool {
+func (e *engineAdapter) Running(ctx context.Context) bool {
 	return e.p.EngineRunning(ctx, e.opts)
 }
-func (e engineAdapter) Start(ctx context.Context) error {
-	// GPU config is re-read fresh on every engine start so `hawser enable-gpu`
-	// (and --off) take effect on the next start without cycling the supervisor:
-	// the supervisor persists across `hawser restart`, so a value captured once
-	// at its launch would go stale (#83).
+
+// Start brings the engine up with the settings as they are now, not as they
+// were when the supervisor launched.
+//
+// Every per-start setting is re-read here. GPU already was (#83), because the
+// supervisor outlives `hawser restart` and a value captured at launch goes
+// stale. The corporate-network settings were not, so `hawser config set
+// network.proxy ...` followed by the `hawser restart` the docs prescribe
+// applied nothing — the same bug as the audit log, one layer down (#202).
+func (e *engineAdapter) Start(ctx context.Context) error {
 	opts := e.opts
-	if c, err := config.Load(opts.StateDir); err == nil {
-		opts.GPUEnabled = c.GPU
-		opts.GPUVendor = c.GPUVendor
+	c := e.cfg.Config()
+	opts.GPUEnabled = c.GPU
+	opts.GPUVendor = c.GPUVendor
+	opts.Network = provision.NetConfig{Proxy: c.Proxy, NoProxy: c.NoProxy}
+	if c.ImportHostCAs {
+		opts.Network.HostCAPEM = e.hostCAs(ctx)
 	}
 	return e.p.StartEngine(ctx, opts)
 }
-func (e engineAdapter) Stop(ctx context.Context) error {
+
+func (e *engineAdapter) Stop(ctx context.Context) error {
 	return e.p.StopEngine(ctx, e.opts)
+}
+
+// hostCAs returns the host root CA bundle to trust inside the engine, reading
+// the Windows store at most once per successful read.
+func (e *engineAdapter) hostCAs(ctx context.Context) []byte {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.caRead {
+		return e.caPEM
+	}
+	pem, err := hostca.HostRootCAs(ctx)
+	if err != nil {
+		e.log.Warn("host CA import is on but the store could not be read", "error", err)
+		return nil
+	}
+	e.caPEM, e.caRead = pem, true
+	e.log.Info("importing host CA certificates into the engine", "bytes", len(pem))
+	return e.caPEM
 }
 
 // resolveDistro prefers the install manifest, like proxy does: it records
@@ -140,44 +177,53 @@ flags:
 	ctx, stop := interruptible()
 	defer stop()
 
+	// A restart request left behind by a supervisor that crashed before it
+	// could act must not shut this one down on sight.
+	if err := supervise.ClearRestart(opts.StateDir); err != nil {
+		log.Warn("could not clear a stale restart request", "error", err)
+	}
+	go watchForRestart(ctx, opts.StateDir, stop, log)
+
 	// Server and supervisor are deliberately entangled (#41): the server's
 	// traffic feeds the supervisor's idle detection, and the supervisor's
 	// Demand wakes an idle-stopped engine for the server's next connection.
 	dialer := engineDialer(targetDistro, "", opts.StateDir, log)
 
-	// Corporate-network config (#62): proxy + host CA trust, applied to the
-	// engine on every start. Read once here — toggling it needs `hawser restart`
-	// so the change re-applies and dockerd restarts to pick it up.
-	if c, err := config.Load(opts.StateDir); err == nil {
-		opts.Network = provision.NetConfig{Proxy: c.Proxy, NoProxy: c.NoProxy}
-		if c.ImportHostCAs {
-			if pem, err := hostca.HostRootCAs(ctx); err != nil {
-				log.Warn("host CA import is on but the store could not be read", "error", err)
-			} else {
-				opts.Network.HostCAPEM = pem
-				log.Info("importing host CA certificates into the engine")
-			}
-		}
-		// GPU CDI spec (#83), re-applied on every start like the network config.
-		opts.GPUEnabled = c.GPU
-		opts.GPUVendor = c.GPUVendor
+	// One watcher, consulted wherever a setting is consumed (#202). `hawser
+	// config` promises that "settings apply live: the supervisor re-reads
+	// them every few seconds"; this is what makes that true rather than true
+	// of one key. It stats before it reads, so consulting it per docker call
+	// is cheap.
+	cfg := config.NewWatcher(opts.StateDir)
+	cfg.OnError = func(err error) {
+		log.Error("settings file is not valid; the settings already in force stay",
+			"error", err)
 	}
 
 	// Bind-path rewriting is always on; the audit log (#121) and the policy
-	// gate (#120) wrap it when configured. Both are read once at start, so
-	// changing either needs `hawser restart` — the same contract the audit
-	// log already had.
-	var sink pipeproxy.AuditSink
-	if c, err := config.Load(opts.StateDir); err == nil && c.Audit {
-		auditPath := filepath.Join(opts.StateDir, "audit.log")
-		if w, err := logging.NewRotatingWriter(auditPath, 0, 0); err != nil {
-			log.Warn("audit log disabled", "error", err)
-		} else {
-			defer w.Close()
-			sink = audit.New(w)
-			log.Info("audit log enabled", "path", auditPath)
-		}
+	// gate (#120) wrap it. Both follow their file live — neither is captured
+	// here — because this process outlives `hawser restart`, so anything read
+	// once at startup can only be changed by killing it.
+	auditPath := filepath.Join(opts.StateDir, "audit.log")
+	auditor := &audit.Switch{
+		Enabled: func() bool { return cfg.Config().Audit },
+		Open: func() (io.WriteCloser, error) {
+			return logging.NewRotatingWriter(auditPath, 0, 0)
+		},
+		OnChange: func(enabled bool, err error) {
+			switch {
+			case err != nil:
+				// Loud: an operator who turned auditing on believes it is on.
+				log.Error("audit log could not be opened; auditing stays OFF",
+					"path", auditPath, "error", err)
+			case enabled:
+				log.Info("audit log enabled", "path", auditPath)
+			default:
+				log.Info("audit log disabled")
+			}
+		},
 	}
+	defer auditor.Close()
 
 	// The gate is always installed and re-reads policy.yaml when it changes,
 	// so editing the rules -- or creating the file for the first time --
@@ -196,7 +242,7 @@ flags:
 		log.Info("admission control enabled", "path", policy.Path(opts.StateDir))
 	}
 
-	handler := pipeproxy.RewriteBindsGuarded(sink, watcher)
+	handler := pipeproxy.RewriteBindsGuarded(auditor, watcher)
 
 	metrics := &pipeproxy.Metrics{}
 	srv := &pipeproxy.Server{
@@ -205,21 +251,17 @@ flags:
 		Metrics: metrics,
 	}
 	sup := &supervise.Supervisor{
-		Engine:   engineAdapter{p: p, opts: opts},
+		Engine:   &engineAdapter{p: p, opts: opts, cfg: cfg, log: log},
 		Config:   supervise.Config{StateDir: opts.StateDir},
 		Log:      log,
 		Activity: srv,
 		// Read per tick, so `hawser config set idle-timeout` applies live. A
-		// corrupt config file reads as "off": never idle-stop on a guess.
-		IdleTimeout: func() time.Duration {
-			c, err := config.Load(opts.StateDir)
-			if err != nil {
-				log.Warn("config unreadable; idle stops disabled", "error", err)
-				return 0
-			}
-			return c.IdleTimeout
-		},
-		Busy: engineBusy(dialer, p, opts, log),
+		// settings file that will not parse keeps the timeout already in
+		// force rather than reverting to a default nobody chose; with no
+		// readable file at all the zero value is off, so the supervisor still
+		// never idle-stops on a guess.
+		IdleTimeout: func() time.Duration { return cfg.Config().IdleTimeout },
+		Busy:        engineBusy(dialer, p, opts, log),
 		// Lifecycle hooks (#70): fire off-thread and time-bounded so a user's
 		// script never blocks the reconciler.
 		Hook: hookRunner(opts.StateDir, log),
@@ -367,11 +409,136 @@ stopped. Only Hawser's own distro is touched, never other WSL distros.
 	return exitError
 }
 
+// restartPollInterval is how often the supervisor looks for a restart
+// request. A second is imperceptible to someone who just typed the command,
+// and the check is one stat.
+const restartPollInterval = time.Second
+
+// supervisorExitTimeout bounds the wait for the old supervisor to let go of
+// the single-instance claim. It only has to finish serving in-flight
+// connections; anything longer than this means it is wedged, and saying so
+// beats spawning a second one that cannot get the lock.
+const supervisorExitTimeout = 20 * time.Second
+
+// watchForRestart exits the supervisor when `hawser restart --supervisor`
+// asks it to (#202).
+//
+// Exiting is the whole mechanism: the CLI waits for the single-instance claim
+// to drop and then launches a replacement, and exiting zero is what tells the
+// watchdog this was asked for rather than a crash, so it does not race the
+// CLI to respawn.
+func watchForRestart(ctx context.Context, stateDir string, stop func(), log *slog.Logger) {
+	t := time.NewTicker(restartPollInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if !supervise.RestartRequested(stateDir) {
+				continue
+			}
+			// Cleared before exiting, so the replacement does not find the
+			// note and immediately exit too.
+			if err := supervise.ClearRestart(stateDir); err != nil {
+				log.Warn("could not clear the restart request", "error", err)
+			}
+			log.Info("restart requested; exiting so a fresh supervisor can take over")
+			stop()
+			return
+		}
+	}
+}
+
 func runRestart(args []string) int {
-	if code := runStop(args); code != exitOK && code != exitNotFound {
+	fs := flag.NewFlagSet("restart", flag.ContinueOnError)
+	var (
+		supervisor = fs.Bool("supervisor", false,
+			"recycle the supervisor process too, not just the engine")
+		stateDir = fs.String("state-dir", "", "override Hawser's state directory")
+		timeout  = fs.Duration("timeout", 0,
+			"how long to wait for each phase (default: 1m to stop, 2m to start)")
+	)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `usage: hawser restart [--supervisor]
+
+Stops the engine and starts it again.
+
+By default this is the ENGINE only. The supervisor — the always-on process
+that serves the docker pipe — keeps running across it, which is what lets a
+restart be quick and the pipe stay put.
+
+  --supervisor   also replace the supervisor process
+
+Almost nothing needs `+"`--supervisor`"+`: settings are re-read live, and the engine
+picks up config changes on this plain restart. Reach for it when the
+supervisor itself is misbehaving, or after replacing hawser.exe on disk.
+`)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return exitUsage
+	}
+
+	// Rebuilt rather than forwarded verbatim, so stop and start each keep
+	// their own default timeout when the user did not ask for one.
+	var pass []string
+	if *stateDir != "" {
+		pass = append(pass, "--state-dir", *stateDir)
+	}
+	if *timeout != 0 {
+		pass = append(pass, "--timeout", timeout.String())
+	}
+
+	if code := runStop(pass); code != exitOK && code != exitNotFound {
 		return code
 	}
-	return runStart(args)
+	if *supervisor {
+		dir := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir}).StateDir
+		if code := recycleSupervisor(dir); code != exitOK {
+			return code
+		}
+	}
+	return runStart(pass)
+}
+
+// recycleSupervisor asks the running supervisor to exit and waits for it to
+// let go of the single-instance claim. The caller's `hawser start` then
+// launches the replacement, which is the one code path that knows about
+// hawserw.exe and the detached-window handling.
+func recycleSupervisor(stateDir string) int {
+	if !supervise.Held(stateDir) {
+		fmt.Println("  no supervisor is running; one will be started")
+		return exitOK
+	}
+	fmt.Println("  stopping the supervisor")
+	if err := supervise.RequestRestart(stateDir); err != nil {
+		fmt.Fprintf(os.Stderr, "hawser: %v\n", err)
+		return exitError
+	}
+
+	deadline := time.Now().Add(supervisorExitTimeout)
+	for time.Now().Before(deadline) {
+		if !supervise.Held(stateDir) {
+			return exitOK
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// Withdraw the request rather than leave it armed: a supervisor that is
+	// merely slow should not shut down minutes later, long after the command
+	// that asked for it reported failure.
+	if err := supervise.ClearRestart(stateDir); err != nil {
+		fmt.Fprintf(os.Stderr, "hawser: withdrawing the restart request: %v\n", err)
+	}
+	fmt.Fprintf(os.Stderr,
+		"hawser: the supervisor did not exit within %s and is still running; "+
+			"see supervisor.log in %s\n", supervisorExitTimeout, stateDir)
+	return exitError
 }
 
 func runStatus(args []string) int {

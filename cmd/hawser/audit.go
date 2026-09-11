@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/hawserhq/hawser/internal/config"
@@ -14,6 +15,8 @@ import (
 )
 
 func runAudit(args []string) int {
+	sub, args := splitSubcommand(args)
+
 	fs := flag.NewFlagSet("audit", flag.ContinueOnError)
 	var (
 		stateDir = fs.String("state-dir", "", "override Hawser's state directory")
@@ -36,7 +39,9 @@ tail prints the container-affecting API audit log — image pulls, container
 create/start/stop/remove, exec and builds that crossed the bridge — as the
 JSON lines they are recorded in. Enable recording with:
 
-  hawser config set audit on   (then `+"`hawser restart`"+`)
+  hawser config set audit on
+
+It takes effect on the next docker call — nothing to restart.
 
 The record is derived from the request line only, never the body, so no
 credentials or payloads are written.
@@ -51,11 +56,15 @@ flags:
 		return exitUsage
 	}
 	rest := fs.Args()
+	if sub == "" && len(rest) > 0 {
+		// `hawser audit --json tail`, the older spelling, still works.
+		sub, rest = rest[0], rest[1:]
+	}
 	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
 	switch {
-	case len(rest) >= 1 && rest[0] == "trace":
-		return runAuditTrace(opts.StateDir, rest[1:], *asJSON, *raw)
-	case len(rest) == 1 && rest[0] == "tail":
+	case sub == "trace":
+		return runAuditTrace(opts.StateDir, rest, *asJSON, *raw)
+	case sub == "tail" && len(rest) == 0:
 		// falls through to the tail below
 	default:
 		fs.Usage()
@@ -67,7 +76,8 @@ flags:
 	if os.IsNotExist(err) {
 		on, _ := config.Get(opts.StateDir, config.KeyAudit)
 		if on != "on" {
-			fmt.Fprintln(os.Stderr, "audit is off; enable it with `hawser config set audit on` then `hawser restart`")
+			fmt.Fprintln(os.Stderr, "audit is off; enable it with `hawser config set audit on` "+
+				"(it takes effect on the next docker call — nothing to restart)")
 		} else {
 			fmt.Fprintln(os.Stderr, "audit is on but no events recorded yet")
 		}
@@ -142,4 +152,19 @@ func newerThan(line string, cutoff time.Time) bool {
 		return true
 	}
 	return !t.Before(cutoff)
+}
+
+// splitSubcommand takes a leading subcommand off the front of args, so flags
+// can follow it.
+//
+// Go's flag package stops parsing at the first non-flag argument, so
+// `hawser audit tail -n 5` left "-n 5" unparsed and the command rejected the
+// exact form its own usage line advertises. Pulling the subcommand off first
+// makes both orders work; anything starting with "-" is left alone, which is
+// what keeps the older `hawser audit --json tail` spelling valid.
+func splitSubcommand(args []string) (sub string, rest []string) {
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		return args[0], args[1:]
+	}
+	return "", args
 }

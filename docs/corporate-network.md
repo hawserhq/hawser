@@ -30,9 +30,15 @@ you hit the x509 error.
 
 ## Notes
 
-- These are read when the bridge starts and **re-applied on every engine start**,
-  so a rootfs re-import (reinstall) keeps them. Changing them needs
-  `hawser restart`.
+- These are re-read at **every engine start**, so `hawser restart` applies a
+  change and a rootfs re-import (reinstall) keeps one. They configure dockerd
+  itself, which is why they need the engine to come back rather than taking
+  effect mid-flight.
+
+  > They used to be captured once when the supervisor started, which meant
+  > `hawser restart` re-applied whatever was set at logon and silently ignored
+  > anything you had changed since. Fixed in
+  > [#202](https://github.com/hawserhq/hawser/issues/202).
 - The proxy affects the **engine's** pulls. Containers and builds that need a
   proxy still take it the usual way (build args / a container's own env).
 - Trusting the host CA store is a real trust decision — it means the engine

@@ -31,7 +31,8 @@ func checkSupervisor() Check {
 			return result(c, OK, "supervisor running; engine idle-stopped (a docker command wakes it)")
 		case held && !reachable:
 			r := result(c, Fail, "supervisor is running but the engine does not answer")
-			r.Remedy = "run `hawser restart`; if it recurs, check the supervisor log in the state dir."
+			r.Remedy = "run `hawser restart`; if it recurs, `hawser restart --supervisor` " +
+				"replaces the supervisor process too, and supervisor.log in the state dir says why."
 			return r
 		case !held && reachable:
 			r := result(c, Warn, "the engine answers but no supervisor lock is held")
