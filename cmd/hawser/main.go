@@ -42,6 +42,7 @@ func commands() []command {
 		{"logs", "supervisor, dockerd, or audit log; --follow, --json for shippers", runLogs},
 		{"migrate", "copy images and volumes from Docker Desktop into the engine", runMigrate},
 		{"prewarm", "pull a pinned image list ahead of need (runner warm-up, golden images)", runPrewarm},
+		{"policy", "local admission control for the docker API: show, check, test", runPolicy},
 		{"profile", "save and switch named settings profiles (work/home)", runProfile},
 		{"proxy", "serve the docker pipe in the foreground (debug mode)", runProxy},
 		{"prune", "reclaim disk: stopped containers, unused images, build cache", runPrune},
