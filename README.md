@@ -191,6 +191,7 @@ page is reachable from here.
 [VPNs](docs/vpn.md) ·
 [Air-gapped installs](docs/air-gap.md) ·
 [Security and trust boundaries](docs/security.md) ·
+[Code signing policy](docs/code-signing.md) ·
 [Audit log](docs/audit.md) ·
 [Admission control](docs/policy.md)
 

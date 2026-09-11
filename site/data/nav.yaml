@@ -12,7 +12,7 @@ sections:
   - section: Keep it healthy
     pages: [housekeeping, snapshots, upgrading, engine-upgrade, vm-sizing]
   - section: At work
-    pages: [corporate-network, vpn, air-gap, security, audit, policy]
+    pages: [corporate-network, vpn, air-gap, security, code-signing, audit, policy]
   - section: Fleet and CI
     pages: [ci-runners, auto-logon-runner, declarative-install, profiles, remote-engine, local-ci]
   - section: Advanced
@@ -24,6 +24,7 @@ sections:
 # does not fit a narrow column. Everything else uses its heading verbatim;
 # an entry here is an exception, not the pattern.
 short:
+  code-signing: Code signing
   auto-logon-runner: Unattended runners
   security: Security model
   bumping-upstream: Bumping the engine
