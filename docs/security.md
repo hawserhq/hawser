@@ -74,9 +74,21 @@ an unverified rootfs.
 
 ### Verifying a download
 
-Every release artifact carries **SLSA build provenance** and the checksum file
-is **signed with cosign keyless** (Sigstore, GitHub OIDC — no long-lived key
-exists to be stolen). Two independent checks, answering different questions:
+> **v0.3.0 predates this.** Cosign signing and SLSA provenance were added two
+> days after v0.3.0 was tagged, so that release ships the two zips and
+> `SHA256SUMS` and nothing else — `gh attestation verify` returns 404 against
+> it, and there is no `SHA256SUMS.cosign.bundle` to check. **Step 3 below is
+> the verification that works today.** Steps 1 and 2 apply from the next
+> release onward ([#225](https://github.com/hawserhq/hawser/issues/225)).
+>
+> Saying so matters: someone who runs step 1 on v0.3.0 and sees a 404 cannot
+> otherwise tell "this release predates the feature" from "this artifact is
+> not authentic", and the second reading is the alarming one.
+
+From v0.4.0, every release artifact carries **SLSA build provenance** and the
+checksum file is **signed with cosign keyless** (Sigstore, GitHub OIDC — no
+long-lived key exists to be stolen). Two independent checks, answering
+different questions:
 
 ```
 # 1. Did GitHub Actions build this, from this repository, at a known commit?
