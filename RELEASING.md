@@ -17,6 +17,25 @@ with it, where each checksum comes from — is a separate job from cutting the
 release. That is [docs/bumping-upstream.md](docs/bumping-upstream.md); this file
 covers publishing once the versions are settled.
 
+## `git describe` sees both streams
+
+The two tag namespaces share one repository, and rootfs releases are cut far
+more often than app releases — so `git describe --tags` usually resolves to a
+**rootfs** tag, not an app version:
+
+```
+$ git describe --tags
+rootfs-v29.8.0-1-7-g650c25e        # not an app version
+
+$ git describe --tags --match 'v*'
+v0.3.0-50-g650c25e                 # what you wanted
+```
+
+Nothing in CI is affected — `release.yml` takes the version from the release
+tag and never asks git. But any local script or build that stamps a version
+from a bare `git describe` gets the wrong stream, silently. Always pass
+`--match 'v*'` for an app version, or `--match 'rootfs-v*'` for the engine.
+
 ## The ordering that matters
 
 An app release embeds the rootfs checksum in
