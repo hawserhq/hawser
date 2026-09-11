@@ -30,7 +30,7 @@
       "default": true,
       "rootfs": {
         "url": "https://github.com/wslkit/skrog/releases/download/rootfs-v29.8.0-2/skrog-rootfs-29.8.0-2.tar.gz",
-        "sha256": ""
+        "sha256": "a16cd3bc38f0529542a7fc6fba066d944e96302f459595ebf7c5d04035a600af"
       },
       "components": {
         "dockerd": "29.8.0",
