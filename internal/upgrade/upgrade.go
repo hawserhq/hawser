@@ -345,3 +345,42 @@ func at(xs []int, i int) int {
 	}
 	return 0
 }
+
+// Action is one thing `hawser upgrade` will do, and the command it is.
+type Action struct {
+	Stream string   `json:"stream"`
+	From   string   `json:"from,omitempty"`
+	To     string   `json:"to"`
+	Args   []string `json:"args"`
+}
+
+// Plan is what `hawser upgrade` would apply, in the order it would apply it.
+//
+// The app is never in it. A running .exe cannot cleanly replace itself on
+// Windows, and once there is a signed distribution channel that channel owns
+// the path; self-replacement earns its complexity last, if ever. It is
+// reported instead, with where to get it.
+//
+// The CLI goes before the engine. It is a file copy that costs no downtime and
+// depends on nothing else, where the engine upgrade stops and restarts the
+// engine and takes minutes. Ordering it first means a failed engine upgrade
+// leaves a machine with the CLI already current rather than nothing done, and
+// the two are independent, so nothing is half-applied either way.
+func (r Report) Plan() []Action {
+	byName := map[string]Stream{}
+	for _, s := range r.Streams {
+		byName[s.Name] = s
+	}
+
+	var plan []Action
+	add := func(name string, args ...string) {
+		s, ok := byName[name]
+		if !ok || s.Status != StatusAvailable {
+			return
+		}
+		plan = append(plan, Action{Stream: name, From: s.Current, To: s.Latest, Args: args})
+	}
+	add("cli", "cli", "install")
+	add("engine", "engine", "upgrade")
+	return plan
+}

@@ -120,6 +120,7 @@ func TestAcceptance(t *testing.T) {
 		{"VsockPathServedEverything", stageVsockServed},
 		{"RemoteEngineOverMutualTLS", stageServeMTLS},
 		{"EngineSnapshotSaveAndList", stageSnapshot},
+		{"UpgradeReportsCurrentAfterInstall", stageUpgradeCheck},
 		{"Uninstall", stageUninstall},
 		{"NothingLeftBehind", stageClean},
 		{"DockerDesktopStillWorks", stageDesktopIntact},
@@ -2166,5 +2167,77 @@ func stageSupervisorRestart(t *testing.T, s *state) {
 	// next supervisor on sight.
 	if _, err := os.Stat(filepath.Join(s.stateDir, "restart-request")); !os.IsNotExist(err) {
 		t.Errorf("restart-request still present after the restart completed (err=%v)", err)
+	}
+}
+
+// stageUpgradeCheck covers `hawser upgrade` (#191) against a fresh install:
+// the engine it just installed is by definition the newest this build can
+// reach, so the check must say so and the plan must be empty.
+//
+// The apply path is exercised by hand against a scratch install at an older
+// engine rather than here, because making this stage install an old engine
+// first would add minutes to every run for one assertion.
+func stageUpgradeCheck(t *testing.T, s *state) {
+	out, err := run(t, 2*time.Minute, s.hawser, "upgrade", "--state-dir", s.stateDir, "--json")
+	must(t, out, err, "hawser upgrade --json")
+
+	var rep struct {
+		Streams []struct {
+			Name    string `json:"name"`
+			Current string `json:"current"`
+			Status  string `json:"status"`
+		} `json:"streams"`
+		Offline bool `json:"offline"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &rep); jerr != nil {
+		t.Fatalf("upgrade --json unparseable: %v\n%s", jerr, out)
+	}
+
+	byName := map[string]string{}
+	current := map[string]string{}
+	for _, st := range rep.Streams {
+		byName[st.Name] = st.Status
+		current[st.Name] = st.Current
+	}
+	for _, want := range []string{"app", "engine", "cli"} {
+		if _, ok := byName[want]; !ok {
+			t.Errorf("no %q stream in the report: %s", want, out)
+		}
+	}
+	if byName["engine"] != "current" {
+		t.Errorf("engine status = %q right after install, want current (installed %q)",
+			byName["engine"], current["engine"])
+	}
+
+	// --offline must still answer for the engine, because the manifest is
+	// compiled in — and must not claim the app is current when it did not look.
+	out, err = run(t, 30*time.Second, s.hawser, "upgrade", "--state-dir", s.stateDir, "--offline", "--json")
+	must(t, out, err, "hawser upgrade --offline --json")
+	if !strings.Contains(out, `"offline": true`) {
+		t.Errorf("--offline did not report itself as offline:\n%s", out)
+	}
+	var off struct {
+		Streams []struct {
+			Name   string `json:"name"`
+			Status string `json:"status"`
+		} `json:"streams"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &off); jerr != nil {
+		t.Fatalf("offline report unparseable: %v", jerr)
+	}
+	for _, st := range off.Streams {
+		if st.Name == "app" && st.Status == "current" {
+			t.Error("the app reads 'current' offline; a check that did not happen must not read as one that passed")
+		}
+		if st.Name == "engine" && st.Status != "current" {
+			t.Errorf("engine status = %q offline, want current — the manifest is compiled in", st.Status)
+		}
+	}
+
+	// A dry run on an up-to-date install has nothing to say and must exit 0.
+	out, err = run(t, 30*time.Second, s.hawser, "upgrade", "--state-dir", s.stateDir, "--dry-run")
+	must(t, out, err, "hawser upgrade --dry-run")
+	if strings.Contains(out, "would run:") {
+		t.Errorf("a dry run proposed work on a current install:\n%s", out)
 	}
 }

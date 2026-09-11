@@ -272,3 +272,66 @@ func TestWriteTextIsReadable(t *testing.T) {
 		}
 	}
 }
+
+func TestPlanNeverIncludesTheApp(t *testing.T) {
+	// A running .exe cannot cleanly replace itself on Windows. The app is
+	// reported, never applied -- if it ever appears in a plan, something has
+	// gone badly wrong.
+	rep := Report{Streams: []Stream{
+		{Name: "app", Current: "0.3.0", Latest: "0.4.0", Status: StatusAvailable},
+		{Name: "engine", Status: StatusCurrent},
+		{Name: "cli", Status: StatusCurrent},
+	}}
+	if plan := rep.Plan(); len(plan) != 0 {
+		t.Errorf("plan = %+v, want empty — the app is never applied", plan)
+	}
+}
+
+func TestPlanPutsTheCLIBeforeTheEngine(t *testing.T) {
+	// The CLI is a file copy with no downtime; the engine upgrade stops and
+	// restarts the engine and takes minutes. Doing the cheap independent one
+	// first means a failed engine upgrade still leaves the CLI current.
+	rep := Report{Streams: []Stream{
+		{Name: "app", Status: StatusCurrent},
+		{Name: "engine", Current: "29.7.2", Latest: "29.8.0", Status: StatusAvailable},
+		{Name: "cli", Current: "29.7.2", Latest: "29.8.0", Status: StatusAvailable},
+	}}
+	plan := rep.Plan()
+	if len(plan) != 2 {
+		t.Fatalf("plan has %d actions, want 2: %+v", len(plan), plan)
+	}
+	if plan[0].Stream != "cli" || plan[1].Stream != "engine" {
+		t.Errorf("order = %s then %s, want cli then engine", plan[0].Stream, plan[1].Stream)
+	}
+}
+
+func TestPlanCarriesTheRealCommands(t *testing.T) {
+	// The args are run verbatim, so they are worth pinning.
+	rep := Report{Streams: []Stream{
+		{Name: "engine", Current: "29.7.2", Latest: "29.8.0", Status: StatusAvailable},
+		{Name: "cli", Current: "29.7.2", Latest: "29.8.0", Status: StatusAvailable},
+	}}
+	want := map[string]string{"cli": "cli install", "engine": "engine upgrade"}
+	for _, a := range rep.Plan() {
+		if got := strings.Join(a.Args, " "); got != want[a.Stream] {
+			t.Errorf("%s args = %q, want %q", a.Stream, got, want[a.Stream])
+		}
+		if a.From == "" || a.To == "" {
+			t.Errorf("%s action = %+v, want both versions recorded", a.Stream, a)
+		}
+	}
+}
+
+func TestPlanSkipsUnknownAndNotInstalled(t *testing.T) {
+	// Neither is an upgrade. A component that was never installed must not be
+	// installed by a command the user ran to bring things up to date, and a
+	// component that could not be checked must not be acted on at all.
+	rep := Report{Streams: []Stream{
+		{Name: "app", Status: StatusUnknown},
+		{Name: "engine", Status: StatusNotInstalled},
+		{Name: "cli", Status: StatusUnknown},
+	}}
+	if plan := rep.Plan(); len(plan) != 0 {
+		t.Errorf("plan = %+v, want empty", plan)
+	}
+}
