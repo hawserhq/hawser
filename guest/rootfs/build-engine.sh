@@ -7,7 +7,7 @@ set -eu
 apk add --no-cache git make bash musl-dev gcc libseccomp-dev libseccomp-static \
     btrfs-progs-dev linux-headers pkgconf
 
-mkdir -p /out/bin /src
+mkdir -p /out/bin /out/licenses /src
 # Start clean: the output dir may be a reused cache directory (see BIN_DIR in
 # build.sh), and commits.txt is appended to below.
 : > /out/commits.txt
@@ -36,7 +36,37 @@ clone() { # repo tag dir expectedSHA
         echo "    WARNING: no expected SHA pinned for $3; resolved $sha" >&2
     fi
     printf '%s %s %s\n' "$3" "$2" "$sha" >> /out/commits.txt
+    collect_licences "$3"
     echo "    $3 $2 -> $sha (verified)"
+}
+
+# collect_licences copies a component's licence text out of the source tree we
+# just cloned, so the rootfs can ship it (#205).
+#
+# Apache-2.0 section 4(a) requires giving recipients a copy of the licence, and
+# every engine component here is Apache-2.0. The source is already on disk at
+# this point, so this costs a cp and a few kilobytes -- the previous rootfs
+# shipped eleven third-party binaries and no licence text at all.
+#
+# NOTICE is copied when upstream has one (moby and containerd do), which is
+# section 4(d).
+collect_licences() { # dir
+    dest="/out/licenses/$1"
+    mkdir -p "$dest"
+    found=0
+    for name in LICENSE LICENSE.txt LICENSE.md COPYING NOTICE NOTICE.txt; do
+        if [ -f "/src/$1/$name" ]; then
+            cp "/src/$1/$name" "$dest/$name"
+            found=1
+        fi
+    done
+    if [ "$found" -eq 0 ]; then
+        # Loud, not fatal: a component that stops shipping a licence at the
+        # root is a packaging change worth noticing, but the build should not
+        # die at 3am over it. smoke-test.sh enforces the end state.
+        echo "    WARNING: no licence file found in /src/$1" >&2
+        rmdir "$dest" 2>/dev/null || true
+    fi
 }
 
 echo "--- runc $RUNC_VERSION"
@@ -82,3 +112,5 @@ chmod 0755 /out/bin/*
 # but /out is a host directory (see the HOST_UID comment in build.sh).
 chown -R "${HOST_UID:-0}:${HOST_GID:-0}" /out
 ls -la /out/bin
+echo "--- licences collected"
+ls /out/licenses

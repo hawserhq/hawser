@@ -85,6 +85,23 @@ for c in moby containerd runc buildkit; do
         || { echo "no commit recorded for $c"; exit 1; }
 done
 
+echo "==> licence text for everything we ship"
+# The rootfs shipped eleven third-party binaries and zero licence files
+# (#205). Apache-2.0 section 4(a) requires giving recipients a copy, so an
+# empty licenses tree is a release blocker, not a cosmetic gap -- and the only
+# reason it went unnoticed is that nothing checked.
+for c in moby containerd runc buildkit hawser-agent; do
+    ls "$work/usr/share/licenses/$c/"* >/dev/null 2>&1 \
+        || { echo "no licence shipped for $c"; exit 1; }
+    echo "  ok usr/share/licenses/$c"
+done
+# The Alpine userland has no licence files to copy, so it is covered by a
+# pointer to the sources -- which is also the written offer the GPL parts
+# (busybox, apk-tools) need.
+grep -q "aports" "$work/usr/share/licenses/README" \
+    || { echo "licenses/README does not point at the Alpine sources"; exit 1; }
+echo "  ok usr/share/licenses/README names the Alpine sources"
+
 echo "==> runtime dependencies the engine and bridge need at boot"
 # Absent from the Alpine minirootfs, and their absence only shows up when the
 # artifact is booted: no iptables means dockerd cannot build container

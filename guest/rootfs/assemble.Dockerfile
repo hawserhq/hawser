@@ -44,6 +44,11 @@ RUN apk add --no-cache \
 COPY bin/ /usr/local/bin/
 RUN chmod 0755 /usr/local/bin/*
 
+# Licence texts for everything shipped here (#205). Apache-2.0 section 4(a)
+# requires giving recipients a copy, and every engine component is Apache-2.0;
+# the Alpine userland is covered by the pointer in licenses/README.
+COPY licenses/ /usr/share/licenses/
+
 # Engine defaults: log rotation on from the first run (PLAN §05 v0.1).
 COPY daemon.json /etc/docker/daemon.json
 

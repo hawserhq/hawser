@@ -127,6 +127,44 @@ cp "$agent_out/hawser-agent" "$ctx/bin/"
 cp "$hook_out/nvidia-cdi-hook" "$ctx/bin/"
 cp "$engine/commits.txt" "$ctx/commits"
 cat "$hook_out/commit.txt" >> "$ctx/commits"
+
+# Licences for everything the rootfs ships (#205). Apache-2.0 section 4(a)
+# requires giving recipients a copy, and until now the tarball carried eleven
+# third-party binaries and no licence text at all.
+#
+# The engine components' licences were collected from their source trees by
+# build-engine.sh. The agent is ours. The Alpine userland is the one part with
+# no text to copy -- Alpine's images do not ship licence files -- so it gets a
+# pointer to the sources instead, which is the written-offer route the GPL
+# parts (busybox, apk-tools) want.
+mkdir -p "$ctx/licenses"
+if [ -d "$engine/licenses" ]; then
+    cp -r "$engine/licenses/." "$ctx/licenses/"
+fi
+mkdir -p "$ctx/licenses/hawser-agent"
+cp "$here/../../LICENSE" "$ctx/licenses/hawser-agent/LICENSE"
+cat > "$ctx/licenses/README" <<LICREADME
+Licences for the software in this rootfs.
+
+Each directory holds the licence text shipped by that component's own source
+repository, copied at build time from the exact commit recorded in
+/etc/hawser/commits.
+
+The Alpine Linux userland (busybox, musl, apk-tools, and the packages listed
+by \`apk info\`) is not covered by the directories above: Alpine's images do
+not carry licence files. Those packages are Alpine ${ALPINE_BRANCH} and their
+licences and complete corresponding source are published at:
+
+  https://gitlab.alpinelinux.org/alpine/aports
+  https://dl-cdn.alpinelinux.org/alpine/${ALPINE_BRANCH}/main/
+
+busybox and apk-tools are GPL-2.0; this notice is the written offer for their
+source. Run \`apk info -L <package>\` inside the engine to list a package's
+files, and \`apk info <package>\` for its declared licence.
+
+A machine-readable inventory of the engine components, with SPDX licence
+identifiers, ships beside the tarball as hawser-rootfs-*.spdx.json.
+LICREADME
 printf '%s\n' "$ENGINE_VERSION" > "$ctx/engine-version"
 # The agent states its own identity (static linux binary, runnable right
 # here); asking it beats duplicating the constant in shell.

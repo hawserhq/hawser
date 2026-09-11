@@ -82,6 +82,21 @@ cosign verify-blob \
 sha256sum -c SHA256SUMS --ignore-missing
 ```
 
+### Licences of what the rootfs ships
+
+The engine components are Apache-2.0 and the Alpine userland is a mix
+(busybox and apk-tools are GPL-2.0). Every component's licence text is inside
+the rootfs at `/usr/share/licenses/<component>/`, copied at build time from
+the exact commit recorded in `/etc/hawser/commits`.
+
+Alpine's own images carry no licence files, so `/usr/share/licenses/README`
+names the Alpine release and points at `aports` and the package mirror, which
+is also the written offer for the GPL components' source.
+
+The SPDX SBOM beside the tarball records a licence identifier per component.
+It is an inventory, not the licence text -- both ship, because a machine-
+readable identifier is not what Apache-2.0 section 4(a) asks for.
+
 The rootfs tarball, its `.sha256` and its SBOM are attested and signed the same
 way, so a tampered rootfs fails verification **even if the attacker also edits
 the sha256 in `internal/release/manifest.json`** — the signature is independent
