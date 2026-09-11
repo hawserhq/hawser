@@ -49,6 +49,11 @@ try {
         if ($LASTEXITCODE -ne 0) { $failed += 'shellcheck' } else { Write-Host "  ok" -ForegroundColor Green }
     }
 
+    # --- markdown links ---------------------------------------------------
+    Write-Host "== links" -ForegroundColor Cyan
+    & pwsh -File (Join-Path $PSScriptRoot 'check-links.ps1')
+    if ($LASTEXITCODE -ne 0) { $failed += 'links' }
+
     # --- go ---------------------------------------------------------------
     if (-not $SkipGo) {
         $go = Get-Command go -ErrorAction SilentlyContinue
