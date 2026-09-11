@@ -132,7 +132,7 @@ skrog cache enable                                # local pull-through registry 
 
 The project shipped v0.1.0–v0.3.1 as **Hawser**, after the mooring line, with "it holds fast" as the reliability promise. That name was chosen on the belief that its namespace was nearly empty — true of trademark registries, false of common-law use: [Finsys/hawser](https://github.com/Finsys/hawser), a 606-star Go agent for Docker host management, predated it by nine months. A Google search for "hawser" returned dictionaries and that project, never this one, so the SEO acquisition story below could never have worked. The rename is recorded in #1 with the full evidence and the eleven alternatives that were rejected.
 
-The coiled-rope mark is kept as an abstract mark rather than redrawn: it reads as a near-solid disc at 16px, which is what makes the favicon and tray icons work.
+**The mark.** The hull's **body plan** — the section a naval architect draws at each frame, with the centreline through it. It replaces the coiled rope inherited from *Hawser*, which was a picture of the old name and became an abstract shape under the new one. Being a section and not a view, it has no tapering end and is near enough square to fill an icon unaided. It is an outline rather than a silhouette, so the stroke weight is corrected per size — 15 design units at 512px, 28 at 16px — which is what stops the tray icon and favicon greying out; `tools/internal/mark` holds the geometry so the SVG masters and the rasters cannot drift apart.
 
 ---
 
