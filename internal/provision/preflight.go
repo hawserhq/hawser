@@ -106,12 +106,13 @@ func (p *Provisioner) Preflight(ctx context.Context, opts Options) (Report, erro
 			// or leave them running two engines by accident.
 			r.Problems = append(r.Problems, Problem{
 				Summary: fmt.Sprintf("distro %q is already registered", opts.Distro),
-				Remedy: fmt.Sprintf("to move that engine to another version, run "+
-					"`hawser engine upgrade` -- it keeps your images, containers and "+
-					"volumes. To start over, `hawser uninstall` first; to run a second "+
-					"engine alongside it, install under another name with `--distro`. "+
-					"Its data lives in that distro, so %q is never overwritten "+
-					"implicitly.", opts.Distro),
+				Remedy: fmt.Sprintf("`hawser engine upgrade` moves that engine to another\n"+
+					"         version, keeping your images, containers and volumes.\n"+
+					"         To start over instead, run `hawser uninstall` first. To run a\n"+
+					"         second engine alongside this one, install under another name\n"+
+					"         with `--distro`.\n"+
+					"         Its data lives in that distro, so %q is never overwritten\n"+
+					"         implicitly.", opts.Distro),
 			})
 		}
 	}
