@@ -4,12 +4,12 @@ This page exists because the SignPath Foundation requires projects it sponsors
 to publish one, and because anyone installing a binary that claims to be Hawser
 deserves to know who can make one.
 
-> **Status: not yet in effect.** Hawser's binaries are **not signed today**.
-> The application to the SignPath Foundation is tracked in
-> [#77](https://github.com/hawserhq/hawser/issues/77); this page describes the
-> policy that applies once a certificate is issued. Until then, verify releases
-> against `SHA256SUMS` and expect a SmartScreen warning — see
-> [verifying a release](#verifying-a-release-today) below.
+> **Status: accepted, not yet in effect.** The roles and the CI-only signing
+> below are settled; Hawser's binaries are **not signed today**, because the
+> application to the SignPath Foundation is still open — tracked in
+> [#77](https://github.com/hawserhq/hawser/issues/77). Until a certificate is
+> issued, verify releases against `SHA256SUMS` and expect a SmartScreen
+> warning; see [verifying a release](#verifying-a-release-today) below.
 
 ## Attribution
 
@@ -33,6 +33,10 @@ are held by different people, and claiming otherwise would misrepresent what
 the signature attests to. As the project gains maintainers, the Reviewer and
 Approver roles are the first to be handed to someone else, and this table is
 updated in the same change.
+
+What the arrangement does still guarantee, with one maintainer or ten: **no
+signature is produced without a deliberate act**. Signing is not automatic on a
+tag — every release waits for an approval that a person has to give.
 
 Every contribution from outside the Author list is reviewed before it is
 merged. Every release is signed only after a manual approval — signing is never
@@ -67,6 +71,13 @@ The consequence worth stating: a signed Hawser binary is reproducible only
 through that pipeline, not from a local `go build`. The source is identical;
 the signature is not something a local build can produce.
 
+That is not a change SignPath introduces. The release already signs
+`SHA256SUMS` with **cosign keyless**, whose identity is a GitHub Actions OIDC
+token — an identity that exists nowhere but inside a workflow run. CI has
+therefore always been the only thing able to produce an official Hawser
+release. SignPath adds an Authenticode signature to a pipeline that was
+already the sole source of signed artifacts.
+
 ## Data handling
 
 Hawser collects nothing. There is no telemetry, no analytics, no crash
@@ -82,6 +93,20 @@ sends nothing but the request itself. `--offline` skips it. See
 SignPath receives the build artifacts and the repository metadata needed to
 verify them. It receives nothing about anyone who installs or runs Hawser,
 because nothing about them exists to send.
+
+## What the programme constrains
+
+Two conditions are worth writing down, because they bind the project and not
+just the pipeline.
+
+The certificate is **issued by the Foundation to the project**, not owned by
+us. And the programme requires an OSI-approved licence with **no commercial
+dual-licensing, for any component**. A future paid tier or dual-licence would
+end eligibility and mean buying a commercial certificate instead. Neither is a
+one-way door — but both are doors.
+
+The Foundation can also pause the subscription or revoke the certificate,
+immediately or retroactively, over a Code of Conduct violation.
 
 ## Verifying a release today
 
