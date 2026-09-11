@@ -54,6 +54,10 @@ against a hostile *sibling distro impersonating the agent* is tracked in #81.
 
 ## Supply chain
 
+Who may produce a binary that claims to be Hawser, and how, is written down
+separately in the [code signing policy](code-signing.md) — including the fact
+that the Windows binaries are **not signed yet**.
+
 The engine (dockerd, containerd, runc, buildkit) is **built from source** at
 pinned upstream tags whose commit SHAs are verified during the build, and the
 Alpine base is pinned by digest (#88) — a moved tag or re-pushed image fails
