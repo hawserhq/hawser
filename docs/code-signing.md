@@ -122,11 +122,18 @@ Every release also carries SLSA provenance, which can be verified with the
 [GitHub CLI](https://cli.github.com):
 
 ```powershell
-gh attestation verify .\hawser-windows-amd64.zip --repo hawserhq/hawser
+gh attestation verify .\hawser_0.4.0_windows_amd64.zip --owner hawserhq
 ```
 
 That attestation is the stronger claim of the two: it says *this artifact was
 built by this workflow from this commit*, which a signature alone does not.
+
+**v0.3.0 does not have one.** Provenance and cosign signing landed two days
+after it was tagged, so that release carries `SHA256SUMS` only and the command
+above returns 404 against it. Until the next release, the checksum comparison
+is the verification that works — and a 404 there means "older than the
+feature", not "inauthentic"
+([#225](https://github.com/hawserhq/hawser/issues/225)).
 
 ## Reporting a problem
 
