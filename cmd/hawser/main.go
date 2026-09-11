@@ -92,6 +92,13 @@ func main() {
 	name := os.Args[1]
 	switch name {
 	case "-h", "--help", "help":
+		// `hawser help --json` is the command index as data, for the
+		// reference generator (#209). Kept here rather than as a visible
+		// command: a `help-dump` entry in the command list would be clutter
+		// for every user, to serve one script.
+		if len(os.Args) > 2 && os.Args[2] == "--json" {
+			os.Exit(emitJSON(helpIndex()))
+		}
 		usage(os.Stdout)
 		os.Exit(exitOK)
 	case "-v", "--version":
@@ -108,4 +115,22 @@ func main() {
 	fmt.Fprintf(os.Stderr, "hawser: unknown command %q\n\n", name)
 	usage(os.Stderr)
 	os.Exit(exitUsage)
+}
+
+// helpEntry is one command in the machine-readable index.
+type helpEntry struct {
+	Name    string `json:"name"`
+	Summary string `json:"summary"`
+}
+
+// helpIndex is the command list as data, so the reference generator does not
+// have to scrape the human-readable usage text and re-break every time its
+// column widths change.
+func helpIndex() []helpEntry {
+	cmds := commands()
+	out := make([]helpEntry, 0, len(cmds))
+	for _, c := range cmds {
+		out = append(out, helpEntry{Name: c.name, Summary: c.summary})
+	}
+	return out
 }

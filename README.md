@@ -207,7 +207,8 @@ page is reachable from here.
 [GPU (NVIDIA, and experimental AMD)](docs/gpu.md) ·
 [Kubernetes](docs/kubernetes.md) ·
 [Lifecycle hooks](docs/hooks.md) ·
-[JSON output contract](docs/cli-json.md)
+[JSON output contract](docs/cli-json.md) ·
+[Command reference](docs/reference.md)
 
 **Contributing**
 [Releasing](RELEASING.md) ·

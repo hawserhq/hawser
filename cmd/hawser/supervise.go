@@ -546,6 +546,30 @@ func runStatus(args []string) int {
 	stateDir := fs.String("state-dir", "", "override Hawser's state directory")
 	asJSON := fs.Bool("json", false, "emit machine-readable JSON")
 	withStats := fs.Bool("stats", false, "add engine, disk, VM, uptime and bridge statistics (needs a running engine for the first three)")
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `usage: hawser status [--json] [--stats]
+
+Reports the distro, whether the supervisor and engine are running, and the
+desired state the user last asked for.
+
+Reads host-side files only — it never starts the engine to answer, and never
+wakes an idle-stopped one. Safe to poll.
+
+The engine is one of:
+
+  running   answering the docker API
+  idle      stopped by the idle timeout, ON PURPOSE; the next docker command
+            wakes it. Not an error, and the exit code says so
+  stopped   down, and staying down until `+"`hawser start`"+`
+
+--stats adds engine, disk, VM, uptime and bridge counters. It is opt-in
+because collecting them costs WSL calls a readiness probe should not pay; the
+default shape is the pinned probe contract (%s).
+
+Exit codes: 0 engine running or idle, %d engine down, %d usage, %d not installed.
+`, "docs/cli-json.md", exitError, exitUsage, exitNotFound)
+		fs.PrintDefaults()
+	}
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
