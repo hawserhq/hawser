@@ -75,6 +75,47 @@ It sends nothing but the request: no machine identifier, no version, no
 telemetry. The server learns an IP asked, which is what downloading anything
 would tell it anyway.
 
+## Coming from Hawser (v0.3.1 or earlier)
+
+The project was called **Hawser** through v0.3.1 and is **Skrog** from v0.4.0
+([#1](https://github.com/wslkit/skrog/issues/1)). That release renames every
+contract a machine can hold: the binaries (`skrog.exe`, `skrogw.exe`,
+`skrogtray.exe`), the WSL distro (`skrog-engine`), the docker context
+(`skrog`), the state directory (`%LOCALAPPDATA%\Skrog`), the config and lock
+files (`skrog.yaml`, `skrog.lock`), the named pipes, and the `SKROG_*`
+environment variables.
+
+**There is no in-place upgrade.** `skrog upgrade` reports the new version and
+points at the releases page, as it does for any app upgrade — but the thing you
+download is a different program with a different name, not a newer copy of the
+one you have. Nothing inherits a Hawser install's state.
+
+The one thing worth knowing before you uninstall: **your images and volumes live
+inside the `hawser-engine` distro**, and removing it removes them.
+
+Because every name differs, the two can be installed at the same time — which
+gives you a way to keep them:
+
+```powershell
+# With Hawser still installed and its engine running:
+skrog install
+skrog start
+skrog migrate --from-context hawser --dry-run   # what would move, and how big
+skrog migrate --from-context hawser
+```
+
+`skrog migrate` is documented for Docker Desktop, but the mechanism is
+engine-to-engine — `docker save` piped to `docker load` for images, a streamed
+tar for volumes — and `--from-context` takes any docker context. It never
+writes to the source, so an interrupted run leaves the Hawser side untouched.
+
+This path has not been exercised against a Hawser install specifically, so run
+the `--dry-run` first and keep Hawser until you have checked what arrived. Once
+you are satisfied, uninstall Hawser to reclaim its distro.
+
+If you have nothing in the engine worth keeping, uninstall Hawser first and
+install Skrog into the space — there is nothing to preserve.
+
 ## Air-gapped machines
 
 `--offline` skips that request entirely:
