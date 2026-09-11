@@ -90,6 +90,7 @@ func TestAcceptance(t *testing.T) {
 		{"HelloWorld", stageHelloWorld},
 		{"PrewarmPullsPinnedImages", stagePrewarm},
 		{"AuditLogRecordsCalls", stageAudit},
+		{"AuditTogglesWithoutARestart", stageAuditToggle},
 		{"HostCAsImportedIntoEngine", stageHostCAs},
 		{"BindMountReadThroughContainer", stageBindMount},
 		{"PublishedPortReachableFromWindows", stagePublishedPort},
@@ -115,6 +116,7 @@ func TestAcceptance(t *testing.T) {
 		{"LifecycleHooksFire", stageHooks},
 		{"IdleStopAndOnDemandWake", stageIdle},
 		{"InterruptedClientDoesNotWedgeBridge", stageInterrupt},
+		{"SupervisorRestartReplacesTheProcess", stageSupervisorRestart},
 		{"VsockPathServedEverything", stageVsockServed},
 		{"RemoteEngineOverMutualTLS", stageServeMTLS},
 		{"EngineSnapshotSaveAndList", stageSnapshot},
@@ -2047,5 +2049,122 @@ func (s *state) runDocker(t *testing.T, timeout time.Duration, args ...string) (
 		}
 		<-done
 		return strings.TrimSpace(string(out)), fmt.Errorf("docker timed out after %s", timeout)
+	}
+}
+
+// stageAuditToggle is the regression test for #202: the audit setting has to
+// take effect against a supervisor that is ALREADY RUNNING.
+//
+// The suite could not have caught the original bug, and did not: it turned
+// audit on before the first install, so the supervisor read "on" at startup
+// and everything downstream worked. The whole defect lived in the transition,
+// which nothing exercised — the unit tests passed, and a real
+// `docker run --privileged` on a machine that had just been told to deny it
+// succeeded. So this stage changes the setting mid-life, both ways, and
+// checks the log follows.
+func stageAuditToggle(t *testing.T, s *state) {
+	logPath := filepath.Join(s.stateDir, "audit.log")
+	size := func() int64 {
+		t.Helper()
+		fi, err := os.Stat(logPath)
+		if os.IsNotExist(err) {
+			return 0
+		}
+		if err != nil {
+			t.Fatalf("stat audit log: %v", err)
+		}
+		return fi.Size()
+	}
+	setAudit := func(v string) {
+		t.Helper()
+		out, err := run(t, 30*time.Second, s.hawser, "config",
+			"--state-dir", s.stateDir, "set", "audit", v)
+		must(t, out, err, "hawser config set audit "+v)
+	}
+	// One container-affecting call, which the log must either gain or ignore.
+	touchEngine := func() {
+		t.Helper()
+		out, err := dockerE(t, s, 2*time.Minute, "run", "--rm", "hello-world")
+		must(t, out, err, "docker run hello-world")
+	}
+
+	// --- off, mid-life: recording must stop, with no restart ---
+	setAudit("off")
+	// The switch closes the log on its next observed call, so let one pass
+	// before measuring; otherwise this races the transition rather than
+	// testing it.
+	touchEngine()
+	before := size()
+	touchEngine()
+	if got := size(); got != before {
+		t.Errorf("audit log grew from %d to %d after `config set audit off` — "+
+			"turning it off did not take effect", before, got)
+	}
+
+	// --- on again, mid-life: the original bug ---
+	setAudit("on")
+	deadline := time.Now().Add(60 * time.Second)
+	for {
+		touchEngine()
+		if size() > before {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("audit log did not grow after `config set audit on` against a "+
+				"running supervisor — the setting is not live (#202). log=%s size=%d",
+				logPath, size())
+		}
+		time.Sleep(time.Second)
+	}
+
+	// And the new records are real events, not a truncated or corrupted file.
+	out, err := run(t, 30*time.Second, s.hawser, "audit", "--state-dir", s.stateDir, "tail", "-n", "5")
+	must(t, out, err, "audit tail after re-enabling")
+	if !strings.Contains(out, "container-create") {
+		t.Errorf("no container-create after re-enabling the audit log:\n%s", out)
+	}
+}
+
+// stageSupervisorRestart covers `hawser restart --supervisor` (#202): before
+// it, the only way to recycle the supervisor was to kill the process by hand,
+// which is not a documented action and not something a user should have to
+// discover.
+func stageSupervisorRestart(t *testing.T, s *state) {
+	supervisorRunning := func() bool {
+		t.Helper()
+		out, err := run(t, 30*time.Second, s.hawser, "status", "--state-dir", s.stateDir, "--json")
+		if err != nil {
+			return false
+		}
+		var st struct {
+			Supervisor string `json:"supervisor"`
+			Engine     string `json:"engine"`
+		}
+		if jerr := json.Unmarshal([]byte(out), &st); jerr != nil {
+			t.Fatalf("status --json unparseable: %v\n%s", jerr, out)
+		}
+		return st.Supervisor == "running"
+	}
+
+	if !supervisorRunning() {
+		t.Fatal("no supervisor running before the restart test")
+	}
+
+	out, err := run(t, 5*time.Minute, s.hawser, "restart", "--state-dir", s.stateDir, "--supervisor")
+	must(t, out, err, "hawser restart --supervisor")
+
+	if !supervisorRunning() {
+		t.Fatal("no supervisor running after `hawser restart --supervisor`")
+	}
+	// The point of recycling it is that the bridge comes back with it: a
+	// supervisor that exited and left no replacement would fail every docker
+	// command from here on, which is the failure this must never introduce.
+	out, err = dockerE(t, s, 2*time.Minute, "run", "--rm", "hello-world")
+	must(t, out, err, "docker run after a supervisor restart")
+
+	// The request file must not survive: a leftover note would shut down the
+	// next supervisor on sight.
+	if _, err := os.Stat(filepath.Join(s.stateDir, "restart-request")); !os.IsNotExist(err) {
+		t.Errorf("restart-request still present after the restart completed (err=%v)", err)
 	}
 }

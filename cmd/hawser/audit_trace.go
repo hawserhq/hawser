@@ -36,13 +36,14 @@ func runAuditTrace(stateDir string, cmdArgs []string, asJSON, raw bool) int {
 		fmt.Fprintln(os.Stderr, "hawser: audit trace needs a command: hawser audit trace -- <cmd> [args]")
 		return exitUsage
 	}
-	// The supervisor reads the audit setting when it starts, so enabling it
-	// here would need an engine restart mid-trace. Refuse with the recipe
-	// instead of restarting behind the user's back.
+	// Still a refusal rather than turning it on automatically: recording every
+	// container-affecting call is the user's decision to make, and a trace
+	// that silently switched on an audit log and left it on would be a
+	// surprise. The recipe is now one command, and needs no restart (#202).
 	if on, _ := config.Get(stateDir, config.KeyAudit); on != "on" {
 		fmt.Fprintln(os.Stderr, "hawser: audit is off, so there is nothing to trace. Turn it on first:\n"+
-			"  hawser config set audit on\n  hawser restart\n"+
-			"(the supervisor reads the setting when it starts), then run the trace again.")
+			"  hawser config set audit on\n"+
+			"It applies immediately; then run the trace again.")
 		return exitError
 	}
 

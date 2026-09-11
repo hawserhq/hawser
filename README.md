@@ -54,7 +54,9 @@ docker context. Nothing else on the system is touched.
 - Upstream Docker Engine (Linux containers) in a dedicated WSL2 distro — the real API, byte
   for byte: compose, buildx, Testcontainers, `run -it`, bind mounts with Windows paths
 - **Always-on supervisor**: starts at logon, survives engine crashes, `wsl --shutdown`, and
-  sleep/resume; `hawser start/stop/restart/status --json`
+  sleep/resume; `hawser start/stop/restart/status --json`. Settings apply live — the
+  supervisor follows the file, so nothing here needs a restart; `hawser restart
+  --supervisor` replaces the supervisor process itself on the rare occasion that helps
 - **Docker Desktop speed**: a vsock transport to the engine (~80 ms `docker version`,
   measured at parity with Desktop), with an automatic fallback path
 - **Idle RAM answer**: `hawser config set idle-timeout 30m` stops a quiet engine and

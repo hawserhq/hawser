@@ -46,11 +46,14 @@ func HookKeys() []string {
 // KeyAudit toggles the container-affecting API audit log (#121). "on" writes a
 // JSON-lines record of pulls, container create/start/stop/remove, exec and
 // builds to audit.log in the state dir; "off" (the default) disables it.
-// Changing it takes effect on the next `hawser restart`.
+// Changing it takes effect on the next docker call: the supervisor follows
+// the setting live, and opens or closes the log as it flips (#202).
 const KeyAudit = "audit"
 
-// Corporate-network keys (#62), applied to the engine on the next `hawser
-// restart`. NetworkKeys enumerates them.
+// Corporate-network keys (#62), applied to the engine on its next start --
+// `hawser restart` is the way to ask for one. The supervisor re-reads them at
+// every engine start rather than capturing them at launch, which is what
+// makes that true (#202). NetworkKeys enumerates them.
 const (
 	// KeyProxy is the HTTP(S) proxy URL dockerd uses for registry pulls.
 	KeyProxy = "network.proxy"

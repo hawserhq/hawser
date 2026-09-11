@@ -6,11 +6,11 @@ create / start / stop / remove, exec, and builds — something Docker Desktop
 exposes nowhere. Useful for "what did that compose file pull and mount?", and
 for security review on a shared or CI machine.
 
-Off by default. Turn it on and restart the bridge:
+Off by default. Turn it on; it takes effect on the next docker call, with
+nothing to restart:
 
 ```
 hawser config set audit on
-hawser restart
 hawser audit tail
 hawser audit tail --since 30m
 hawser audit tail -n 50
@@ -74,8 +74,15 @@ query field) but not the image or mounts (body fields).
 
 ## Notes
 
-- The setting is read when the bridge starts, so `hawser restart` is needed
-  after toggling it.
+- The setting is followed live: the supervisor opens the log when you turn it
+  on and closes it when you turn it off, both on the next docker call.
+
+  > An earlier version read the setting once when the supervisor started and
+  > told you to run `hawser restart`. That did not work — `restart` bounces
+  > the engine, not the supervisor that holds the setting — so turning the
+  > audit log on produced no error and no log. Fixed in
+  > [#202](https://github.com/hawserhq/hawser/issues/202); the worst way for
+  > a security feature to fail is the way you cannot see.
 - Records are best-effort: a write failure never blocks or fails the docker
   command being proxied.
 - It pairs with the coming policy engine ([#120](https://github.com/hawserhq/hawser/issues/120)):

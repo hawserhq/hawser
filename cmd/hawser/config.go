@@ -28,19 +28,27 @@ func runConfig(args []string) int {
        hawser config set <key> <value>  change one value
        hawser config export             print the install as a hawser.yaml
 
-Hawser settings apply live: the supervisor re-reads them every few seconds.
+Hawser settings apply live: the supervisor re-reads this file when it changes,
+so nothing here needs a restart to take effect. Where "live" needs a
+qualifier, the setting below says so — settings that configure the engine
+itself land when the engine next starts, which `+"`hawser restart`"+` asks for.
 
   %s   how long the bridge must be quiet (no connections, no running
                  containers) before the engine is stopped to reclaim its RAM;
                  the next docker command starts it again. A duration like 20m
                  or 1h, or "off" (the default).
+  %s          record container-affecting API calls to audit.log in the state
+                 dir; on/off ("off" by default). Takes effect on the next
+                 docker call. See `+"`hawser audit tail`"+`.
+  %s  refuse the rootfs at install time unless its signature verifies
+  %s free-space floor under which `+"`hawser doctor`"+` warns, e.g. 10GB
 
 Engine settings (engine.<key>) are written into the engine's daemon.json,
 validated with `+"`dockerd --validate`"+` before they replace the live file, and
 applied by bouncing the engine (rolled back if it does not come back). Set an
 empty value to clear a key. Lists are comma-separated; maps are k=v,k=v.
 
-`, config.KeyIdleTimeout)
+`, config.KeyIdleTimeout, config.KeyAudit, config.KeyVerifySignature, config.KeyDiskWarnBelow)
 		for _, k := range engineconfig.KeyHelp() {
 			fmt.Fprintf(os.Stderr, "  engine.%-24s %s\n", k.Name, k.Help)
 		}
@@ -55,7 +63,8 @@ to clear one. Events:
   %s      after the engine cold-starts on demand
 `, config.KeyHookPostStart, config.KeyHookPreStop, config.KeyHookOnIdleStop, config.KeyHookOnWake)
 		fmt.Fprintf(os.Stderr, `
-Corporate network (applied on `+"`hawser restart`"+`):
+Corporate network (applied to the engine on its next start; `+"`hawser restart`"+`
+asks for one):
   %s          http(s):// proxy for the engine's registry pulls
   %s       proxy bypass list (comma-separated)
   %s   trust the host's root CA store inside the engine
@@ -204,7 +213,7 @@ func setConfig(opts provision.Options, key, value string) int {
 		return exitError
 	}
 	v, _ := config.Get(opts.StateDir, key)
-	fmt.Printf("%s = %s\n", key, v)
+	fmt.Printf("%s = %s (%s)\n", key, v, config.Applies(key))
 	return exitOK
 }
 
