@@ -13,9 +13,12 @@ import (
 // path MTU or hijacks DNS, and the engine's pulls hang or containers cannot
 // resolve names — with no error that points at the VPN.
 //
-// Advisory by design. The remedies touch the global ~/.wslconfig (every WSL2
-// distro, not just Hawser's) and a live MTU clamp, so doctor NAMES the VPN and
-// shows the exact settings rather than editing global config behind your back.
+// Advisory about the GLOBAL settings, by design: the ~/.wslconfig keys affect
+// every WSL2 distro on the machine, not just Hawser's, so doctor NAMES the VPN
+// and shows the exact settings rather than editing global config behind your
+// back. The engine's own MTU is different -- that distro is ours -- so the
+// remedy names `hawser config set engine.mtu <n>` with the fingerprint's
+// recommended value, which dockerd validates and rolls back if it breaks.
 func checkVPN() Check {
 	c := Check{Name: "vpn", Title: "corporate VPN"}
 	c.Run = func(f Facts) Result {
@@ -27,11 +30,17 @@ func checkVPN() Check {
 		var detail []string
 		var wslKeys []string
 		wslSeen := map[string]string{}
+		bestMTU := 0
 		for _, m := range f.VPNs {
 			names = append(names, m.Name)
 			detail = append(detail, fmt.Sprintf("  %s  (adapter: %s)", m.Name, m.Adapter.Name))
 			if m.MTU > 0 {
 				detail = append(detail, fmt.Sprintf("    recommended engine MTU: %d", m.MTU))
+				// Two tunnels up at once: the smaller clamp is the one that
+				// has to win, or the larger still fragments.
+				if bestMTU == 0 || m.MTU < bestMTU {
+					bestMTU = m.MTU
+				}
 			}
 			if len(m.DNS) > 0 {
 				detail = append(detail, "    DNS fallback: "+strings.Join(m.DNS, ", "))
@@ -60,7 +69,16 @@ func checkVPN() Check {
 				remedy.WriteString(fmt.Sprintf("         %s=%s\n", k, wslSeen[k]))
 			}
 		}
-		remedy.WriteString("      2. if the engine still stalls, clamp its interface MTU inside the distro.\n")
+		// Unlike step 1, this one is actionable: the engine distro is ours, so
+		// clamping its MTU is not a global change. dockerd validates the value
+		// before it applies and the engine rolls back if it will not restart.
+		if bestMTU > 0 {
+			remedy.WriteString(fmt.Sprintf("      2. if the engine still stalls, clamp the engine's MTU:\n"+
+				"         hawser config set engine.mtu %d\n", bestMTU))
+		} else {
+			remedy.WriteString("      2. if the engine still stalls, clamp the engine's MTU with " +
+				"`hawser config set engine.mtu <value>` (1400 is a common starting point).\n")
+		}
 		remedy.WriteString("      3. behind a TLS-inspecting VPN (e.g. Zscaler), also " +
 			"`hawser config set network.import-host-cas on` so pulls trust the VPN's root CA.")
 		r.Remedy = remedy.String()
