@@ -34,19 +34,36 @@ Same verb at two scopes:
 | `hawser upgrade` | everything — app, engine, bundled docker CLI |
 | `hawser engine upgrade` | just the engine ([details](engine-upgrade.md)) |
 
-## What it does and does not do
+## What it applies, and what it only reports
 
-**It reports. It applies nothing.** Run the commands it prints:
-
-| stream | how to move it |
+| stream | |
 |---|---|
-| app | download the release zip; a signed installer is coming ([#77](https://github.com/hawserhq/hawser/issues/77)) |
-| engine | `hawser engine upgrade` — reversible, with `hawser engine rollback` |
-| bundled CLI | `hawser cli install` |
+| app | **reported, never applied** — download the release zip; a signed installer is coming ([#77](https://github.com/hawserhq/hawser/issues/77)) |
+| engine | applied — `hawser engine upgrade`, reversible with `hawser engine rollback` |
+| bundled CLI | applied — `hawser cli install` |
 
-The app is deliberately last to be automated. A running `.exe` cannot cleanly
-replace itself on Windows, and once there is a signed distribution channel it
-owns that path properly — self-replacement earns its complexity last, if ever.
+A running `.exe` cannot cleanly replace itself on Windows, and once there is a
+signed distribution channel it owns that path properly — self-replacement earns
+its complexity last, if ever.
+
+It always shows you the plan and asks first:
+
+```
+will run:
+  hawser cli install      29.7.2 -> 29.8.0
+  hawser engine upgrade   29.7.2 -> 29.8.0
+
+proceed? [y/N]
+```
+
+`--dry-run` prints that and stops. `--check` reports without even planning.
+`--yes` skips the question, for runners. `--json` implies `--check`, because
+there is no way to ask a question in JSON.
+
+The CLI goes first: it is a file copy costing no downtime, where the engine
+upgrade stops and restarts the engine and takes minutes. So a failed engine
+upgrade leaves a machine with the CLI already current rather than nothing done,
+and the two are independent — nothing is ever half-applied.
 
 ## Nothing checks on its own
 
@@ -78,8 +95,9 @@ hawser upgrade --json
 ```
 
 Exit codes follow `hawser cli status`, so either can gate a script the same
-way: **0** everything current, **3** something can be upgraded, **1** error,
-**2** usage.
+way: **0** nothing to do (or everything applied), **3** something can be
+upgraded, **1** error, **2** usage. The 3 is reported by `--check` and
+`--dry-run`; a plain run that applies successfully exits **0**.
 
 Each stream carries a `status` of `current`, `available`, `unknown` or
 `not-installed`. `unknown` and `not-installed` are distinct from `current` on

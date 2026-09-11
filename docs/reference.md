@@ -1010,13 +1010,20 @@ flags:
 am I current? app, engine and bundled CLI in one answer
 
 ```
-usage: hawser upgrade [--check] [--offline] [--json]
+usage: hawser upgrade [--check|--dry-run] [--yes] [--offline] [--json]
 
 Reports whether the app, the engine and the bundled docker CLI are current,
-and what to run for each one that is not.
+then brings forward the two it owns — after showing you what it will do.
 
   hawser upgrade            everything
   hawser engine upgrade     just the engine
+
+The app is REPORTED, never applied: a running .exe cannot cleanly replace
+itself on Windows, and a signed installer is the right owner of that path.
+
+  --check     report only; change nothing
+  --dry-run   print exactly what would be applied, and apply nothing
+  --yes       do not ask (runners)
 
 Why this is not just a convenience: the engines `hawser engine upgrade` can
 reach are pinned in THIS binary's manifest. A newer engine can therefore need
@@ -1028,21 +1035,29 @@ and makes exactly one outbound request — to the releases API, for the app
 version. The engine and CLI answers are local (both manifests are compiled
 in), so `--offline` still reports those. Air-gapped installs should use it.
 
-This build REPORTS ONLY; it applies nothing. Run the commands it prints.
+The CLI is applied before the engine: it is a file copy that costs no
+downtime, where an engine upgrade stops and restarts the engine. A failed
+engine upgrade therefore leaves the CLI already current rather than nothing
+done, and `hawser engine rollback` reverses the engine half on its own.
 
-Exit codes: 0 up to date, 1 error, 2 usage, 3 something can be upgraded.
+Exit codes: 0 nothing to do or everything applied, 1 error, 2 usage,
+3 something can be upgraded (--check and --dry-run only).
 
 flags:
   -check
-    	report only (this build checks only either way)
+    	report only; change nothing
+  -dry-run
+    	print what would be applied, and apply nothing
   -json
-    	emit machine-readable JSON
+    	emit machine-readable JSON (implies --check)
   -offline
     	skip the network check for the app version
   -state-dir string
     	override Hawser's state directory
   -timeout duration
     	how long to wait for the releases API (default 15s)
+  -yes
+    	skip the confirmation prompt (for runners)
 ```
 
 ## wsl-integrate

@@ -21,20 +21,29 @@ import (
 func runUpgrade(args []string) int {
 	fs := flag.NewFlagSet("upgrade", flag.ContinueOnError)
 	var (
-		check    = fs.Bool("check", false, "report only (this build checks only either way)")
+		check    = fs.Bool("check", false, "report only; change nothing")
+		dryRun   = fs.Bool("dry-run", false, "print what would be applied, and apply nothing")
+		yes      = fs.Bool("yes", false, "skip the confirmation prompt (for runners)")
 		offline  = fs.Bool("offline", false, "skip the network check for the app version")
-		asJSON   = fs.Bool("json", false, "emit machine-readable JSON")
+		asJSON   = fs.Bool("json", false, "emit machine-readable JSON (implies --check)")
 		stateDir = fs.String("state-dir", "", "override Hawser's state directory")
 		timeout  = fs.Duration("timeout", 15*time.Second, "how long to wait for the releases API")
 	)
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, `usage: hawser upgrade [--check] [--offline] [--json]
+		fmt.Fprintf(os.Stderr, `usage: hawser upgrade [--check|--dry-run] [--yes] [--offline] [--json]
 
 Reports whether the app, the engine and the bundled docker CLI are current,
-and what to run for each one that is not.
+then brings forward the two it owns — after showing you what it will do.
 
   hawser upgrade            everything
   hawser engine upgrade     just the engine
+
+The app is REPORTED, never applied: a running .exe cannot cleanly replace
+itself on Windows, and a signed installer is the right owner of that path.
+
+  --check     report only; change nothing
+  --dry-run   print exactly what would be applied, and apply nothing
+  --yes       do not ask (runners)
 
 Why this is not just a convenience: the engines `+"`hawser engine upgrade`"+` can
 reach are pinned in THIS binary's manifest. A newer engine can therefore need
@@ -46,9 +55,13 @@ and makes exactly one outbound request — to the releases API, for the app
 version. The engine and CLI answers are local (both manifests are compiled
 in), so `+"`--offline`"+` still reports those. Air-gapped installs should use it.
 
-This build REPORTS ONLY; it applies nothing. Run the commands it prints.
+The CLI is applied before the engine: it is a file copy that costs no
+downtime, where an engine upgrade stops and restarts the engine. A failed
+engine upgrade therefore leaves the CLI already current rather than nothing
+done, and `+"`hawser engine rollback`"+` reverses the engine half on its own.
 
-Exit codes: 0 up to date, %d error, %d usage, %d something can be upgraded.
+Exit codes: 0 nothing to do or everything applied, %d error, %d usage,
+%d something can be upgraded (--check and --dry-run only).
 
 flags:
 `, exitError, exitUsage, exitNotFound)
@@ -57,7 +70,10 @@ flags:
 	if err := fs.Parse(args); err != nil {
 		return exitUsage
 	}
-	_ = check // accepted for forward compatibility; this build only ever checks
+	// --json is a report format, and there is no way to ask a question in
+	// JSON — so it never applies anything, the same rule `hawser wsl-config`
+	// follows.
+	reportOnly := *check || *dryRun || *asJSON
 
 	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
 
@@ -89,11 +105,104 @@ flags:
 		}
 	}
 
-	// Exit 3 for "there is something to install", matching `hawser cli status`
-	// so a script can gate on either the same way.
-	if rep.Available() {
-		return exitNotFound
+	plan := rep.Plan()
+	if reportOnly {
+		if *dryRun && len(plan) > 0 {
+			fmt.Println("\nwould run:")
+			printUpgradePlan(plan)
+			fmt.Println("\nnothing was changed (--dry-run)")
+		}
+		// Exit 3 for "there is something to install", matching
+		// `hawser cli status` so a script can gate on either the same way.
+		if rep.Available() {
+			return exitNotFound
+		}
+		return exitOK
 	}
+
+	if len(plan) == 0 {
+		// The app being behind is not something this command can act on, and
+		// saying "nothing to do" without that qualification would read as
+		// "you are current".
+		if rep.Available() {
+			fmt.Println("\nnothing here is Hawser's to apply — see above")
+		}
+		return exitOK
+	}
+
+	if !*yes {
+		fmt.Println("\nwill run:")
+		printUpgradePlan(plan)
+		if !confirm("\nproceed?") {
+			fmt.Println("nothing was changed")
+			return exitOK
+		}
+	}
+	return applyUpgradePlan(plan, *stateDir)
+}
+
+// printUpgradePlan shows the commands, not a summary of them: the reader can
+// then run any of them by hand, and can see that nothing else is happening.
+func printUpgradePlan(plan []upgrade.Action) {
+	for _, a := range plan {
+		fmt.Printf("  hawser %-16s %s -> %s\n", joinArgs(a.Args), orUnset(a.From), a.To)
+	}
+}
+
+func joinArgs(args []string) string {
+	out := ""
+	for i, a := range args {
+		if i > 0 {
+			out += " "
+		}
+		out += a
+	}
+	return out
+}
+
+func orUnset(s string) string {
+	if s == "" {
+		return "(none)"
+	}
+	return s
+}
+
+// applyUpgradePlan runs each action in order, stopping at the first failure.
+//
+// Stopping rather than continuing is deliberate: the actions are independent,
+// so what already succeeded stands and needs no unwinding, and pressing on
+// after an engine upgrade failed would stack a second change on top of a
+// machine whose state nobody has looked at yet.
+func applyUpgradePlan(plan []upgrade.Action, stateDir string) int {
+	for _, a := range plan {
+		args := append([]string(nil), a.Args[1:]...)
+		if stateDir != "" {
+			args = append(args, "--state-dir", stateDir)
+		}
+		fmt.Printf("\n== %s: %s -> %s\n", a.Stream, orUnset(a.From), a.To)
+
+		var code int
+		switch a.Args[0] {
+		case "cli":
+			code = runCLI(args)
+		case "engine":
+			code = runEngine(args)
+		default:
+			fmt.Fprintf(os.Stderr, "hawser: no way to apply %q\n", a.Stream)
+			return exitError
+		}
+		if code != exitOK {
+			fmt.Fprintf(os.Stderr,
+				"\nhawser: %s upgrade failed (exit %d); stopping before anything else\n",
+				a.Stream, code)
+			if a.Stream == "engine" {
+				fmt.Fprintln(os.Stderr,
+					"the engine upgrade is reversible: `hawser engine rollback`")
+			}
+			return code
+		}
+	}
+	fmt.Println("\nup to date")
 	return exitOK
 }
 
