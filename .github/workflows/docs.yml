@@ -13,6 +13,10 @@ on:
       - 'site/**'
       - 'assets/*.svg'
       - 'scripts/build-docs.ps1'
+      # install.ps1 is mounted into the site (hugo.toml) and served at
+      # /install.ps1 -- the file people pipe into their shell. Without it
+      # here, a fix to the installer merges and never reaches the URL.
+      - 'scripts/install.ps1'
       - '.github/workflows/docs.yml'
   pull_request:
     paths:
@@ -20,6 +24,10 @@ on:
       - 'site/**'
       - 'assets/*.svg'
       - 'scripts/build-docs.ps1'
+      # install.ps1 is mounted into the site (hugo.toml) and served at
+      # /install.ps1 -- the file people pipe into their shell. Without it
+      # here, a fix to the installer merges and never reaches the URL.
+      - 'scripts/install.ps1'
       - '.github/workflows/docs.yml'
   # So the site can be republished without a docs change -- after a transfer,
   # or when Pages itself needs a nudge.
