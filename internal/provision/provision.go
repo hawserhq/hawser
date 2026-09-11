@@ -144,6 +144,21 @@ type Manifest struct {
 	PreviousEngineRef string `json:"previousEngineRef,omitempty"`
 	// UpgradedAt is when the last engine upgrade landed.
 	UpgradedAt time.Time `json:"upgradedAt,omitempty"`
+	// DockerContextHost is the endpoint this install wired the shared `hawser`
+	// docker context to (#217).
+	//
+	// The context is a single global object, so two installs on one machine
+	// contend for it. Recording what we pointed it at is how `hawser
+	// uninstall` can tell "this context is mine to remove" from "another
+	// install owns it now" -- without which removing the second install broke
+	// the first. Empty on installs that predate this field, and on machines
+	// with no docker CLI to wire.
+	DockerContextHost string `json:"dockerContextHost,omitempty"`
+	// DockerContextPrevious is where the context pointed BEFORE this install
+	// took it over. Uninstall hands it back rather than deleting a context
+	// another install is still using. Empty means this install created the
+	// context, and removing it is then the correct cleanup.
+	DockerContextPrevious string `json:"dockerContextPrevious,omitempty"`
 }
 
 // Provisioner performs installs and removals.

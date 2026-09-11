@@ -232,6 +232,11 @@ flags:
 
 	contextReady := false
 	mgr := &dockerctx.Manager{}
+	// What the context pointed at before, so repointing an existing one is
+	// visible rather than silent: the `hawser` context is a single global
+	// object, and on a machine with a second install this is another
+	// install's engine being taken over (#217).
+	previousHost, _ := mgr.Endpoint(ctx)
 	if err := mgr.Ensure(ctx, dockerHost); err != nil {
 		// A missing docker CLI is not a reason to fail a working install.
 		var noCLI *dockerctx.ErrNoDockerCLI
@@ -242,6 +247,19 @@ flags:
 		}
 	} else {
 		contextReady = true
+		manifest.DockerContextHost = dockerHost
+		if previousHost != "" && previousHost != dockerHost {
+			// Another install had it. Say so, and remember where to put it
+			// back — uninstalling this one must not leave that install with
+			// no context (#217).
+			log.Warn("the `hawser` docker context now points at this install",
+				"was", previousHost, "now", dockerHost,
+				"note", "uninstalling this install restores it")
+			manifest.DockerContextPrevious = previousHost
+		}
+		if err := p.SaveManifest(opts, manifest); err != nil {
+			log.Warn("could not record the docker context endpoint", "error", err)
+		}
 	}
 
 	fmt.Printf(`
@@ -327,9 +345,10 @@ flags:
 
 	// Say what will actually be destroyed, using the recorded manifest rather
 	// than a guess, before asking.
+	ownManifest, _ := p.ReadManifest(opts)
 	target := opts.Distro
-	if m, err := p.ReadManifest(opts); err == nil && m.Distro != "" {
-		target = m.Distro
+	if ownManifest != nil && ownManifest.Distro != "" {
+		target = ownManifest.Distro
 	} else if target == "" {
 		target = provision.DefaultDistro
 	}
@@ -371,13 +390,38 @@ flags:
 	// Remove the context before the distro: leaving a context pointed at a
 	// pipe nobody serves would make every later docker command fail, which is
 	// not "nothing else on the system was modified".
+	//
+	// But the `hawser` context is a single global object, and a machine can
+	// have more than one install — the e2e suite runs one beside a real one.
+	// Removing it unconditionally took the first install's context away when
+	// the second was uninstalled, and the symptom (`context "hawser": context
+	// not found`) looked like Hawser was broken rather than like a cleanup
+	// that reached too far (#217). So: only if it is still ours.
 	mgr := &dockerctx.Manager{}
-	if err := mgr.Remove(ctx, ""); err != nil {
-		var noCLI *dockerctx.ErrNoDockerCLI
-		if errors.As(err, &noCLI) {
-			log.Debug("no docker CLI, nothing to unwire", "reason", err)
+	switch ours, why := contextIsOurs(ctx, mgr, ownManifest); {
+	case !ours:
+		log.Info("leaving the `hawser` docker context alone", "reason", why)
+
+	case ownManifest != nil && ownManifest.DockerContextPrevious != "":
+		// This install took the context over from another one. Hand it back
+		// instead of deleting it: that install is still running, and its
+		// docker commands go through this exact context.
+		if err := mgr.Ensure(ctx, ownManifest.DockerContextPrevious); err != nil {
+			log.Warn("could not restore the docker context", "error", err,
+				"to", ownManifest.DockerContextPrevious)
 		} else {
-			log.Warn("could not remove the docker context", "error", err)
+			log.Info("docker context handed back to the install that had it",
+				"endpoint", ownManifest.DockerContextPrevious)
+		}
+
+	default:
+		if err := mgr.Remove(ctx, ""); err != nil {
+			var noCLI *dockerctx.ErrNoDockerCLI
+			if errors.As(err, &noCLI) {
+				log.Debug("no docker CLI, nothing to unwire", "reason", err)
+			} else {
+				log.Warn("could not remove the docker context", "error", err)
+			}
 		}
 	}
 
@@ -387,4 +431,35 @@ flags:
 	}
 	fmt.Println("Removed. Nothing else on the system was modified.")
 	return exitOK
+}
+
+// contextIsOurs decides whether `hawser uninstall` may remove the shared
+// `hawser` docker context (#217), and says why when it may not.
+//
+// The rule: the context is ours if it still points where this install wired
+// it. If another install has since repointed it, that install is using it and
+// it is not ours to delete — removing it there is how uninstalling a second
+// install broke the first one.
+//
+// An install that predates the recorded endpoint gets the old behaviour. That
+// is deliberate: those machines were installed when one install was the only
+// possibility, so the context almost certainly is theirs, and leaving a
+// context pointed at a pipe nobody serves would break every later docker
+// command — the worse of the two failures.
+func contextIsOurs(ctx context.Context, mgr *dockerctx.Manager, m *provision.Manifest) (bool, string) {
+	if m == nil || m.DockerContextHost == "" {
+		return true, ""
+	}
+	current, err := mgr.Endpoint(ctx)
+	if err != nil {
+		// No docker CLI, or no context: Remove handles both, and guessing
+		// "not ours" here would leave a dangling context behind instead.
+		return true, ""
+	}
+	if current == m.DockerContextHost {
+		return true, ""
+	}
+	return false, fmt.Sprintf(
+		"it points at %s, not this install's %s — another install owns it now",
+		current, m.DockerContextHost)
 }
