@@ -26,6 +26,13 @@ type Stats struct {
 	// from one left behind by a process that is gone.
 	PID int `json:"pid"`
 
+	// Engine is the engine state the reconciler last observed -- running, idle
+	// or stopped -- in the same vocabulary `hawser status --json` uses. It is
+	// published so a reader does not have to probe the engine itself: that
+	// probe is what made the tray cost 285 ms every four seconds (#192).
+	// Empty on a reading written before this field existed.
+	Engine string `json:"engine,omitempty"`
+
 	Lifecycle Lifecycle `json:"lifecycle"`
 	Bridge    Bridge    `json:"bridge"`
 }

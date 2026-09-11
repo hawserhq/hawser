@@ -12,6 +12,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/zcsizmadia/hawser/internal/supervise"
 )
 
 // State is the engine state the dot reflects, mirroring `hawser status`.
@@ -31,6 +33,9 @@ type Status struct {
 	Engine     string `json:"engine"`
 	Supervisor string `json:"supervisor"`
 	Desired    string `json:"desired"`
+	// StateDir is where the supervisor publishes its stats. Learning it once
+	// is what lets the tray stop shelling out for every refresh (#192).
+	StateDir string `json:"stateDir"`
 }
 
 // State collapses a Status into the dot's State.
@@ -120,4 +125,28 @@ func (c CLI) Run(ctx context.Context, a Action) (string, error) {
 	defer cancel()
 	out, err := exec.CommandContext(ctx, c.Exe, a.Args...).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
+}
+
+// PollPublished reads the state the supervisor already publishes, instead of
+// spawning `hawser status --json` to ask for it.
+//
+// This is the whole point of #192: the reconciler probes the engine every few
+// seconds anyway and writes the answer down, so the tray was paying 285 ms and
+// a process spawn -- roughly 7% of a core, continuously -- to recompute
+// something already on disk. Reading it costs a file read.
+//
+// Returns ok=false when there is no supervisor, when its reading is stale, or
+// when the file predates the Engine field. The caller falls back to the CLI,
+// which is correct but expensive, so it should do so sparingly.
+func PollPublished(stateDir string) (State, bool) {
+	if stateDir == "" {
+		return StateUnknown, false
+	}
+	st, found, err := supervise.ReadStats(stateDir)
+	if err != nil || !found || !st.Fresh() || st.Engine == "" {
+		return StateUnknown, false
+	}
+	// A supervisor is writing, so Hawser is installed; reuse the existing
+	// mapping rather than growing a second copy of it in the tray.
+	return Status{Installed: true, Engine: st.Engine}.State(), true
 }
