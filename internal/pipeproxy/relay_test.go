@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/pipeproxy"
 )
 
 // echoServer stands in for dockerd: a local TCP listener whose connections
@@ -416,7 +416,7 @@ func TestRelayClosesEngineOnClientError(t *testing.T) {
 	// CLI - produces EOF, which is indistinguishable from the half-close that
 	// `docker build` legitimately performs. That case is bounded by socat's -T
 	// idle timeout instead, and only fully solved by the v0.2 agent, where
-	// Hawser owns both ends of the connection.
+	// Skrog owns both ends of the connection.
 	engine := newServer(t, func(c net.Conn) { select {} })
 
 	client, server := net.Pipe()

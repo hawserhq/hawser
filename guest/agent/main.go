@@ -1,6 +1,6 @@
 //go:build linux
 
-// hawser-agent runs inside the engine distro and relays vsock connections
+// skrog-agent runs inside the engine distro and relays vsock connections
 // from the Windows host to dockerd's unix socket (#40).
 //
 // It replaces the per-connection `wsl.exe socat` path: owning both ends of
@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/vsockproto"
+	"github.com/wslkit/skrog/internal/vsockproto"
 	"golang.org/x/sys/unix"
 )
 
@@ -35,12 +35,12 @@ import (
 // requires the shared secret only against a /2 agent, so an older /1 rootfs
 // keeps working over the unauthenticated handshake instead of being refused as
 // a downgrade.
-const Identity = "hawser-agent/2"
+const Identity = "skrog-agent/2"
 
 // SecretFile is where install writes the per-install auth secret (#81),
 // root-readable only. Absent on a rootfs that predates auth: the agent then
 // speaks the v1 handshake, and the host's socat fallback still works.
-const SecretFile = "/etc/hawser/agent-secret"
+const SecretFile = "/etc/skrog/agent-secret"
 
 func main() {
 	var (
@@ -67,7 +67,7 @@ func main() {
 	}
 
 	if err := run(uint32(*port), *socket, secret); err != nil {
-		log.Fatalf("hawser-agent: %v", err)
+		log.Fatalf("skrog-agent: %v", err)
 	}
 }
 

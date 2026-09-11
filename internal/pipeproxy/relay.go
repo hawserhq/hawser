@@ -66,7 +66,7 @@ type Server struct {
 	mu     sync.Mutex
 	active map[io.Closer]struct{}
 
-	// Metrics counts connections and bytes for `hawser status --stats` (#179).
+	// Metrics counts connections and bytes for `skrog status --stats` (#179).
 	// Nil disables counting.
 	Metrics *Metrics
 

@@ -96,7 +96,7 @@ func DB() []Fingerprint {
 				"dnsTunneling": "true",
 			},
 			Note: "Zscaler intercepts and re-signs TLS; besides MTU, the engine must " +
-				"trust the Zscaler root CA — turn on `hawser config set " +
+				"trust the Zscaler root CA — turn on `skrog config set " +
 				"network.import-host-cas on` to avoid x509 pull errors.",
 		},
 		{

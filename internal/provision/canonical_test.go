@@ -19,33 +19,40 @@ func TestCanonicalRootfsURL(t *testing.T) {
 			// The real shape found on a pre-transfer install.
 			name:    "a former home is rewritten, tag and filename untouched",
 			in:      "https://github.com/zcsizmadia/hawser/releases/download/rootfs-v29.8.0-1/hawser-rootfs-29.8.0-1.tar.gz",
-			want:    "https://github.com/hawserhq/hawser/releases/download/rootfs-v29.8.0-1/hawser-rootfs-29.8.0-1.tar.gz",
+			want:    "https://github.com/wslkit/skrog/releases/download/rootfs-v29.8.0-1/hawser-rootfs-29.8.0-1.tar.gz",
+			changed: true,
+		},
+		{
+			// The second former home: the org, before the Skrog rename (#1).
+			name:    "the pre-rename org is rewritten too",
+			in:      "https://github.com/hawserhq/hawser/releases/download/rootfs-v29.8.0-1/hawser-rootfs-29.8.0-1.tar.gz",
+			want:    "https://github.com/wslkit/skrog/releases/download/rootfs-v29.8.0-1/hawser-rootfs-29.8.0-1.tar.gz",
 			changed: true,
 		},
 		{
 			name:    "already current",
-			in:      "https://github.com/hawserhq/hawser/releases/download/rootfs-v29.8.0-1/x.tar.gz",
-			want:    "https://github.com/hawserhq/hawser/releases/download/rootfs-v29.8.0-1/x.tar.gz",
+			in:      "https://github.com/wslkit/skrog/releases/download/rootfs-v29.8.0-1/x.tar.gz",
+			want:    "https://github.com/wslkit/skrog/releases/download/rootfs-v29.8.0-1/x.tar.gz",
 			changed: false,
 		},
 		{
 			name:    "host case does not matter",
 			in:      "https://GitHub.com/ZCsizmadia/hawser/releases/download/t/x.tar.gz",
-			want:    "https://github.com/hawserhq/hawser/releases/download/t/x.tar.gz",
+			want:    "https://github.com/wslkit/skrog/releases/download/t/x.tar.gz",
 			changed: true,
 		},
 		{
 			// Air-gapped installs point at a local file, and rewriting those
 			// would break exactly the installs that chose them deliberately.
 			name:    "a file URL is left alone",
-			in:      "file:///C:/bundles/hawser-rootfs.tar.gz",
-			want:    "file:///C:/bundles/hawser-rootfs.tar.gz",
+			in:      "file:///C:/bundles/skrog-rootfs.tar.gz",
+			want:    "file:///C:/bundles/skrog-rootfs.tar.gz",
 			changed: false,
 		},
 		{
 			name:    "an internal mirror is left alone",
-			in:      "https://artifactory.corp.example/hawser/hawser-rootfs-29.8.0-1.tar.gz",
-			want:    "https://artifactory.corp.example/hawser/hawser-rootfs-29.8.0-1.tar.gz",
+			in:      "https://artifactory.corp.example/skrog/skrog-rootfs-29.8.0-1.tar.gz",
+			want:    "https://artifactory.corp.example/skrog/skrog-rootfs-29.8.0-1.tar.gz",
 			changed: false,
 		},
 		{
@@ -77,12 +84,12 @@ func TestCanonicalRootfsURL(t *testing.T) {
 }
 
 func TestReadManifestCanonicalizesAStaleURL(t *testing.T) {
-	// The consequence that makes this worth fixing: `hawser engine rollback`
+	// The consequence that makes this worth fixing: `skrog engine rollback`
 	// re-fetches from the URL recorded here, so a stale one is not just a
 	// cosmetic record — it is where a real download would come from.
 	dir := t.TempDir()
 	raw := `{
-	  "distro": "hawser-engine",
+	  "distro": "skrog-engine",
 	  "rootfsUrl": "https://github.com/zcsizmadia/hawser/releases/download/rootfs-v29.8.0-1/hawser-rootfs-29.8.0-1.tar.gz",
 	  "rootfsSha256": "76101881a8b56ce7fc25b947f2b31dca0aeda6ff3e76d8d7a5fbe3a3be782635",
 	  "engineVersion": "29.8.0"
@@ -97,7 +104,7 @@ func TestReadManifestCanonicalizesAStaleURL(t *testing.T) {
 	if strings.Contains(m.RootfsURL, "zcsizmadia") {
 		t.Errorf("RootfsURL = %q; a former home must not survive a read", m.RootfsURL)
 	}
-	if !strings.HasPrefix(m.RootfsURL, "https://github.com/hawserhq/hawser/") {
+	if !strings.HasPrefix(m.RootfsURL, "https://github.com/wslkit/skrog/") {
 		t.Errorf("RootfsURL = %q, want it under the current home", m.RootfsURL)
 	}
 	// The release's own tag and filename are not ours to change: the checksum
@@ -112,7 +119,7 @@ func TestReadManifestCanonicalizesAStaleURL(t *testing.T) {
 
 func TestReadManifestLeavesACustomURLAlone(t *testing.T) {
 	dir := t.TempDir()
-	const mirror = "https://artifactory.corp.example/hawser/rootfs.tar.gz"
+	const mirror = "https://artifactory.corp.example/skrog/rootfs.tar.gz"
 	writeManifestFile(t, dir, `{"distro":"d","rootfsUrl":"`+mirror+`","engineVersion":"29.8.0"}`)
 
 	p := &Provisioner{}

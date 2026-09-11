@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/winpath"
+	"github.com/wslkit/skrog/internal/winpath"
 )
 
 // AuditSink observes each proxied request for the audit log (#121). It is a
@@ -285,10 +285,10 @@ func observe(sink AuditSink, start time.Time, req *http.Request, status int, err
 }
 
 // trace is debug logging for the relay and HTTP loop, enabled with
-// HAWSER_TRACE=1. It earned its keep diagnosing the docker-run-never-exits
+// SKROG_TRACE=1. It earned its keep diagnosing the docker-run-never-exits
 // hang (a winio pipe cannot half-close), so it stays.
 func trace(format string, args ...any) {
-	if os.Getenv("HAWSER_TRACE") == "" {
+	if os.Getenv("SKROG_TRACE") == "" {
 		return
 	}
 	fmt.Fprintf(os.Stderr, "TRACE "+format+"\n", args...)

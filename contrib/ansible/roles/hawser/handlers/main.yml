@@ -1,4 +1,0 @@
----
-- name: hawser installed
-  ansible.builtin.debug:
-    msg: "hawser {{ hawser_version }} installed at {{ hawser_home }}\\bin"

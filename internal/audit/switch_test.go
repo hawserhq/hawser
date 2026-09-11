@@ -31,7 +31,7 @@ func observe(s *Switch) {
 }
 
 func TestSwitchStartsLoggingWhenTheSettingTurnsOn(t *testing.T) {
-	// The bug: `hawser config set audit on` produced no log, because the
+	// The bug: `skrog config set audit on` produced no log, because the
 	// setting was read once when the supervisor started.
 	var on bool
 	buf := &nopCloser{}

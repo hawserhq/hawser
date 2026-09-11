@@ -82,7 +82,7 @@ clone https://github.com/containerd/containerd.git "$CONTAINERD_VERSION" contain
 echo "--- moby (dockerd) $MOBY_TAG"
 clone https://github.com/moby/moby.git "$MOBY_TAG" moby "${MOBY_SHA:-}"
 # VERSION is what `dockerd --version` reports; without it moby stamps "dev",
-# which the smoke test rejects and `hawser version` would misreport.
+# which the smoke test rejects and `skrog version` would misreport.
 # docker-proxy ships alongside dockerd and is not optional: with userland-proxy
 # enabled (the default) dockerd refuses to start without it -
 # "userland-proxy is enabled, but userland-proxy-path is not set". Copying only
@@ -99,7 +99,7 @@ clone https://github.com/moby/moby.git "$MOBY_TAG" moby "${MOBY_SHA:-}"
 echo "--- buildkit $BUILDKIT_VERSION"
 clone https://github.com/moby/buildkit.git "$BUILDKIT_VERSION" buildkit "${BUILDKIT_SHA:-}"
 # Without these ldflags buildkit reports "v0.0.0+unknown" — same trap as moby's
-# VERSION, and `hawser version` is supposed to report the truth.
+# VERSION, and `skrog version` is supposed to report the truth.
 bk_rev="$(git -C /src/buildkit rev-parse HEAD)"
 bk_ld="-X github.com/moby/buildkit/version.Version=${BUILDKIT_VERSION#v}"
 bk_ld="$bk_ld -X github.com/moby/buildkit/version.Revision=$bk_rev"

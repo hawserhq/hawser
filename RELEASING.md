@@ -5,11 +5,11 @@ Two independent release streams, deliberately kept apart:
 | stream | tag | what it publishes | workflow |
 |---|---|---|---|
 | **rootfs** | `rootfs-vX.Y.Z` | the engine tarball, its `.sha256`, and an SPDX SBOM | `rootfs.yml` |
-| **app** | `vX.Y.Z` | `hawser.exe` for amd64 and arm64, zipped, plus `SHA256SUMS` | `release.yml` |
+| **app** | `vX.Y.Z` | `skrog.exe` for amd64 and arm64, zipped, plus `SHA256SUMS` | `release.yml` |
 
 They are separate because the engine and the app version independently: an engine
 security patch should not require an app release, and vice versa (PLAN §04,
-`hawser engine upgrade`). Both workflows check the tag prefix, so a rootfs
+`skrog engine upgrade`). Both workflows check the tag prefix, so a rootfs
 release never gets app binaries attached and an app release never gets a rootfs.
 
 Deciding *what* to bump — which moby tag, whether containerd/runc/buildkit move
@@ -45,9 +45,9 @@ has to exist first:
 1. **Cut the rootfs release.** Tag `rootfs-v<engine-version>-<revision>` —
    e.g. `rootfs-v29.7.2-2`, matching `ENGINE_VERSION` and `ROOTFS_REVISION` in
    `guest/rootfs/versions.env`. The revision exists because the tarball
-   carries more than the engine (hawser-agent, config, the Alpine userland):
+   carries more than the engine (skrog-agent, config, the Alpine userland):
    it can change while the engine version stays put, and a published release's
-   assets must never be replaced — hawser builds already in the wild pin its
+   assets must never be replaced — skrog builds already in the wild pin its
    checksum. Bump the revision for a content change, reset it to 1 on an
    engine bump. Publishing the tag triggers `rootfs.yml`, which rebuilds from
    source (or restores the cached binaries), runs the smoke test, and attaches
@@ -62,7 +62,7 @@ has to exist first:
    architectures, asserts the version stamp actually took, packages, and
    attaches the zips with `SHA256SUMS`.
 
-Until step 2 lands, `hawser install` refuses with a message telling the user to
+Until step 2 lands, `skrog install` refuses with a message telling the user to
 pass `--rootfs-url` and `--rootfs-sha256` explicitly. That is intentional: there
 is no code path that installs an unverified rootfs.
 

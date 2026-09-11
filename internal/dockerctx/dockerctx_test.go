@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/dockerctx"
+	"github.com/wslkit/skrog/internal/dockerctx"
 )
 
 // fakeDocker records docker CLI invocations and replays canned output, so every
@@ -63,15 +63,15 @@ func (f *fakeDocker) callWith(prefix string) []string {
 	return nil
 }
 
-const hawserHost = "npipe:////./pipe/hawser_engine"
+const skrogHost = "npipe:////./pipe/skrog_engine"
 
 func TestEnsureCreatesMissingContext(t *testing.T) {
 	f := newFakeDocker().
 		on("context ls", "default\ndesktop-linux", nil).
-		on("context create", "hawser", nil)
+		on("context create", "skrog", nil)
 
 	m := &dockerctx.Manager{Runner: f}
-	if err := m.Ensure(context.Background(), hawserHost); err != nil {
+	if err := m.Ensure(context.Background(), skrogHost); err != nil {
 		t.Fatalf("Ensure: %v", err)
 	}
 
@@ -80,7 +80,7 @@ func TestEnsureCreatesMissingContext(t *testing.T) {
 		t.Fatal("context was not created")
 	}
 	joined := strings.Join(args, " ")
-	if !strings.Contains(joined, "host="+hawserHost) {
+	if !strings.Contains(joined, "host="+skrogHost) {
 		t.Errorf("create args %q do not set the endpoint", joined)
 	}
 	if f.called("context update") {
@@ -91,11 +91,11 @@ func TestEnsureCreatesMissingContext(t *testing.T) {
 func TestEnsureIsIdempotent(t *testing.T) {
 	// Reinstalling, or running proxy repeatedly, must not churn the context.
 	f := newFakeDocker().
-		on("context ls", "default\nhawser", nil).
-		on("context inspect", hawserHost, nil)
+		on("context ls", "default\nskrog", nil).
+		on("context inspect", skrogHost, nil)
 
 	m := &dockerctx.Manager{Runner: f}
-	if err := m.Ensure(context.Background(), hawserHost); err != nil {
+	if err := m.Ensure(context.Background(), skrogHost); err != nil {
 		t.Fatalf("Ensure: %v", err)
 	}
 	if f.called("context create") {
@@ -107,23 +107,23 @@ func TestEnsureIsIdempotent(t *testing.T) {
 }
 
 func TestEnsureUpdatesMovedEndpoint(t *testing.T) {
-	// The endpoint moves for real: Hawser serves the default pipe when it is
+	// The endpoint moves for real: Skrog serves the default pipe when it is
 	// free and its own when Docker Desktop holds it, so installing Desktop
 	// later changes which pipe is correct.
 	f := newFakeDocker().
-		on("context ls", "hawser", nil).
+		on("context ls", "skrog", nil).
 		on("context inspect", "npipe:////./pipe/docker_engine", nil).
-		on("context update", "hawser", nil)
+		on("context update", "skrog", nil)
 
 	m := &dockerctx.Manager{Runner: f}
-	if err := m.Ensure(context.Background(), hawserHost); err != nil {
+	if err := m.Ensure(context.Background(), skrogHost); err != nil {
 		t.Fatalf("Ensure: %v", err)
 	}
 	args := f.callWith("context update")
 	if args == nil {
 		t.Fatal("context was not updated")
 	}
-	if !strings.Contains(strings.Join(args, " "), "host="+hawserHost) {
+	if !strings.Contains(strings.Join(args, " "), "host="+skrogHost) {
 		t.Errorf("update did not set the new endpoint: %v", args)
 	}
 	if f.called("context create") {
@@ -146,7 +146,7 @@ func TestMissingDockerCLIIsTypedAndNonFatal(t *testing.T) {
 	}}
 	m := &dockerctx.Manager{Runner: f}
 
-	err := m.Ensure(context.Background(), hawserHost)
+	err := m.Ensure(context.Background(), skrogHost)
 	if err == nil {
 		t.Fatal("Ensure succeeded with no docker CLI")
 	}
@@ -165,7 +165,7 @@ func TestMissingDockerCLIIsTypedAndNonFatal(t *testing.T) {
 
 func TestExistsDetectsPresenceAndAbsence(t *testing.T) {
 	present := &dockerctx.Manager{Runner: newFakeDocker().
-		on("context ls", "default\nhawser\ndesktop-linux", nil)}
+		on("context ls", "default\nskrog\ndesktop-linux", nil)}
 	if ok, err := present.Exists(context.Background()); err != nil || !ok {
 		t.Errorf("Exists = %v, %v; want true", ok, err)
 	}
@@ -178,9 +178,9 @@ func TestExistsDetectsPresenceAndAbsence(t *testing.T) {
 }
 
 func TestExistsIgnoresSubstringMatches(t *testing.T) {
-	// A context named "hawser-test" must not be mistaken for "hawser".
+	// A context named "skrog-test" must not be mistaken for "skrog".
 	m := &dockerctx.Manager{Runner: newFakeDocker().
-		on("context ls", "default\nhawser-test\nmy-hawser", nil)}
+		on("context ls", "default\nskrog-test\nmy-skrog", nil)}
 	if ok, err := m.Exists(context.Background()); err != nil || ok {
 		t.Errorf("Exists = %v, %v; want false for substring matches only", ok, err)
 	}
@@ -190,10 +190,10 @@ func TestRemoveSwitchesAwayFirst(t *testing.T) {
 	// docker refuses to remove the context in use, and leaving the user on a
 	// context that no longer exists would break every later docker command.
 	f := newFakeDocker().
-		on("context ls", "default\nhawser", nil).
-		on("context show", "hawser", nil).
+		on("context ls", "default\nskrog", nil).
+		on("context show", "skrog", nil).
 		on("context use", "default", nil).
-		on("context rm", "hawser", nil)
+		on("context rm", "skrog", nil)
 
 	m := &dockerctx.Manager{Runner: f}
 	if err := m.Remove(context.Background(), "desktop-linux"); err != nil {
@@ -214,10 +214,10 @@ func TestRemoveSwitchesAwayFirst(t *testing.T) {
 
 func TestRemoveDefaultsRestoreTarget(t *testing.T) {
 	f := newFakeDocker().
-		on("context ls", "hawser", nil).
-		on("context show", "hawser", nil).
+		on("context ls", "skrog", nil).
+		on("context show", "skrog", nil).
 		on("context use", "default", nil).
-		on("context rm", "hawser", nil)
+		on("context rm", "skrog", nil)
 
 	m := &dockerctx.Manager{Runner: f}
 	if err := m.Remove(context.Background(), ""); err != nil {
@@ -231,16 +231,16 @@ func TestRemoveDefaultsRestoreTarget(t *testing.T) {
 
 func TestRemoveSkipsSwitchWhenNotCurrent(t *testing.T) {
 	f := newFakeDocker().
-		on("context ls", "default\nhawser", nil).
+		on("context ls", "default\nskrog", nil).
 		on("context show", "desktop-linux", nil).
-		on("context rm", "hawser", nil)
+		on("context rm", "skrog", nil)
 
 	m := &dockerctx.Manager{Runner: f}
 	if err := m.Remove(context.Background(), ""); err != nil {
 		t.Fatalf("Remove: %v", err)
 	}
 	if f.called("context use") {
-		t.Error("switched contexts even though hawser was not current")
+		t.Error("switched contexts even though skrog was not current")
 	}
 }
 
@@ -260,10 +260,10 @@ func TestErrorsCarryDockerMessage(t *testing.T) {
 	// The CLI's own text is the diagnosis; the exit code says nothing.
 	f := newFakeDocker().
 		on("context ls", "default", nil).
-		on("context create", `context "hawser" already exists`, errors.New("exit status 1"))
+		on("context create", `context "skrog" already exists`, errors.New("exit status 1"))
 
 	m := &dockerctx.Manager{Runner: f}
-	err := m.Ensure(context.Background(), hawserHost)
+	err := m.Ensure(context.Background(), skrogHost)
 	if err == nil {
 		t.Fatal("Ensure succeeded")
 	}

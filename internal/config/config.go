@@ -1,9 +1,9 @@
-// Package config is Hawser's user-tunable settings: a small JSON file in the
-// state directory, edited through `hawser config` rather than by hand so
+// Package config is Skrog's user-tunable settings: a small JSON file in the
+// state directory, edited through `skrog config` rather than by hand so
 // every value is validated on the way in.
 //
 // Settings are read fresh at each use (the supervisor reads per tick), so a
-// `hawser config set` takes effect without restarting anything.
+// `skrog config set` takes effect without restarting anything.
 package config
 
 import (
@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/gpu"
-	"github.com/hawserhq/hawser/internal/wslconfig"
+	"github.com/wslkit/skrog/internal/gpu"
+	"github.com/wslkit/skrog/internal/wslconfig"
 )
 
 // KeyIdleTimeout is how long the bridge must be quiet (no open connections,
@@ -33,7 +33,7 @@ const KeyIdleTimeout = "idle-timeout"
 // as "hook." + event.
 const (
 	KeyHookPostStart  = "hook.post-start"   // engine started (recovery or first start)
-	KeyHookPreStop    = "hook.pre-stop"     // engine about to stop on `hawser stop`
+	KeyHookPreStop    = "hook.pre-stop"     // engine about to stop on `skrog stop`
 	KeyHookOnIdleStop = "hook.on-idle-stop" // engine stopped by the idle timeout
 	KeyHookOnWake     = "hook.on-wake"      // engine cold-started on demand
 )
@@ -51,7 +51,7 @@ func HookKeys() []string {
 const KeyAudit = "audit"
 
 // Corporate-network keys (#62), applied to the engine on its next start --
-// `hawser restart` is the way to ask for one. The supervisor re-reads them at
+// `skrog restart` is the way to ask for one. The supervisor re-reads them at
 // every engine start rather than capturing them at launch, which is what
 // makes that true (#202). NetworkKeys enumerates them.
 const (
@@ -69,14 +69,14 @@ func NetworkKeys() []string { return []string{KeyProxy, KeyNoProxy, KeyImportHos
 
 // KeyGPU, when on, installs the NVIDIA CDI spec in the engine on every start so
 // containers can use the GPU (#83). "off" (the default) removes it. Set through
-// `hawser enable-gpu` rather than by hand, since that also verifies the GPU is
+// `skrog enable-gpu` rather than by hand, since that also verifies the GPU is
 // visible and restarts the engine.
 const KeyGPU = "gpu"
 
 // KeyGPUVendor selects which vendor's CDI spec `gpu` installs (#185). Separate
 // from KeyGPU rather than folded into it ("gpu = nvidia|amd|off") so every
 // install that already says `gpu on` keeps working and keeps meaning NVIDIA.
-// Empty is nvidia. "amd" is experimental -- see `hawser enable-gpu --help`.
+// Empty is nvidia. "amd" is experimental -- see `skrog enable-gpu --help`.
 const KeyGPUVendor = "gpu.vendor"
 
 // KeyVerifySignature, when on, checks the rootfs Sigstore signature before it
@@ -87,7 +87,7 @@ const KeyVerifySignature = "install.verify-signature"
 
 // WSL VM sizing (#148). These live in the GLOBAL ~/.wslconfig, which every
 // WSL2 distro on the machine shares -- so setting one here records an
-// intention, and `hawser wsl-config apply` is what writes it, after showing
+// intention, and `skrog wsl-config apply` is what writes it, after showing
 // the diff. Nothing propagates on its own.
 const (
 	KeyWSLMemory            = "wsl.memory"
@@ -105,7 +105,7 @@ var WSLKeys = map[string]string{
 }
 
 // KeyDiskWarnBelow is the free-space floor on the engine data volume under
-// which `hawser doctor` warns (#145) — a size such as 10GB or 8GiB. Empty means
+// which `skrog doctor` warns (#145) — a size such as 10GB or 8GiB. Empty means
 // the built-in 5 GiB. Runners with small disks raise it so a full volume is
 // flagged before pulls start failing.
 const KeyDiskWarnBelow = "disk.warn-below"
@@ -318,8 +318,8 @@ func defaultFor(key string) string {
 func commandHint(key string) string {
 	if key == "data-dir" {
 		return "`data-dir` is not a stored setting: moving the engine data exports, " +
-			"moves and re-imports the distro. Run `hawser relocate <new-directory>` " +
-			"(`hawser relocate --help`)."
+			"moves and re-imports the distro. Run `skrog relocate <new-directory>` " +
+			"(`skrog relocate --help`)."
 	}
 	return ""
 }

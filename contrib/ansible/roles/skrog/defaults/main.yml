@@ -1,0 +1,45 @@
+---
+# Skrog on a Windows host, for Ansible's win_* modules (#143).
+#
+# Pin the version. "latest" resolves at run time, which means two hosts
+# converged a week apart are not the same host -- the thing this role exists to
+# prevent.
+skrog_version: "0.3.0"
+
+# Where skrog.exe lands. Machine-wide so the runner account and any
+# provisioning account both see it.
+skrog_home: 'C:\Skrog'
+
+# Tag of wslkit/setup-skrog whose install script is used, so a host, a
+# GitHub Action and a baked image all install Skrog the same way.
+skrog_setup_ref: "v1"
+
+# Optional: a `skrog bundle` zip already on the host (air-gapped install, #75).
+# When set, the engine is imported from it and nothing is downloaded.
+skrog_bundle_path: ""
+
+# Optional: a skrog.lock on the host, pinning the engine to the commit
+# (install --locked). Ignored when skrog_bundle_path is set.
+skrog_lockfile_path: ""
+
+# Engine settings applied through `skrog config set engine.<key>` -- the
+# validated allowlist, not raw daemon.json. Example:
+#   skrog_engine_config:
+#     registry-mirrors: "https://mirror.example.com"
+#     max-concurrent-downloads: "6"
+skrog_engine_config: {}
+
+# Skrog's own settings, applied through `skrog config set <key>`. Example:
+#   skrog_config:
+#     idle-timeout: "30m"
+#     disk-warn-below: "20G"
+skrog_config: {}
+
+# Register the logon autostart so the engine is up after a reboot.
+skrog_autostart: true
+
+# Images to pre-pull with `skrog prewarm` (a list of image references).
+skrog_prewarm_images: []
+
+# Fail the play when `skrog doctor` reports a failure. Warnings never fail.
+skrog_doctor_gate: true

@@ -1,4 +1,4 @@
-# Assembles the Hawser rootfs.
+# Assembles the Skrog rootfs.
 #
 # Built as a container image and then `docker export`ed, rather than unpacked
 # and modified on the host. That matters: apk's post-install triggers run
@@ -52,13 +52,13 @@ COPY licenses/ /usr/share/licenses/
 # Engine defaults: log rotation on from the first run (PLAN §05 v0.1).
 COPY daemon.json /etc/docker/daemon.json
 
-# WSL-side distro config. systemd is off: Hawser supervises dockerd itself, so
+# WSL-side distro config. systemd is off: Skrog supervises dockerd itself, so
 # an init system inside the distro buys nothing.
 COPY wsl.conf /etc/wsl.conf
 
-# What the rootfs declares about itself: `hawser install` reads engine-version
+# What the rootfs declares about itself: `skrog install` reads engine-version
 # when no version is given, and `commits` is the provenance record a security
 # review reads.
-COPY engine-version /etc/hawser/engine-version
-COPY agent-version /etc/hawser/agent-version
-COPY commits /etc/hawser/commits
+COPY engine-version /etc/skrog/engine-version
+COPY agent-version /etc/skrog/agent-version
+COPY commits /etc/skrog/commits

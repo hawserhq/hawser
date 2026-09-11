@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ if .IsHome }}{{ site.Title }} — Docker Engine on Windows{{ else }}{{ .Title | markdownify | plainify }} · {{ site.Title }}{{ end }}</title>
   <meta name="description" content="{{ with .Description }}{{ . }}{{ else }}{{ site.Params.description }}{{ end }}">
-  <link rel="icon" href="{{ "hawser-mark.svg" | relURL }}" type="image/svg+xml">
+  <link rel="icon" href="{{ "skrog-mark.svg" | relURL }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ "style.css" | relURL }}">
   <link rel="stylesheet" href="{{ "chroma.css" | relURL }}">
   <meta property="og:title" content="{{ if .IsHome }}{{ site.Title }}{{ else }}{{ .Title | markdownify | plainify }}{{ end }}">
@@ -19,8 +19,8 @@
 <header class="topbar">
   <a class="brand" href="{{ "" | relURL }}">
     <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="{{ "hawser-mark-ondark.svg" | relURL }}">
-      <img src="{{ "hawser-mark.svg" | relURL }}" alt="" width="28" height="28">
+      <source media="(prefers-color-scheme: dark)" srcset="{{ "skrog-mark-ondark.svg" | relURL }}">
+      <img src="{{ "skrog-mark.svg" | relURL }}" alt="" width="28" height="28">
     </picture>
     <span>{{ site.Title }}</span>
   </a>

@@ -1,13 +1,13 @@
 # Engine upgrades and rollback
 
-An engine security patch should not have to wait for a Hawser release, and
-taking one should not cost you your images. `hawser engine` does both:
+An engine security patch should not have to wait for a Skrog release, and
+taking one should not cost you your images. `skrog engine` does both:
 
 ```
-hawser engine list                 # what this build can install, and what is installed
-hawser engine upgrade              # move to the manifest's default engine
-hawser engine upgrade --to 29.7.3  # a specific one
-hawser engine rollback             # back to the engine installed before the last upgrade
+skrog engine list                 # what this build can install, and what is installed
+skrog engine upgrade              # move to the manifest's default engine
+skrog engine upgrade --to 29.7.3  # a specific one
+skrog engine rollback             # back to the engine installed before the last upgrade
 ```
 
 Every step is checksum-mandatory and reversible, and none of it touches your
@@ -17,8 +17,8 @@ data.
 
 It replaces the **engine binaries** — `dockerd`, `containerd`,
 `containerd-shim-runc-v2`, `ctr`, `runc`, `buildkitd`, `buildctl`,
-`docker-proxy`, `docker-init`, `nvidia-cdi-hook`, and Hawser's own
-`hawser-agent` — out of a rootfs tarball verified against its published
+`docker-proxy`, `docker-init`, `nvidia-cdi-hook`, and Skrog's own
+`skrog-agent` — out of a rootfs tarball verified against its published
 SHA-256, and leaves the filesystem they live on alone.
 
 That is the whole trick: **`/var/lib/docker` never moves.** Images, containers,
@@ -26,10 +26,10 @@ volumes and build cache are not exported, re-imported or migrated, because
 nothing asks them to be.
 
 ```
-$ hawser engine upgrade --to 29.7.2
+$ skrog engine upgrade --to 29.7.2
 engine upgraded: 29.7.2-3 -> 29.7.2-4 (dockerd 29.7.2)
   11 binaries replaced; images, containers and volumes untouched
-  `hawser engine rollback` returns to 29.7.2-3
+  `skrog engine rollback` returns to 29.7.2-3
 ```
 
 The **rootfs revision** is the unit of upgrade (`29.7.2-4`, not `29.7.2`): two
@@ -61,9 +61,9 @@ binaries go back in and the engine is started again **before** the failure is
 reported:
 
 ```
-$ hawser engine upgrade --rootfs-url file:///C:/tmp/broken.tar.gz --rootfs-sha256 …
-hawser: engineupgrade: the new engine did not start: dockerd did not create
-/var/run/docker.sock within 1m0s (see `hawser logs --engine`); rolled back to
+$ skrog engine upgrade --rootfs-url file:///C:/tmp/broken.tar.gz --rootfs-sha256 …
+skrog: engineupgrade: the new engine did not start: dockerd did not create
+/var/run/docker.sock within 1m0s (see `skrog logs --engine`); rolled back to
 29.7.2-4, which is running
 ```
 
@@ -73,11 +73,11 @@ manifest describing an engine you do not have.
 
 ## Rollback
 
-`hawser engine rollback` returns to the ref recorded before the last upgrade.
+`skrog engine rollback` returns to the ref recorded before the last upgrade.
 It is the same swap in the other direction, from the same verified source:
 
 ```
-$ hawser engine rollback
+$ skrog engine rollback
 engine rolled back: 29.7.2-3 -> 29.7.2-4 (dockerd 29.7.2)
   11 binaries replaced; images, containers and volumes untouched
 ```
@@ -89,22 +89,22 @@ download is the same checksum-mandatory path as an install, so a rollback does
 need the network then.
 
 There is exactly **one** rollback point: the engine you were on before the last
-upgrade. For anything further back, `hawser engine upgrade --to <ref>` names a
-version directly, and `hawser snapshot` covers the case where you want the
+upgrade. For anything further back, `skrog engine upgrade --to <ref>` names a
+version directly, and `skrog snapshot` covers the case where you want the
 whole engine *state* back too ([snapshots.md](snapshots.md)).
 
 ## Only the tested matrix
 
 `--to` accepts what this build's manifest lists, and nothing else — that set
-*is* the tested matrix. An engine nobody tested against this Hawser is not an
-upgrade, it is an experiment, and `hawser engine list` shows exactly what is on
+*is* the tested matrix. An engine nobody tested against this Skrog is not an
+upgrade, it is an experiment, and `skrog engine list` shows exactly what is on
 offer:
 
 ```
-$ hawser engine list
+$ skrog engine list
 engines this build can install:
   29.7.2-4       dockerd 29.7.2  (default, installed)
-rollback target: 29.7.2-3 (`hawser engine rollback`)
+rollback target: 29.7.2-3 (`skrog engine rollback`)
 ```
 
 For development there is `--rootfs-url` with `--rootfs-sha256` (both, always —
@@ -114,12 +114,12 @@ built yourself gets in.
 ## `--dry-run`
 
 ```
-$ hawser engine upgrade --to 29.7.2 --dry-run
+$ skrog engine upgrade --to 29.7.2 --dry-run
 would move the engine from 29.7.2-4 to 29.7.2-3:
-  fetch and verify https://github.com/…/hawser-rootfs-29.7.2-3.tar.gz
+  fetch and verify https://github.com/…/skrog-rootfs-29.7.2-3.tar.gz
   extract 11 engine binaries
   stop the engine
-  replace the binaries in hawser-engine:/usr/local/bin
+  replace the binaries in skrog-engine:/usr/local/bin
   start the engine and confirm it answers
   on failure: restore 29.7.2-4 and start the engine again
 ```
@@ -128,6 +128,6 @@ would move the engine from 29.7.2-4 to 29.7.2-3:
 
 - [snapshots.md](snapshots.md) — engine *state* save/restore, which is a
   different axis from the engine *version*
-- [housekeeping.md](housekeeping.md) — `hawser prune` and `hawser compact`
+- [housekeeping.md](housekeeping.md) — `skrog prune` and `skrog compact`
 - [security.md](security.md) — how the rootfs is verified, and how to check a
   download's signature yourself

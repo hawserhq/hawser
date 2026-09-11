@@ -34,11 +34,11 @@ JSON
   "spdxVersion": "SPDX-2.3",
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
-  "name": "hawser-rootfs-${ENGINE_VERSION}-${ROOTFS_REVISION}",
-  "documentNamespace": "https://github.com/hawserhq/hawser/spdx/rootfs-${ENGINE_VERSION}-${ROOTFS_REVISION}",
+  "name": "skrog-rootfs-${ENGINE_VERSION}-${ROOTFS_REVISION}",
+  "documentNamespace": "https://github.com/wslkit/skrog/spdx/rootfs-${ENGINE_VERSION}-${ROOTFS_REVISION}",
   "creationInfo": {
     "created": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
-    "creators": ["Tool: hawser-rootfs-build", "Organization: Hawser"]
+    "creators": ["Tool: skrog-rootfs-build", "Organization: Skrog"]
   },
   "packages": [
 JSON
@@ -52,7 +52,7 @@ JSON
   pkg "go" "$GO_VERSION" "https://go.dev/dl/" "BSD-3-Clause"
   # The agent is versioned by this repository itself; the rootfs revision is
   # its packaging version, and the git remote is its provenance.
-  pkg "hawser-agent" "rootfs-r${ROOTFS_REVISION}" "https://github.com/hawserhq/hawser.git" "Apache-2.0"
+  pkg "skrog-agent" "rootfs-r${ROOTFS_REVISION}" "https://github.com/wslkit/skrog.git" "Apache-2.0"
   cat <<'JSON'
 
   ]

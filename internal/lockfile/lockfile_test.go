@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/release"
+	"github.com/wslkit/skrog/internal/release"
 )
 
 const goodSHA = "aee4312306d7d613ca3d0c23049c19837707cd4837b266ea057b544ac9605af4"

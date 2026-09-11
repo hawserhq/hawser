@@ -1,12 +1,12 @@
 // Package audit records the container-affecting docker API calls that cross the
 // bridge (#121): image pulls, container create/start/stop/remove, exec, builds.
-// Because Hawser proxies the API at the pipe, it can log what actually happened
+// Because Skrog proxies the API at the pipe, it can log what actually happened
 // — "what did that compose file pull and mount?" — which Docker Desktop exposes
 // nowhere.
 //
 // It is deliberately privacy-light: an event is derived from the request line
 // and query string only, never the request body, so credentials and payloads
-// are never written. Output is JSON-lines, one event per call, for `hawser
+// are never written. Output is JSON-lines, one event per call, for `skrog
 // audit tail` and any log pipeline.
 package audit
 

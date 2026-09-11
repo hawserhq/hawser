@@ -3,10 +3,10 @@
 // (#191).
 //
 // The convenience is the small part. The reason this exists is an ordering
-// dependency nothing else surfaces: **the engines `hawser engine upgrade` can
+// dependency nothing else surfaces: **the engines `skrog engine upgrade` can
 // reach are pinned in the app binary's own manifest**. So a newer engine can
 // require a newer app first, and without being told, someone on an older
-// hawser runs `engine upgrade`, is told they are current, and is wrong.
+// skrog runs `engine upgrade`, is told they are current, and is wrong.
 //
 // Nothing here auto-updates, polls in the background, or resolves "latest" at
 // install time. The check runs only when a user asks for it, and it makes
@@ -120,9 +120,9 @@ func (c *Checker) Check(ctx context.Context) Report {
 	// would train people to skip it.
 	if app.Status == StatusAvailable {
 		rep.Notes = append(rep.Notes,
-			"the engines `hawser engine upgrade` can reach are pinned in this build's "+
-				"manifest, so hawser "+app.Latest+" may offer newer engines than the "+
-				c.engineLatestOrNone()+" listed here — upgrade hawser first, then re-check")
+			"the engines `skrog engine upgrade` can reach are pinned in this build's "+
+				"manifest, so skrog "+app.Latest+" may offer newer engines than the "+
+				c.engineLatestOrNone()+" listed here — upgrade skrog first, then re-check")
 	}
 	return rep
 }
@@ -164,7 +164,7 @@ func (c *Checker) appStream(ctx context.Context, rep *Report) Stream {
 		// Deliberately not self-replacing: a running .exe cannot cleanly
 		// replace itself on Windows, and once there is a signed distribution
 		// channel it owns this path.
-		s.Command = "download from https://github.com/hawserhq/hawser/releases"
+		s.Command = "download from https://github.com/wslkit/skrog/releases"
 		return s
 	}
 	s.Status = StatusCurrent
@@ -177,13 +177,13 @@ func (c *Checker) engineStream() Stream {
 	switch {
 	case c.Installed.EngineVersion == "":
 		s.Status = StatusNotInstalled
-		s.Command = "hawser install"
+		s.Command = "skrog install"
 	case c.EngineLatest == "":
 		s.Status = StatusUnknown
 		s.Note = "this build's manifest lists no published engine"
 	case Compare(c.EngineLatest, c.Installed.EngineVersion) > 0:
 		s.Status = StatusAvailable
-		s.Command = "hawser engine upgrade"
+		s.Command = "skrog engine upgrade"
 	default:
 		s.Status = StatusCurrent
 	}
@@ -196,13 +196,13 @@ func (c *Checker) cliStream() Stream {
 	switch {
 	case c.Installed.CLIVersion == "":
 		s.Status = StatusNotInstalled
-		s.Note = "Hawser's bundled docker CLI is not installed (Docker Desktop's own CLI works too)"
-		s.Command = "hawser cli install"
+		s.Note = "Skrog's bundled docker CLI is not installed (Docker Desktop's own CLI works too)"
+		s.Command = "skrog cli install"
 	case c.CLILatest == "":
 		s.Status = StatusUnknown
 	case Compare(c.CLILatest, c.Installed.CLIVersion) > 0:
 		s.Status = StatusAvailable
-		s.Command = "hawser cli install"
+		s.Command = "skrog cli install"
 	default:
 		s.Status = StatusCurrent
 	}
@@ -346,7 +346,7 @@ func at(xs []int, i int) int {
 	return 0
 }
 
-// Action is one thing `hawser upgrade` will do, and the command it is.
+// Action is one thing `skrog upgrade` will do, and the command it is.
 type Action struct {
 	Stream string   `json:"stream"`
 	From   string   `json:"from,omitempty"`
@@ -354,7 +354,7 @@ type Action struct {
 	Args   []string `json:"args"`
 }
 
-// Plan is what `hawser upgrade` would apply, in the order it would apply it.
+// Plan is what `skrog upgrade` would apply, in the order it would apply it.
 //
 // The app is never in it. A running .exe cannot cleanly replace itself on
 // Windows, and once there is a signed distribution channel that channel owns

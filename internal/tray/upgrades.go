@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/upgrade"
+	"github.com/wslkit/skrog/internal/upgrade"
 )
 
 // Upgrades is what the tray shows after a "Check for updates" click.
@@ -20,7 +20,7 @@ type Upgrades struct {
 	Available bool
 }
 
-// CheckUpgrades runs `hawser upgrade --json` and renders the answer for the
+// CheckUpgrades runs `skrog upgrade --json` and renders the answer for the
 // menu (#191).
 //
 // The item used to open the releases page and check nothing — it was named
@@ -48,17 +48,17 @@ func (c CLI) CheckUpgrades(ctx context.Context) (Upgrades, error) {
 func parseUpgrades(out []byte) (upgrade.Report, error) {
 	var rep upgrade.Report
 	if err := json.Unmarshal(out, &rep); err != nil {
-		return rep, fmt.Errorf("reading `hawser upgrade --json`: %w", err)
+		return rep, fmt.Errorf("reading `skrog upgrade --json`: %w", err)
 	}
 	if len(rep.Streams) == 0 {
-		return rep, fmt.Errorf("`hawser upgrade --json` reported no components")
+		return rep, fmt.Errorf("`skrog upgrade --json` reported no components")
 	}
 	return rep, nil
 }
 
 // summarize turns the report into one tooltip line.
 //
-// It names what is behind rather than counting it: "hawser 0.4.0, engine
+// It names what is behind rather than counting it: "skrog 0.4.0, engine
 // 29.9.0 available" tells someone whether they care, where "3 updates
 // available" makes them click to find out.
 func summarize(rep upgrade.Report) Upgrades {
@@ -77,7 +77,7 @@ func summarize(rep upgrade.Report) Upgrades {
 	}
 	if unknown {
 		// Never report "up to date" for "could not tell".
-		return Upgrades{Summary: "could not check everything — run `hawser upgrade`"}
+		return Upgrades{Summary: "could not check everything — run `skrog upgrade`"}
 	}
 	return Upgrades{Summary: "everything is up to date"}
 }
@@ -87,7 +87,7 @@ func summarize(rep upgrade.Report) Upgrades {
 func label(name string) string {
 	switch name {
 	case "app":
-		return "hawser"
+		return "skrog"
 	case "cli":
 		return "docker CLI"
 	default:

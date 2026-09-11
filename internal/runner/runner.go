@@ -26,7 +26,7 @@ type Facts struct {
 	// the password stored in clear text, which the playbook says to avoid.
 	PlaintextPassword bool
 	// CurrentUser / CurrentDomain are the account running the check (and so the
-	// one Hawser's per-user state and autostart belong to).
+	// one Skrog's per-user state and autostart belong to).
 	CurrentUser   string
 	CurrentDomain string
 	// AutostartRegistered is the per-user Run entry that launches the supervisor.
@@ -70,7 +70,7 @@ func Evaluate(f Facts) []Finding {
 		if f.CurrentUser != "" && f.AutoLogonUser != "" && !sameAccount(f) {
 			add("autologon-account", Fail,
 				"auto-logon signs in a different account than the one running this check",
-				"Hawser's autostart and state are per-user: install and `hawser autostart enable` "+
+				"Skrog's autostart and state are per-user: install and `skrog autostart enable` "+
 					"as the auto-logon account, or point auto-logon at this account ("+playbook+" §3).")
 		} else if f.CurrentUser != "" && f.AutoLogonUser != "" {
 			add("autologon-account", OK, "auto-logon uses this account", "")
@@ -95,14 +95,14 @@ func Evaluate(f Facts) []Finding {
 	} else {
 		add("autostart", Fail,
 			"no logon autostart; the session will start but the supervisor will not",
-			"run `hawser autostart enable` as the auto-logon account (needs hawserw.exe beside hawser.exe).")
+			"run `skrog autostart enable` as the auto-logon account (needs skrogw.exe beside skrog.exe).")
 	}
 
 	if f.SupervisorRunning {
 		add("supervisor", OK, "supervisor is running", "")
 	} else {
 		add("supervisor", Fail, "supervisor is not running",
-			"run `hawser start`, or sign out and back in so the autostart launches it.")
+			"run `skrog start`, or sign out and back in so the autostart launches it.")
 	}
 
 	switch f.Engine {
@@ -111,9 +111,9 @@ func Evaluate(f Facts) []Finding {
 	case "idle":
 		add("engine", OK, "engine is idle; it wakes on the next docker command", "")
 	case "stopped":
-		add("engine", Fail, "engine is stopped", "run `hawser start`.")
+		add("engine", Fail, "engine is stopped", "run `skrog start`.")
 	default:
-		add("engine", Fail, "no engine installed", "run `hawser install --headless` as the runner account.")
+		add("engine", Fail, "no engine installed", "run `skrog install --headless` as the runner account.")
 	}
 	return out
 }

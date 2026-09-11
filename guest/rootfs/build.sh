@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# Build the Hawser rootfs: Alpine + engine binaries compiled from upstream source.
+# Build the Skrog rootfs: Alpine + engine binaries compiled from upstream source.
 #
 # Runs in CI (ubuntu-latest, Docker available) and on any Linux host with Docker —
 # including a WSL2 Ubuntu distro, which is how it gets tested locally.
 #
 #   ./build.sh [output-dir]     default: ./out
 #
-# Output: hawser-rootfs-<version>.tar.gz, its .sha256, and an SPDX SBOM.
+# Output: skrog-rootfs-<version>.tar.gz, its .sha256, and an SPDX SBOM.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -65,7 +65,7 @@ if [ ! -x "$engine/bin/dockerd" ]; then
       "golang:${GO_VERSION}-alpine" sh /build-engine.sh
 fi
 
-echo "==> building hawser-agent from this repo"
+echo "==> building skrog-agent from this repo"
 # The vsock agent (#40) is the one binary in the rootfs that comes from this
 # repository rather than an upstream tag, so it is versioned by the rootfs
 # release itself. Built in the same pinned toolchain image as the engine, but
@@ -79,13 +79,13 @@ docker run --rm \
   -w /src \
   -e CGO_ENABLED=0 \
   "golang:${GO_VERSION}-alpine" \
-  sh -c "go build -trimpath -ldflags '-s -w' -o /out/hawser-agent ./guest/agent \
-         && chown $(id -u):$(id -g) /out/hawser-agent"
+  sh -c "go build -trimpath -ldflags '-s -w' -o /out/skrog-agent ./guest/agent \
+         && chown $(id -u):$(id -g) /out/skrog-agent"
 
 echo "==> building nvidia-cdi-hook $NVIDIA_CDI_HOOK_VERSION (#139)"
 # The one glibc binary in the rootfs. Its presence when dockerd starts is what
 # makes moby route `docker run --gpus all` to the CDI spec that
-# `hawser enable-gpu` installs; the spec is hookless, so this binary is never
+# `skrog enable-gpu` installs; the spec is hookless, so this binary is never
 # executed for GPU injection — it only has to exist and start. It cannot be
 # built on musl (go-nvml's dlopen shim uses glibc-only RTLD flags), so it is
 # built in the pinned golang Debian image as a static glibc binary, which runs
@@ -123,7 +123,7 @@ echo "==> assembling rootfs"
 ctx="$work/ctx"
 mkdir -p "$ctx/bin"
 cp "$engine/bin/"* "$ctx/bin/"
-cp "$agent_out/hawser-agent" "$ctx/bin/"
+cp "$agent_out/skrog-agent" "$ctx/bin/"
 cp "$hook_out/nvidia-cdi-hook" "$ctx/bin/"
 cp "$engine/commits.txt" "$ctx/commits"
 cat "$hook_out/commit.txt" >> "$ctx/commits"
@@ -141,14 +141,14 @@ mkdir -p "$ctx/licenses"
 if [ -d "$engine/licenses" ]; then
     cp -r "$engine/licenses/." "$ctx/licenses/"
 fi
-mkdir -p "$ctx/licenses/hawser-agent"
-cp "$here/../../LICENSE" "$ctx/licenses/hawser-agent/LICENSE"
+mkdir -p "$ctx/licenses/skrog-agent"
+cp "$here/../../LICENSE" "$ctx/licenses/skrog-agent/LICENSE"
 cat > "$ctx/licenses/README" <<LICREADME
 Licences for the software in this rootfs.
 
 Each directory holds the licence text shipped by that component's own source
 repository, copied at build time from the exact commit recorded in
-/etc/hawser/commits.
+/etc/skrog/commits.
 
 The Alpine Linux userland (busybox, musl, apk-tools, and the packages listed
 by \`apk info\`) is not covered by the directories above: Alpine's images do
@@ -163,12 +163,12 @@ source. Run \`apk info -L <package>\` inside the engine to list a package's
 files, and \`apk info <package>\` for its declared licence.
 
 A machine-readable inventory of the engine components, with SPDX licence
-identifiers, ships beside the tarball as hawser-rootfs-*.spdx.json.
+identifiers, ships beside the tarball as skrog-rootfs-*.spdx.json.
 LICREADME
 printf '%s\n' "$ENGINE_VERSION" > "$ctx/engine-version"
 # The agent states its own identity (static linux binary, runnable right
 # here); asking it beats duplicating the constant in shell.
-"$agent_out/hawser-agent" -version > "$ctx/agent-version"
+"$agent_out/skrog-agent" -version > "$ctx/agent-version"
 
 cat > "$ctx/daemon.json" <<'JSON'
 {
@@ -192,15 +192,15 @@ CONF
 
 cp "$here/assemble.Dockerfile" "$ctx/Dockerfile"
 
-tag="hawser-rootfs:${ENGINE_VERSION}"
+tag="skrog-rootfs:${ENGINE_VERSION}"
 docker build --build-arg "ALPINE_TAG=${ALPINE_BRANCH#v}" --build-arg "ALPINE_DIGEST=${ALPINE_DIGEST}" -t "$tag" "$ctx"
 
-tarball="$out/hawser-rootfs-${rootfs_version}.tar.gz"
+tarball="$out/skrog-rootfs-${rootfs_version}.tar.gz"
 echo "==> exporting $tarball"
 # docker export writes the container filesystem with correct ownership and
 # without the pseudo-filesystems, which is exactly what `wsl --import` wants.
 # Byte-for-byte reproducibility is not claimed: apk stamps install times into
-# the image. The published .sha256 is what `hawser install` verifies against.
+# the image. The published .sha256 is what `skrog install` verifies against.
 cid="$(docker create "$tag")"
 trap 'docker rm -f "$cid" >/dev/null 2>&1 || true; rm -rf "$work"' EXIT
 docker export "$cid" | gzip -n > "$tarball"
@@ -209,7 +209,7 @@ docker rm -f "$cid" >/dev/null
 (cd "$out" && sha256sum "$(basename "$tarball")" > "$(basename "$tarball").sha256")
 
 echo "==> SBOM"
-"$here/sbom.sh" "$here/versions.env" "$out/hawser-rootfs-${rootfs_version}.spdx.json"
+"$here/sbom.sh" "$here/versions.env" "$out/skrog-rootfs-${rootfs_version}.spdx.json"
 
 ls -la "$out"
 echo "OK"

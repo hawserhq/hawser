@@ -38,8 +38,8 @@ func TestAppliesMatchesWhatTheSupervisorDoes(t *testing.T) {
 		{KeyNoProxy, AppliesOnStart, "same path as the proxy"},
 		{KeyImportHostCAs, AppliesOnStart, "the CA bundle is injected at engine start"},
 		{KeyGPU, AppliesOnStart, "the CDI spec is installed at engine start"},
-		{KeyVerifySignature, AppliesOnUse, "only `hawser install` reads it"},
-		{KeyDiskWarnBelow, AppliesOnUse, "only `hawser doctor` reads it"},
+		{KeyVerifySignature, AppliesOnUse, "only `skrog install` reads it"},
+		{KeyDiskWarnBelow, AppliesOnUse, "only `skrog doctor` reads it"},
 	}
 	for _, c := range cases {
 		if got := Applies(c.key); got != c.want {

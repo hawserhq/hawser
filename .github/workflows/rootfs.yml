@@ -69,7 +69,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: hawser-rootfs
+          name: skrog-rootfs
           path: out/
           retention-days: 14
 
@@ -91,7 +91,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: hawser-rootfs
+          name: skrog-rootfs
           path: out
 
       # Provenance over the tarball, its checksum and the SBOM, so a rootfs can

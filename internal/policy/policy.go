@@ -2,7 +2,7 @@
 // (#120): a small set of rules evaluated on each container-affecting call,
 // denying the ones a machine's owner has ruled out.
 //
-// Hawser already sits in the request path — every `docker` call crosses the
+// Skrog already sits in the request path — every `docker` call crosses the
 // named-pipe bridge, which rewrites bind-mount paths — so the same seam can
 // judge a request before it reaches the engine. That is what makes this cheap:
 // no elevation, no engine change, no daemon plugin.
@@ -46,7 +46,7 @@ const FileName = "policy.yaml"
 func Path(stateDir string) string { return filepath.Join(stateDir, FileName) }
 
 // Rules is the declarative rule set, in the same kebab-case YAML shape as
-// hawser.yaml so the two read alike.
+// skrog.yaml so the two read alike.
 type Rules struct {
 	// DenyPrivileged refuses `--privileged`, which disables essentially every
 	// container isolation at once.
@@ -372,7 +372,7 @@ func matchesAny(reg string, allowed []string) bool {
 }
 
 // DecodeCreateBody parses a container-create body the way the bridge does, so
-// `hawser policy test` judges exactly what the bridge would.
+// `skrog policy test` judges exactly what the bridge would.
 func DecodeCreateBody(raw []byte) (map[string]any, error) {
 	dec := json.NewDecoder(strings.NewReader(string(raw)))
 	dec.UseNumber()
@@ -406,7 +406,7 @@ func isHostPath(s string) bool {
 // it changes, so editing policy.yaml takes effect without restarting anything.
 //
 // The first cut read the file once at supervisor start, and documented that a
-// change needed `hawser restart`. That was wrong twice over. `restart` bounces
+// change needed `skrog restart`. That was wrong twice over. `restart` bounces
 // the ENGINE; the supervisor process — which holds the rules — keeps running,
 // so the advice did not work even when followed. And a policy file created
 // after the supervisor started installed no gate at all, silently. Both were
@@ -415,7 +415,7 @@ func isHostPath(s string) bool {
 //
 // So: stat on each judged request, re-read when it changed. A container create
 // is a human-scale event and a stat is microseconds, which buys the behaviour
-// `hawser config` already promises — settings apply live.
+// `skrog config` already promises — settings apply live.
 type Watcher struct {
 	stateDir string
 

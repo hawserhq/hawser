@@ -6,7 +6,7 @@
 # says why.
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
-$svc = 'HawserSpikeB'
+$svc = 'SkrogSpikeB'
 $exe = Join-Path $here 'agent\probe.exe'
 
 if (-not (Test-Path $exe)) { throw "run 01-preflight.ps1 first (probe.exe missing)" }
@@ -20,9 +20,9 @@ if (Get-Service $svc -ErrorAction SilentlyContinue) {
 }
 
 Write-Host "== creating $svc under LocalSystem ==" -ForegroundColor Cyan
-# HAWSER_SPIKE_DISTRO cannot be passed as a service env var without a wrapper,
-# so the probe's built-in default (hawser-spike-b) is what it will use.
-sc.exe create $svc binPath= "`"$exe`"" start= demand obj= "LocalSystem" DisplayName= "Hawser Spike B (LocalSystem)"
+# SKROG_SPIKE_DISTRO cannot be passed as a service env var without a wrapper,
+# so the probe's built-in default (skrog-spike-b) is what it will use.
+sc.exe create $svc binPath= "`"$exe`"" start= demand obj= "LocalSystem" DisplayName= "Skrog Spike B (LocalSystem)"
 if ($LASTEXITCODE -ne 0) { throw "sc create failed" }
 
 Write-Host "`n== starting ==" -ForegroundColor Cyan

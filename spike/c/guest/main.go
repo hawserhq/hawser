@@ -1,7 +1,7 @@
 //go:build linux
 
 // Spike C guest: an AF_VSOCK echo listener, standing in for the future
-// hawser-agent (#40). Listens on the given port for connections from the
+// skrog-agent (#40). Listens on the given port for connections from the
 // Windows host, sends a banner, then echoes until EOF.
 //
 // This is the exact socket family the real agent will use; if this accepts a
@@ -57,7 +57,7 @@ func main() {
 		go func(fd int) {
 			f := os.NewFile(uintptr(fd), "vsock-conn")
 			defer f.Close()
-			f.WriteString("hawser-spike-c hello from the guest\n")
+			f.WriteString("skrog-spike-c hello from the guest\n")
 			io.Copy(f, f) // echo until the host closes
 		}(cfd)
 	}

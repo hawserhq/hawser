@@ -2,33 +2,33 @@
 
 The push-and-wait loop is the worst part of CI work: edit YAML, push, wait five
 minutes, read a log, repeat. Every tool below runs your pipeline on your own
-machine against Hawser's engine, so the loop is seconds long — and because the
+machine against Skrog's engine, so the loop is seconds long — and because the
 engine is *pinned*, what runs locally is the engine that runs on the runner.
 
-Everything on this page was verified against a Hawser engine; where a tool has
+Everything on this page was verified against a Skrog engine; where a tool has
 a limitation, it is named as the tool's, not hidden.
 
-For installing Hawser *on* a runner, see [ci-runners.md](ci-runners.md).
+For installing Skrog *on* a runner, see [ci-runners.md](ci-runners.md).
 
 ## The hook: laptop == runner, by checksum
 
 ```
-hawser lock                 # writes hawser.lock: dockerd, containerd, runc, BuildKit
-git add hawser.lock
+skrog lock                 # writes skrog.lock: dockerd, containerd, runc, BuildKit
+git add skrog.lock
 ```
 
-`setup-hawser` installs exactly that engine on the runner; `hawser install
---locked hawser.lock` installs it on a laptop. Same versions **to the commit**.
+`setup-skrog` installs exactly that engine on the runner; `skrog install
+--locked skrog.lock` installs it on a laptop. Same versions **to the commit**.
 Docker Desktop cannot pin an engine version, so "works locally, fails in CI"
 from engine drift stops being a category of bug.
 
 Point any tool at the engine the same way:
 
 ```
-DOCKER_HOST=npipe:////./pipe/hawser_engine
+DOCKER_HOST=npipe:////./pipe/skrog_engine
 ```
 
-(`hawser status --json` prints the pipe in use — Hawser takes
+(`skrog status --json` prints the pipe in use — Skrog takes
 `\\.\pipe\docker_engine` when it is free, its own when Docker Desktop holds it.)
 
 ## GitHub Actions with act
@@ -36,10 +36,10 @@ DOCKER_HOST=npipe:////./pipe/hawser_engine
 [act](https://github.com/nektos/act) runs workflow jobs as containers.
 
 ```
-DOCKER_HOST=npipe:////./pipe/hawser_engine act -j build
+DOCKER_HOST=npipe:////./pipe/skrog_engine act -j build
 ```
 
-Verified on the Hawser engine: a `container:` job with a `services:` sidecar —
+Verified on the Skrog engine: a `container:` job with a `services:` sidecar —
 the job network is created, the service answers by its alias, and the workspace
 is bind-mounted from Windows into the job container.
 
@@ -61,7 +61,7 @@ Pick the runner image explicitly if you do not want act's default:
 
 **act's own limitation:** it approximates GitHub's runner. Some actions behave
 differently, and `runs-on: windows-*` jobs are not Linux containers at all.
-That is act, not Hawser.
+That is act, not Skrog.
 
 ## GitLab CI with gitlab-ci-local
 
@@ -70,10 +70,10 @@ That is act, not Hawser.
 way to run a `.gitlab-ci.yml` without a GitLab instance.
 
 ```
-DOCKER_HOST=npipe:////./pipe/hawser_engine gitlab-ci-local unit
+DOCKER_HOST=npipe:////./pipe/skrog_engine gitlab-ci-local unit
 ```
 
-Verified on the Hawser engine: a job with a `services:` entry (service
+Verified on the Skrog engine: a job with a `services:` entry (service
 healthcheck passes, `redis-cli -h redis ping` → `PONG`) and a job that builds
 **and runs** an image through the mounted engine socket.
 
@@ -107,11 +107,11 @@ through it. Two wrinkles worth knowing, both the tool's:
   Windows ACLs.
 
 The reliable answer is to run it from Linux against the same engine — a WSL
-distro (`hawser wsl-integrate` shares the engine socket into your own distros)
+distro (`skrog wsl-integrate` shares the engine socket into your own distros)
 or a container:
 
 ```
-docker run --rm -v //./pipe/hawser_engine:/var/run/docker.sock \
+docker run --rm -v //./pipe/skrog_engine:/var/run/docker.sock \
   -v "%CD%:/work" node:22-bookworm bash -lc \
   "apt-get -qq update && apt-get -qq install -y rsync git && npm i -g gitlab-ci-local && cd /work && gitlab-ci-local"
 ```
@@ -125,13 +125,13 @@ That is exactly how the runs above were verified. (gitlab-ci-local needs Node
 `DOCKER_HOST`, so it needs nothing special:
 
 ```
-DOCKER_HOST=npipe:////./pipe/hawser_engine dagger core container \
+DOCKER_HOST=npipe:////./pipe/skrog_engine dagger core container \
   from --address=alpine:3.20 with-exec --args=echo,hello stdout
 ```
 
-Verified: the `dagger-engine` container starts on the Hawser engine and a
+Verified: the `dagger-engine` container starts on the Skrog engine and a
 pipeline runs to completion. `docker ps` shows it sitting there between runs —
-it is a long-lived cache, and `hawser prune` will not touch a running
+it is a long-lived cache, and `skrog prune` will not touch a running
 container.
 
 ## BuildKit cache parity
@@ -169,13 +169,13 @@ the builder). Against an HTTPS registry — which is what a real shared cache is
 
 - **Idle stop.** The engine parks itself when nothing is using it, so a machine
   you use for occasional local pipeline runs is not paying RAM for an idle VM
-  (`hawser config set idle-timeout 30m`).
+  (`skrog config set idle-timeout 30m`).
 - **Corporate network.** Proxy and CA import (`network.import-host-cas`) mean a
   local pipeline pulls images at work, behind the same TLS-inspecting VPN that
   breaks naive setups — see [corporate-network.md](corporate-network.md) and
   [vpn.md](vpn.md).
-- **GPU.** `hawser enable-gpu` makes `--gpus all` work, so an ML job in a local
+- **GPU.** `skrog enable-gpu` makes `--gpus all` work, so an ML job in a local
   pipeline uses the GPU already in your laptop — [gpu.md](gpu.md).
-- **Snapshots.** `hawser snapshot save clean` before a pipeline experiment and
-  `hawser reset --to clean` after, instead of hand-cleaning containers —
+- **Snapshots.** `skrog snapshot save clean` before a pipeline experiment and
+  `skrog reset --to clean` after, instead of hand-cleaning containers —
   [snapshots.md](snapshots.md).

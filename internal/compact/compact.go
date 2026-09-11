@@ -7,7 +7,7 @@
 //	fstrim (needs the engine up)  ->  stop it  ->  wait for WSL to let the disk
 //	go  ->  CompactVirtualDisk  ->  optionally start it again
 //
-// Two refusals are deliberate. Hawser stops its own distro and nothing else,
+// Two refusals are deliberate. Skrog stops its own distro and nothing else,
 // ever -- so when another distro is running (Docker Desktop's count) the disk
 // cannot be released and this refuses, naming who is holding it, instead of
 // running `wsl --shutdown` and killing someone's containers. And when nothing
@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/vhdx"
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/vhdx"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // ErrHeldByOthers reports that other distros are running, so WSL will not
@@ -187,7 +187,7 @@ func (r *Runner) Run(ctx context.Context, opts Options) (Report, error) {
 	}
 
 	// Refuse when someone else is holding the VM: no amount of waiting helps,
-	// and stopping their distros is not Hawser's call.
+	// and stopping their distros is not Skrog's call.
 	if len(holders) > 0 {
 		return rep, &ErrHeldByOthers{Holders: holders}
 	}

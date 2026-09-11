@@ -1,4 +1,4 @@
-module github.com/hawserhq/hawser
+module github.com/wslkit/skrog
 
 go 1.23
 

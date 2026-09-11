@@ -66,7 +66,7 @@ jobs:
 
   # #166: a supervisor serving the pipe died with Go runtime memory corruption
   # ("found pointer to free object"; "unknown caller pc" inside go-winio's IOCP
-  # processor), leaving the engine unreachable until `hawser start`. The cause
+  # processor), leaving the engine unreachable until `skrog start`. The cause
   # was two goroutines sharing one bufio.Reader in the relay — invisible to
   # every other check in this file, and reproducible only as "crashes
   # eventually" on a real machine. The race detector turns that into a test

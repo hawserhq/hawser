@@ -23,7 +23,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // Meta is a snapshot's sidecar record.
@@ -70,7 +70,7 @@ func (m *Manager) tar(name string) string  { return filepath.Join(m.dir(), name+
 func (m *Manager) meta(name string) string { return filepath.Join(m.dir(), name+".json") }
 
 // ArchivePath is where a snapshot's tarball lives. Exported because a caller
-// that has to recover by hand — `hawser relocate` after an import that failed
+// that has to recover by hand — `skrog relocate` after an import that failed
 // once the old distro was already gone — must be able to name the file the
 // data is still in.
 func (m *Manager) ArchivePath(name string) string { return m.tar(name) }

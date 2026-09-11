@@ -18,7 +18,7 @@ import (
 // no vsock plumbing, and no open port; v0.2 replaces it with a persistent agent
 // once the correctness this buys is locked in by tests.
 type WSLDialer struct {
-	// Distro is the WSL distribution name, e.g. "hawser-engine".
+	// Distro is the WSL distribution name, e.g. "skrog-engine".
 	Distro string
 
 	// SocketPath is the engine socket inside the distro.
@@ -45,7 +45,7 @@ type WSLDialer struct {
 // measured in minutes rather than for the life of the session.
 const DefaultIdleTimeout = 5 * time.Minute
 
-// DefaultSocketPath is where dockerd listens inside the Hawser distro.
+// DefaultSocketPath is where dockerd listens inside the Skrog distro.
 const DefaultSocketPath = "/var/run/docker.sock"
 
 func (d *WSLDialer) idleTimeout() time.Duration {

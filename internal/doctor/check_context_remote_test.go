@@ -4,11 +4,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/remote"
-	"github.com/hawserhq/hawser/internal/version"
+	"github.com/wslkit/skrog/internal/remote"
+	"github.com/wslkit/skrog/internal/version"
 )
 
-// Remote-engine contexts (#138): hawser-<name> is OK when the remote is known
+// Remote-engine contexts (#138): skrog-<name> is OK when the remote is known
 // and its client certificate is healthy; the failure that matters is a
 // certificate about to (or already) stop working.
 func TestCheckContextRemote(t *testing.T) {
@@ -35,7 +35,7 @@ func TestCheckContextRemote(t *testing.T) {
 		{"known remote, cert expiring soon", onRemote("desk", desk(time.Now().Add(3*24*time.Hour))), Warn},
 		{"known remote, cert expired", onRemote("desk", desk(time.Now().Add(-time.Hour))), Fail},
 		{"known remote, no expiry recorded", onRemote("desk", desk(time.Time{})), OK},
-		{"hawser- context but no such remote", onRemote("ghost", desk(time.Now().Add(400*24*time.Hour))), Warn},
+		{"skrog- context but no such remote", onRemote("ghost", desk(time.Now().Add(400*24*time.Hour))), Warn},
 	}
 	c := checkContext()
 	for _, tc := range cases {

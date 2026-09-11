@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/pipeproxy"
 )
 
 // fakeGate denies whatever the test tells it to, so these cases exercise the

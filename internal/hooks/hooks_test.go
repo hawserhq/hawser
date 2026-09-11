@@ -4,16 +4,16 @@ import "testing"
 
 func TestFilterInjectedIgnoresWindowsAndOurOwnDirectory(t *testing.T) {
 	mods := []Module{
-		{Name: "hawser.exe", Path: `C:\Hawser\bin\hawser.exe`},
+		{Name: "skrog.exe", Path: `C:\Skrog\bin\skrog.exe`},
 		{Name: "KERNEL32.DLL", Path: `C:\Windows\System32\KERNEL32.DLL`},
 		{Name: "ucrtbase.dll", Path: `C:\Windows\System32\ucrtbase.dll`},
 		{Name: "wow64.dll", Path: `C:\Windows\SysWOW64\wow64.dll`},
 		{Name: "sxs.dll", Path: `C:\Windows\WinSxS\x86_something\sxs.dll`},
-		{Name: "hawserw.exe", Path: `C:\Hawser\bin\hawserw.exe`},
+		{Name: "skrogw.exe", Path: `C:\Skrog\bin\skrogw.exe`},
 		{Name: "InProcessClient64.dll", Path: `C:\Program Files\SomeEDR\Agent 1.2\InProcessClient64.dll`},
 		{Name: "noPath.dll", Path: ""},
 	}
-	got := filterInjected(mods, `C:\Hawser\bin`)
+	got := filterInjected(mods, `C:\Skrog\bin`)
 	if len(got) != 1 {
 		t.Fatalf("got %d modules, want 1: %+v", len(got), got)
 	}
@@ -25,10 +25,10 @@ func TestFilterInjectedIgnoresWindowsAndOurOwnDirectory(t *testing.T) {
 func TestFilterInjectedIsCaseAndSeparatorInsensitive(t *testing.T) {
 	mods := []Module{
 		{Name: "kernel32.dll", Path: `c:/WINDOWS/system32/kernel32.dll`},
-		{Name: "self.dll", Path: `C:/Hawser/Bin/self.dll`},
+		{Name: "self.dll", Path: `C:/Skrog/Bin/self.dll`},
 		{Name: "hook.dll", Path: `C:\Vendor\hook.dll`},
 	}
-	got := filterInjected(mods, `c:\hawser\bin`)
+	got := filterInjected(mods, `c:\skrog\bin`)
 	if len(got) != 1 || got[0].Name != "hook.dll" {
 		t.Errorf("got %+v, want only hook.dll", got)
 	}

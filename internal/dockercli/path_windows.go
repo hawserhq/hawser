@@ -15,7 +15,7 @@ import (
 var envKeyPath = `Environment`
 
 // AddToUserPath prepends dir to the current user's PATH (HKCU\Environment), so a
-// new shell finds Hawser's docker.exe first. It is a careful read-modify-write:
+// new shell finds Skrog's docker.exe first. It is a careful read-modify-write:
 // it never truncates (unlike `setx`, which caps at 1024 chars), it de-duplicates,
 // and it preserves the value's REG_EXPAND_SZ type so entries like %USERPROFILE%
 // keep expanding. Returns whether a change was made (already-present is a no-op).
@@ -42,7 +42,7 @@ func AddToUserPath(dir string) (bool, error) {
 	if containsPath(entries, dir) {
 		return false, nil
 	}
-	// Prepend so Hawser's docker wins over a lingering Docker Desktop on PATH.
+	// Prepend so Skrog's docker wins over a lingering Docker Desktop on PATH.
 	updated := strings.Join(append([]string{dir}, entries...), ";")
 
 	// Preserve REG_EXPAND_SZ when that was the original type, so %VAR% entries

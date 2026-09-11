@@ -1,0 +1,745 @@
+package main
+
+import (
+	"context"
+	"flag"
+	"fmt"
+	"io"
+	"log/slog"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/wslkit/skrog/internal/audit"
+	"github.com/wslkit/skrog/internal/config"
+	"github.com/wslkit/skrog/internal/dockerctx"
+	"github.com/wslkit/skrog/internal/hostca"
+	"github.com/wslkit/skrog/internal/logging"
+	"github.com/wslkit/skrog/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/policy"
+	"github.com/wslkit/skrog/internal/profile"
+	"github.com/wslkit/skrog/internal/provision"
+	"github.com/wslkit/skrog/internal/supervise"
+)
+
+// engineAdapter satisfies supervise.Engine with the provisioner's primitives.
+type engineAdapter struct {
+	p    *provision.Provisioner
+	opts provision.Options
+	cfg  *config.Watcher
+	log  *slog.Logger
+
+	// Enumerating the Windows root store costs real time, and an idle wake is
+	// an engine start, so the PEM is read once and reused. A read that failed
+	// is not cached: the next start tries again.
+	mu     sync.Mutex
+	caPEM  []byte
+	caRead bool
+}
+
+func (e *engineAdapter) Running(ctx context.Context) bool {
+	return e.p.EngineRunning(ctx, e.opts)
+}
+
+// Start brings the engine up with the settings as they are now, not as they
+// were when the supervisor launched.
+//
+// Every per-start setting is re-read here. GPU already was (#83), because the
+// supervisor outlives `skrog restart` and a value captured at launch goes
+// stale. The corporate-network settings were not, so `skrog config set
+// network.proxy ...` followed by the `skrog restart` the docs prescribe
+// applied nothing — the same bug as the audit log, one layer down (#202).
+func (e *engineAdapter) Start(ctx context.Context) error {
+	opts := e.opts
+	c := e.cfg.Config()
+	opts.GPUEnabled = c.GPU
+	opts.GPUVendor = c.GPUVendor
+	opts.Network = provision.NetConfig{Proxy: c.Proxy, NoProxy: c.NoProxy}
+	if c.ImportHostCAs {
+		opts.Network.HostCAPEM = e.hostCAs(ctx)
+	}
+	return e.p.StartEngine(ctx, opts)
+}
+
+func (e *engineAdapter) Stop(ctx context.Context) error {
+	return e.p.StopEngine(ctx, e.opts)
+}
+
+// hostCAs returns the host root CA bundle to trust inside the engine, reading
+// the Windows store at most once per successful read.
+func (e *engineAdapter) hostCAs(ctx context.Context) []byte {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.caRead {
+		return e.caPEM
+	}
+	pem, err := hostca.HostRootCAs(ctx)
+	if err != nil {
+		e.log.Warn("host CA import is on but the store could not be read", "error", err)
+		return nil
+	}
+	e.caPEM, e.caRead = pem, true
+	e.log.Info("importing host CA certificates into the engine", "bytes", len(pem))
+	return e.caPEM
+}
+
+// resolveDistro prefers the install manifest, like proxy does: it records
+// which distro this machine actually has.
+func resolveDistro(p *provision.Provisioner, opts provision.Options) (string, bool) {
+	if m, err := p.ReadManifest(opts); err == nil && m.Distro != "" {
+		return m.Distro, true
+	}
+	if opts.Distro != "" {
+		return opts.Distro, true
+	}
+	return "", false
+}
+
+func runSupervise(args []string) int {
+	fs := flag.NewFlagSet("supervise", flag.ContinueOnError)
+	var (
+		distro    = fs.String("distro", "", "WSL distro (default: from the install manifest)")
+		stateDir  = fs.String("state-dir", "", "override Skrog's state directory")
+		pipeName  = fs.String("pipe", "", "pipe to serve (default: "+pipeproxy.DefaultPipeName+", or Skrog's own if taken)")
+		noContext = fs.Bool("no-context", false, "do not create or update the skrog docker context")
+	)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `usage: skrog supervise [flags]
+
+The always-on layer: serves the docker pipe AND keeps the engine alive —
+crash restart with backoff, recovery from `+"`wsl --shutdown`"+` and sleep/resume,
+honoring `+"`skrog stop`"+` until `+"`skrog start`"+`. One instance per install.
+
+Runs in the foreground; `+"`skrog start`"+` spawns it in the background, and the
+logon autostart (`+"`skrog autostart`"+`) runs it for you. Logs go to supervisor.log in the
+state directory (rotated) as well as stderr.
+
+flags:
+`)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+
+	opts := provision.Options{Distro: *distro, StateDir: *stateDir}
+	opts = optsWithResolvedStateDir(opts)
+
+	// Single instance before anything else: two supervisors would fight over
+	// the pipe and the engine.
+	lock, err := supervise.Acquire(opts.StateDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+	defer lock.Close()
+
+	// Log to a rotating file and stderr both: the file for the months-long
+	// logon session, stderr for a human running it in the foreground.
+	logFile, err := logging.NewRotatingWriter(
+		filepath.Join(opts.StateDir, "supervisor.log"), 0, 0)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+	defer logFile.Close()
+	// Warn+ mirrors to the Event Log for admins; the file keeps everything.
+	log := slog.New(logging.NewEventLogHandler(
+		slog.NewTextHandler(io.MultiWriter(logFile, os.Stderr), nil),
+		logging.EventSource))
+
+	p := &provision.Provisioner{Logger: log}
+	targetDistro, ok := resolveDistro(p, opts)
+	if !ok {
+		fmt.Fprintln(os.Stderr, "skrog: no install found. Run `skrog install` first.")
+		return exitNotFound
+	}
+	opts.Distro = targetDistro
+
+	selected, reason := pipeproxy.SelectPipeName(*pipeName)
+	listener, err := pipeproxy.Listen(selected, "")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+	defer listener.Close()
+	log.Info("serving pipe", "pipe", selected, "reason", reason)
+
+	if !*noContext {
+		if err := (&dockerctx.Manager{}).Ensure(context.Background(),
+			pipeproxy.DockerHostFor(selected)); err != nil {
+			log.Warn("docker context not wired", "reason", err)
+		}
+	}
+
+	ctx, stop := interruptible()
+	defer stop()
+
+	// A restart request left behind by a supervisor that crashed before it
+	// could act must not shut this one down on sight.
+	if err := supervise.ClearRestart(opts.StateDir); err != nil {
+		log.Warn("could not clear a stale restart request", "error", err)
+	}
+	go watchForRestart(ctx, opts.StateDir, stop, log)
+
+	// Server and supervisor are deliberately entangled (#41): the server's
+	// traffic feeds the supervisor's idle detection, and the supervisor's
+	// Demand wakes an idle-stopped engine for the server's next connection.
+	dialer := engineDialer(targetDistro, "", opts.StateDir, log)
+
+	// One watcher, consulted wherever a setting is consumed (#202). `skrog
+	// config` promises that "settings apply live: the supervisor re-reads
+	// them every few seconds"; this is what makes that true rather than true
+	// of one key. It stats before it reads, so consulting it per docker call
+	// is cheap.
+	cfg := config.NewWatcher(opts.StateDir)
+	cfg.OnError = func(err error) {
+		log.Error("settings file is not valid; the settings already in force stay",
+			"error", err)
+	}
+
+	// Bind-path rewriting is always on; the audit log (#121) and the policy
+	// gate (#120) wrap it. Both follow their file live — neither is captured
+	// here — because this process outlives `skrog restart`, so anything read
+	// once at startup can only be changed by killing it.
+	auditPath := filepath.Join(opts.StateDir, "audit.log")
+	auditor := &audit.Switch{
+		Enabled: func() bool { return cfg.Config().Audit },
+		Open: func() (io.WriteCloser, error) {
+			return logging.NewRotatingWriter(auditPath, 0, 0)
+		},
+		OnChange: func(enabled bool, err error) {
+			switch {
+			case err != nil:
+				// Loud: an operator who turned auditing on believes it is on.
+				log.Error("audit log could not be opened; auditing stays OFF",
+					"path", auditPath, "error", err)
+			case enabled:
+				log.Info("audit log enabled", "path", auditPath)
+			default:
+				log.Info("audit log disabled")
+			}
+		},
+	}
+	defer auditor.Close()
+
+	// The gate is always installed and re-reads policy.yaml when it changes,
+	// so editing the rules -- or creating the file for the first time --
+	// takes effect on the next container create, with nothing to restart.
+	//
+	// Reading once at start was the first cut and it was wrong: `skrog
+	// restart` bounces the engine, not this process, so the documented advice
+	// did not work; and a policy written after the supervisor started
+	// installed no gate at all.
+	watcher := policy.NewWatcher(opts.StateDir)
+	watcher.OnError = func(err error) {
+		log.Error("policy file is not valid; the previous rules stay in force",
+			"error", err, "path", policy.Path(opts.StateDir))
+	}
+	if rules := watcher.Rules(); !rules.Empty() {
+		log.Info("admission control enabled", "path", policy.Path(opts.StateDir))
+	}
+
+	handler := pipeproxy.RewriteBindsGuarded(auditor, watcher)
+
+	metrics := &pipeproxy.Metrics{}
+	srv := &pipeproxy.Server{
+		Logger:  log,
+		Handler: handler,
+		Metrics: metrics,
+	}
+	sup := &supervise.Supervisor{
+		Engine:   &engineAdapter{p: p, opts: opts, cfg: cfg, log: log},
+		Config:   supervise.Config{StateDir: opts.StateDir},
+		Log:      log,
+		Activity: srv,
+		// Read per tick, so `skrog config set idle-timeout` applies live. A
+		// settings file that will not parse keeps the timeout already in
+		// force rather than reverting to a default nobody chose; with no
+		// readable file at all the zero value is off, so the supervisor still
+		// never idle-stops on a guess.
+		IdleTimeout: func() time.Duration { return cfg.Config().IdleTimeout },
+		Busy:        engineBusy(dialer, p, opts, log),
+		// Lifecycle hooks (#70): fire off-thread and time-bounded so a user's
+		// script never blocks the reconciler.
+		Hook: hookRunner(opts.StateDir, log),
+	}
+	srv.Dialer = &demandDialer{sup: sup, inner: dialer}
+	go sup.Run(ctx)
+
+	// Statistics the CLI cannot see from outside this process (#179), flushed
+	// to a timestamped file so `skrog status --stats` can report both the
+	// numbers and how old they are.
+	go flushStats(ctx, opts.StateDir, sup, srv, metrics, dialer, log)
+
+	// The pipe server carries traffic; both stop together.
+	if err := srv.Serve(ctx, listener); err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+	log.Info("supervisor stopped")
+	return exitOK
+}
+
+// optsWithResolvedStateDir freezes the default state dir into the options, so
+// lock names, logs and desired-state files all agree on one path.
+func optsWithResolvedStateDir(opts provision.Options) provision.Options {
+	if opts.StateDir == "" {
+		if base := os.Getenv("LOCALAPPDATA"); base != "" {
+			opts.StateDir = filepath.Join(base, "Skrog")
+		}
+	}
+	return opts
+}
+
+func runStart(args []string) int {
+	fs := flag.NewFlagSet("start", flag.ContinueOnError)
+	stateDir := fs.String("state-dir", "", "override Skrog's state directory")
+	timeout := fs.Duration("timeout", 2*time.Minute, "how long to wait for the engine")
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `usage: skrog start
+
+Records the desired state as running, launches the supervisor when none is
+running, and waits for the engine to answer.
+`)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+
+	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
+	if err := supervise.WriteDesired(opts.StateDir, supervise.DesiredRunning); err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+	// Removing the idle marker is the wake-up poke: an idle-stopped engine is
+	// down on purpose, and the supervisor will not restart it while the marker
+	// stands — but `skrog start` is the user saying now.
+	if err := supervise.WriteEngineState(opts.StateDir, supervise.EngineActive); err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+
+	p := &provision.Provisioner{Logger: cliLogger(false)}
+	distro, ok := resolveDistro(p, opts)
+	if !ok {
+		fmt.Fprintln(os.Stderr, "skrog: no install found. Run `skrog install` first.")
+		return exitNotFound
+	}
+	// The resolved name must actually be used: polling the default distro
+	// while the install lives under a custom name reports a healthy engine as
+	// missing — the poll timed out while `skrog status` said running.
+	opts.Distro = distro
+
+	if !supervise.Held(opts.StateDir) {
+		fmt.Fprintln(os.Stderr, "  starting the supervisor in the background")
+		if err := spawnSupervisor(opts.StateDir); err != nil {
+			fmt.Fprintf(os.Stderr, "skrog: launching supervisor: %v\n", err)
+			return exitError
+		}
+	}
+
+	deadline := time.Now().Add(*timeout)
+	for time.Now().Before(deadline) {
+		if p.EngineRunning(context.Background(), opts) {
+			fmt.Println("engine is running")
+			return exitOK
+		}
+		time.Sleep(time.Second)
+	}
+	fmt.Fprintf(os.Stderr, "skrog: engine did not come up within %s; see supervisor.log in %s\n",
+		*timeout, opts.StateDir)
+	return exitError
+}
+
+func runStop(args []string) int {
+	fs := flag.NewFlagSet("stop", flag.ContinueOnError)
+	stateDir := fs.String("state-dir", "", "override Skrog's state directory")
+	timeout := fs.Duration("timeout", time.Minute, "how long to wait for the engine to stop")
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `usage: skrog stop
+
+Records the desired state as stopped and waits for the engine to stop. The
+supervisor keeps honoring this until `+"`skrog start`"+` — a stopped engine stays
+stopped. Only Skrog's own distro is touched, never other WSL distros.
+`)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+
+	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
+	if err := supervise.WriteDesired(opts.StateDir, supervise.DesiredStopped); err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+	// An explicit stop supersedes an idle stop; the marker would make status
+	// claim "idle (wakes on demand)" about an engine that must stay down.
+	supervise.WriteEngineState(opts.StateDir, supervise.EngineActive)
+
+	p := &provision.Provisioner{Logger: cliLogger(false)}
+	distro, ok := resolveDistro(p, opts)
+	if !ok {
+		fmt.Fprintln(os.Stderr, "skrog: no install found; nothing to stop")
+		return exitNotFound
+	}
+	opts.Distro = distro
+
+	// With no supervisor to do it, stop the engine directly.
+	if !supervise.Held(opts.StateDir) {
+		if err := p.StopEngine(context.Background(), opts); err != nil {
+			fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+			return exitError
+		}
+	}
+
+	deadline := time.Now().Add(*timeout)
+	for time.Now().Before(deadline) {
+		if !p.EngineRunning(context.Background(), opts) {
+			fmt.Println("engine is stopped (and stays stopped until `skrog start`)")
+			return exitOK
+		}
+		time.Sleep(time.Second)
+	}
+	fmt.Fprintf(os.Stderr, "skrog: engine still running after %s\n", *timeout)
+	return exitError
+}
+
+// restartPollInterval is how often the supervisor looks for a restart
+// request. A second is imperceptible to someone who just typed the command,
+// and the check is one stat.
+const restartPollInterval = time.Second
+
+// supervisorExitTimeout bounds the wait for the old supervisor to let go of
+// the single-instance claim. It only has to finish serving in-flight
+// connections; anything longer than this means it is wedged, and saying so
+// beats spawning a second one that cannot get the lock.
+const supervisorExitTimeout = 20 * time.Second
+
+// watchForRestart exits the supervisor when `skrog restart --supervisor`
+// asks it to (#202).
+//
+// Exiting is the whole mechanism: the CLI waits for the single-instance claim
+// to drop and then launches a replacement, and exiting zero is what tells the
+// watchdog this was asked for rather than a crash, so it does not race the
+// CLI to respawn.
+func watchForRestart(ctx context.Context, stateDir string, stop func(), log *slog.Logger) {
+	t := time.NewTicker(restartPollInterval)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-t.C:
+			if !supervise.RestartRequested(stateDir) {
+				continue
+			}
+			// Cleared before exiting, so the replacement does not find the
+			// note and immediately exit too.
+			if err := supervise.ClearRestart(stateDir); err != nil {
+				log.Warn("could not clear the restart request", "error", err)
+			}
+			log.Info("restart requested; exiting so a fresh supervisor can take over")
+			stop()
+			return
+		}
+	}
+}
+
+func runRestart(args []string) int {
+	fs := flag.NewFlagSet("restart", flag.ContinueOnError)
+	var (
+		supervisor = fs.Bool("supervisor", false,
+			"recycle the supervisor process too, not just the engine")
+		stateDir = fs.String("state-dir", "", "override Skrog's state directory")
+		timeout  = fs.Duration("timeout", 0,
+			"how long to wait for each phase (default: 1m to stop, 2m to start)")
+	)
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `usage: skrog restart [--supervisor]
+
+Stops the engine and starts it again.
+
+By default this is the ENGINE only. The supervisor — the always-on process
+that serves the docker pipe — keeps running across it, which is what lets a
+restart be quick and the pipe stay put.
+
+  --supervisor   also replace the supervisor process
+
+Almost nothing needs `+"`--supervisor`"+`: settings are re-read live, and the engine
+picks up config changes on this plain restart. Reach for it when the
+supervisor itself is misbehaving, or after replacing skrog.exe on disk.
+`)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		return exitUsage
+	}
+
+	// Rebuilt rather than forwarded verbatim, so stop and start each keep
+	// their own default timeout when the user did not ask for one.
+	var pass []string
+	if *stateDir != "" {
+		pass = append(pass, "--state-dir", *stateDir)
+	}
+	if *timeout != 0 {
+		pass = append(pass, "--timeout", timeout.String())
+	}
+
+	if code := runStop(pass); code != exitOK && code != exitNotFound {
+		return code
+	}
+	if *supervisor {
+		dir := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir}).StateDir
+		if code := recycleSupervisor(dir); code != exitOK {
+			return code
+		}
+	}
+	return runStart(pass)
+}
+
+// recycleSupervisor asks the running supervisor to exit and waits for it to
+// let go of the single-instance claim. The caller's `skrog start` then
+// launches the replacement, which is the one code path that knows about
+// skrogw.exe and the detached-window handling.
+func recycleSupervisor(stateDir string) int {
+	if !supervise.Held(stateDir) {
+		fmt.Println("  no supervisor is running; one will be started")
+		return exitOK
+	}
+	fmt.Println("  stopping the supervisor")
+	if err := supervise.RequestRestart(stateDir); err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+
+	deadline := time.Now().Add(supervisorExitTimeout)
+	for time.Now().Before(deadline) {
+		if !supervise.Held(stateDir) {
+			return exitOK
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// Withdraw the request rather than leave it armed: a supervisor that is
+	// merely slow should not shut down minutes later, long after the command
+	// that asked for it reported failure.
+	if err := supervise.ClearRestart(stateDir); err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: withdrawing the restart request: %v\n", err)
+	}
+	fmt.Fprintf(os.Stderr,
+		"skrog: the supervisor did not exit within %s and is still running; "+
+			"see supervisor.log in %s\n", supervisorExitTimeout, stateDir)
+	return exitError
+}
+
+func runStatus(args []string) int {
+	fs := flag.NewFlagSet("status", flag.ContinueOnError)
+	stateDir := fs.String("state-dir", "", "override Skrog's state directory")
+	asJSON := fs.Bool("json", false, "emit machine-readable JSON")
+	withStats := fs.Bool("stats", false, "add engine, disk, VM, uptime and bridge statistics (needs a running engine for the first three)")
+	fs.Usage = func() {
+		fmt.Fprintf(os.Stderr, `usage: skrog status [--json] [--stats]
+
+Reports the distro, whether the supervisor and engine are running, and the
+desired state the user last asked for.
+
+Reads host-side files only — it never starts the engine to answer, and never
+wakes an idle-stopped one. Safe to poll.
+
+The engine is one of:
+
+  running   answering the docker API
+  idle      stopped by the idle timeout, ON PURPOSE; the next docker command
+            wakes it. Not an error, and the exit code says so
+  stopped   down, and staying down until `+"`skrog start`"+`
+
+--stats adds engine, disk, VM, uptime and bridge counters. It is opt-in
+because collecting them costs WSL calls a readiness probe should not pay; the
+default shape is the pinned probe contract (%s).
+
+Exit codes: 0 engine running or idle, %d engine down, %d usage, %d not installed.
+`, "docs/cli-json.md", exitError, exitUsage, exitNotFound)
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+
+	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
+	p := &provision.Provisioner{Logger: cliLogger(true)}
+
+	st := statusJSON{
+		StateDir:   opts.StateDir,
+		Supervisor: "stopped",
+		Engine:     "stopped",
+		Desired:    string(supervise.ReadDesired(opts.StateDir)),
+		Profile:    (&profile.Manager{StateDir: opts.StateDir}).Active(),
+	}
+	if c, err := config.Load(opts.StateDir); err == nil {
+		st.GPU.Enabled = c.GPU
+		st.GPU.Vendor = c.GPUVendor
+		// The probes below read the vendor spec path, so it has to travel too.
+		opts.GPUVendor = c.GPUVendor
+	}
+
+	if distro, ok := resolveDistro(p, opts); ok {
+		st.Installed = true
+		st.Distro = distro
+		opts.Distro = distro
+		if supervise.Held(opts.StateDir) {
+			st.Supervisor = "running"
+		}
+		switch {
+		case p.EngineRunning(context.Background(), opts):
+			st.Engine = "running"
+			// GPU probes need the distro up (never boot it for status, #82) and
+			// are only worth two wsl calls when GPU is enabled at all.
+			if st.GPU.Enabled {
+				st.GPU.Probed = true
+				st.GPU.Visible = p.GPUAvailable(context.Background(), opts)
+				st.GPU.SpecInstalled = p.GPUSpecInstalled(context.Background(), opts)
+			}
+		case supervise.ReadEngineState(opts.StateDir) == supervise.EngineIdle:
+			// Down by design (#41): the idle timeout elapsed, and the next
+			// docker command wakes it. Scripts get to tell this from broken.
+			st.Engine = "idle"
+		}
+	}
+
+	// Statistics are opt-in and additive: the default shape is a pinned
+	// readiness-probe contract (#179), and collecting them costs WSL calls that
+	// a probe should not pay.
+	if *withStats && st.Installed {
+		s := gatherStats(context.Background(), opts, st.Distro, st.Engine == "running")
+		st.Stats = &s
+	}
+
+	if *asJSON {
+		return emitJSON(st)
+	}
+	if !st.Installed {
+		fmt.Println("not installed (run `skrog install`)")
+		return exitNotFound
+	}
+	fmt.Printf("distro      %s\nsupervisor  %s\nengine      %s\ndesired     %s\n",
+		st.Distro, st.Supervisor, st.Engine, st.Desired)
+	if st.Profile != "" {
+		fmt.Printf("profile     %s\n", st.Profile)
+	}
+	if st.Stats != nil {
+		printStats(*st.Stats)
+	}
+	// Exit code mirrors engine health, so scripts can gate on it directly.
+	// Idle counts as healthy: the engine is a docker command away, on purpose.
+	if st.Engine != "running" && st.Engine != "idle" {
+		return exitError
+	}
+	return exitOK
+}
+
+func fileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
+}
+
+// spawnSupervisor launches `skrog supervise` detached and windowless.
+//
+// Through skrogw.exe when it is there (a release zip, not a bare go build):
+// the launcher stays resident as the supervisor's watchdog, so a crash costs
+// seconds of pipe downtime rather than every docker command until the next
+// `skrog start` (#166). Falling back to spawning supervise directly keeps a
+// single-binary checkout working, just without the watchdog.
+func spawnSupervisor(stateDir string) error {
+	self, err := os.Executable()
+	if err != nil {
+		return err
+	}
+	target, args := self, []string{"supervise", "--state-dir", stateDir}
+	if launcher := filepath.Join(filepath.Dir(self), "skrogw.exe"); fileExists(launcher) {
+		target, args = launcher, []string{"--state-dir", stateDir}
+	}
+	cmd := exec.Command(target, args...)
+	configureDetached(cmd)
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	// Released, not waited on: it must outlive this CLI invocation.
+	return cmd.Process.Release()
+}
+
+// statsFlushInterval is how often the supervisor publishes its counters. Five
+// seconds keeps a reading current enough to act on while costing one small
+// atomic write; supervise.Stats.Fresh() allows six times that before calling a
+// reading stale, so a busy machine never flaps between the two.
+const statsFlushInterval = 5 * time.Second
+
+// flushStats publishes the supervisor's counters until the context ends, then
+// writes one last reading so a clean shutdown leaves the final numbers rather
+// than a reading from five seconds before the end.
+func flushStats(ctx context.Context, stateDir string, sup *supervise.Supervisor,
+	srv *pipeproxy.Server, m *pipeproxy.Metrics, dialer pipeproxy.Dialer, log *slog.Logger) {
+	write := func() {
+		snap := m.Snapshot()
+		st := supervise.Stats{
+			Engine:    sup.EngineStatus(),
+			Lifecycle: sup.LifecycleSnapshot(),
+			Bridge: supervise.Bridge{
+				Connections:   snap.Connections,
+				BytesToEngine: snap.BytesToEngine,
+				BytesToClient: snap.BytesToClient,
+				ActiveConns:   srv.ActiveConns(),
+				Transport:     transportName(dialer),
+			},
+		}
+		// A statistic must never be able to take the supervisor down, so a
+		// failed write is logged at debug and forgotten.
+		if err := supervise.WriteStats(stateDir, st); err != nil {
+			log.Debug("could not write supervisor stats", "error", err)
+		}
+	}
+
+	t := time.NewTicker(statsFlushInterval)
+	defer t.Stop()
+	write()
+	for {
+		select {
+		case <-ctx.Done():
+			write()
+			return
+		case <-t.C:
+			write()
+		}
+	}
+}
+
+// transportName reports which engine transport is carrying traffic, because
+// that is the difference between ~0.6 ms and ~165 ms per connection -- and the
+// answer to "docker feels slow" when the engine itself is healthy (#179).
+//
+//	vsock     the fast path
+//	fallback  the vsock agent is unreachable and socat is carrying it
+//	socat     SKROG_NO_VSOCK pinned the slow path deliberately
+//
+// Anything else is reported as unknown rather than guessed at: `skrog proxy`
+// and the tests wire dialers directly.
+func transportName(d pipeproxy.Dialer) string {
+	switch t := d.(type) {
+	case *pipeproxy.FallbackDialer:
+		if t.Degraded() {
+			return "fallback"
+		}
+		return "vsock"
+	case *pipeproxy.WSLDialer:
+		return "socat"
+	}
+	return "unknown"
+}

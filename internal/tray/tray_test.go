@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/wslkit/skrog/internal/supervise"
 )
 
 func TestStatusToState(t *testing.T) {

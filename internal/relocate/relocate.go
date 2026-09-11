@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/snapshot"
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/snapshot"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // DiskName is the file WSL creates for a distro's filesystem.
@@ -36,7 +36,7 @@ const DiskName = "ext4.vhdx"
 // stagingDir is the transient directory created under the target to hold the
 // archive. Removed on success; left in place, with the archive, on a failure
 // that needs manual recovery.
-const stagingDir = ".hawser-relocate"
+const stagingDir = ".skrog-relocate"
 
 // ErrSameDir is returned when the target resolves to the current data dir.
 type ErrSameDir struct{ Path string }

@@ -25,7 +25,7 @@ try {
         $native = Get-Command shellcheck -ErrorAction SilentlyContinue
         if (-not $native) {
             # scripts/install-tools.ps1 puts it here when it isn't on PATH.
-            $local = Join-Path $env:LOCALAPPDATA 'hawser-tools\shellcheck.exe'
+            $local = Join-Path $env:LOCALAPPDATA 'skrog-tools\shellcheck.exe'
             if (Test-Path $local) { $native = Get-Command $local }
         }
         $wslHas = $false

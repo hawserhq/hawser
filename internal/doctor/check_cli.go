@@ -15,7 +15,7 @@ func checkCLI() Check {
 	c.Run = func(f Facts) Result {
 		if !f.CLI.Installed {
 			r := result(c, Skip, "the bundled docker CLI is not installed")
-			r.Remedy = "to run docker without Docker Desktop, `hawser cli install` " +
+			r.Remedy = "to run docker without Docker Desktop, `skrog cli install` " +
 				"installs the docker CLI + compose + buildx, checksum-verified."
 			return r
 		}
@@ -31,7 +31,7 @@ func checkCLI() Check {
 		if !f.CLI.OnPath {
 			r := result(c, Warn, "the bundled docker CLI is installed but its directory is not on your PATH")
 			r.Detail = []string{"  " + f.CLI.BinDir}
-			r.Remedy = "run `hawser cli install` (it adds the directory to your user PATH), " +
+			r.Remedy = "run `skrog cli install` (it adds the directory to your user PATH), " +
 				"or add the directory above yourself."
 			return r
 		}
@@ -44,7 +44,7 @@ func checkCLI() Check {
 			detail = append(detail, "  active:  "+f.CLI.ActiveDocker)
 		}
 		r.Detail = detail
-		r.Remedy = "open a new terminal; if it persists, make sure Hawser's bin directory " +
+		r.Remedy = "open a new terminal; if it persists, make sure Skrog's bin directory " +
 			"precedes Docker Desktop on PATH. Then you can uninstall Docker Desktop."
 		return r
 	}

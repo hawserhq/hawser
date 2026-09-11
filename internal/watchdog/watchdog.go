@@ -3,9 +3,9 @@
 //
 // The supervisor is the always-on layer: while it is down, the docker pipe is
 // gone and every docker command fails with "The system cannot find the file
-// specified" until someone runs `hawser start`. Crashes should not be able to
+// specified" until someone runs `skrog start`. Crashes should not be able to
 // do that. A Go fatal runtime error cannot be recovered inside the process, so
-// recovery belongs to whoever launched it — hawserw.exe, the logon launcher.
+// recovery belongs to whoever launched it — skrogw.exe, the logon launcher.
 //
 // The policy is the classic one, and every rule is there to avoid a restart
 // loop being worse than the crash:
@@ -94,7 +94,7 @@ func (p Policy) Decide(exitCode int, uptime time.Duration, restarts []time.Time,
 	if n := countWithin(restarts, now, p.Window); n >= p.MaxRestarts {
 		return Decision{Reason: fmt.Sprintf(
 			"supervisor exited %s, but it has already been restarted %d times in the last %s; giving up "+
-				"(run `hawser start` to try again, and see hawser#166)",
+				"(run `skrog start` to try again, and see skrog#166)",
 			code(exitCode), n, p.Window)}
 	}
 	return Decision{

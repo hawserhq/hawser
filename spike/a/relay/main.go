@@ -1,4 +1,4 @@
-// Spike A throwaway relay: \\.\pipe\hawser_spike -> hawser-spike distro's docker.sock,
+// Spike A throwaway relay: \\.\pipe\skrog_spike -> skrog-spike distro's docker.sock,
 // one wsl.exe+socat process per connection. Measures what issue #2 asks for; not product code.
 package main
 
@@ -13,15 +13,15 @@ import (
 	"github.com/Microsoft/go-winio"
 )
 
-const pipeName = `\\.\pipe\hawser_spike`
+const pipeName = `\\.\pipe\skrog_spike`
 
 func main() {
 	l, err := winio.ListenPipe(pipeName, nil)
 	if err != nil {
 		log.Fatalf("listen %s: %v", pipeName, err)
 	}
-	log.Printf("relaying %s -> hawser-spike /var/run/docker.sock", pipeName)
-	log.Printf(`try: $env:DOCKER_HOST = "npipe:////./pipe/hawser_spike"; docker version`)
+	log.Printf("relaying %s -> skrog-spike /var/run/docker.sock", pipeName)
+	log.Printf(`try: $env:DOCKER_HOST = "npipe:////./pipe/skrog_spike"; docker version`)
 	for {
 		c, err := l.Accept()
 		if err != nil {
@@ -35,7 +35,7 @@ func handle(c net.Conn) {
 	start := time.Now()
 	defer c.Close()
 
-	cmd := exec.Command("wsl.exe", "-d", "hawser-spike", "-u", "root", "--exec",
+	cmd := exec.Command("wsl.exe", "-d", "skrog-spike", "-u", "root", "--exec",
 		"socat", "STDIO", "UNIX-CONNECT:/var/run/docker.sock")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

@@ -25,16 +25,16 @@ import (
 )
 
 const (
-	serviceName = "HawserSpikeB"
-	logDir      = `C:\ProgramData\hawser-spike-b`
+	serviceName = "SkrogSpikeB"
+	logDir      = `C:\ProgramData\skrog-spike-b`
 )
 
-// distro is the WSL distribution to probe, from HAWSER_SPIKE_DISTRO.
+// distro is the WSL distribution to probe, from SKROG_SPIKE_DISTRO.
 func distro() string {
-	if d := os.Getenv("HAWSER_SPIKE_DISTRO"); d != "" {
+	if d := os.Getenv("SKROG_SPIKE_DISTRO"); d != "" {
 		return d
 	}
-	return "hawser-spike-b"
+	return "skrog-spike-b"
 }
 
 type event struct {
@@ -115,7 +115,7 @@ func probe() {
 
 	// 2. Which distros does THIS account see? Registration lives in HKCU, so a
 	// service account may see none even though the interactive user has several.
-	// If this comes back empty, `hawser install` must import the distro as the
+	// If this comes back empty, `skrog install` must import the distro as the
 	// service account rather than as the installing user.
 	out, err = run("wsl.exe", "--list", "--verbose")
 	logEvent(event{Phase: "wsl-list", Output: out, Err: errString(err), OK: boolp(err == nil)})
@@ -127,10 +127,10 @@ func probe() {
 	// Registration is per-user, so a service account will not see a distro the
 	// interactive user imported. Rather than importing it from outside (which
 	// needs stored-credential rights the account does not have), the service
-	// imports its own — which is also what `hawser install --headless` would
+	// imports its own — which is also what `skrog install --headless` would
 	// have to do in production, so it is the more useful thing to measure.
 	var importOut string
-	if !visible && os.Getenv("HAWSER_SPIKE_ROOTFS") != "" {
+	if !visible && os.Getenv("SKROG_SPIKE_ROOTFS") != "" {
 		_, importOut = selfImport(d)
 		out, err = run("wsl.exe", "--list", "--verbose")
 		logEvent(event{Phase: "distro-visible-after-import", Detail: d,
@@ -234,11 +234,11 @@ func diagnose(listOut, importOut string) string {
 //
 // This is the decisive measurement of the spike: whether a non-interactive
 // service account in session 0 can provision a WSL distro at all. If it can,
-// the dedicated-account pattern works and `hawser install --headless` knows
+// the dedicated-account pattern works and `skrog install --headless` knows
 // what it has to do; if it cannot, session-0 operation is off the table.
 func selfImport(d string) (bool, string) {
-	rootfs := os.Getenv("HAWSER_SPIKE_ROOTFS")
-	vhd := os.Getenv("HAWSER_SPIKE_VHD")
+	rootfs := os.Getenv("SKROG_SPIKE_ROOTFS")
+	vhd := os.Getenv("SKROG_SPIKE_VHD")
 	if vhd == "" {
 		vhd = filepath.Join(logDir, d)
 	}

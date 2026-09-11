@@ -282,7 +282,7 @@ var writeSeq = 1
 
 func TestWatcherPicksUpEditsWithNoRestart(t *testing.T) {
 	// The bug this exists for: the first cut read the file once at supervisor
-	// start and told users to run `hawser restart`, which bounces the engine
+	// start and told users to run `skrog restart`, which bounces the engine
 	// and not the supervisor — so the advice did not work even when followed.
 	dir := t.TempDir()
 	w := NewWatcher(dir)

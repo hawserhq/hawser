@@ -1,4 +1,4 @@
-module github.com/hawserhq/hawser/spike/a/relay
+module github.com/wslkit/skrog/spike/a/relay
 
 go 1.22
 

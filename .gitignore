@@ -5,13 +5,13 @@ spike/a/dl/
 *.exe
 
 # go
-/hawser
+/skrog
 go.work
 go.work.sum
 engine-bin/
 /agent
-/hawsertray
-/hawsertray.exe
+/skrogtray
+/skrogtray.exe
 
 # The docs site: content/ is staged from docs/ by scripts/build-docs.ps1, the
 # rest is Hugo's output and cache.

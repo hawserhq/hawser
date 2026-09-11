@@ -117,7 +117,7 @@ func TestParseListVerbose(t *testing.T) {
 	out := strings.Join([]string{
 		"  NAME                   STATE           VERSION",
 		"* Ubuntu                 Running         2",
-		"  hawser-engine          Stopped         2",
+		"  skrog-engine          Stopped         2",
 		"  docker-desktop         Running         2",
 		"  legacy-distro          Stopped         1",
 	}, "\n")
@@ -130,8 +130,8 @@ func TestParseListVerbose(t *testing.T) {
 	if got[0].Name != "Ubuntu" || !got[0].Default || !got[0].Running() || got[0].Version != 2 {
 		t.Errorf("first distro = %+v", got[0])
 	}
-	if got[1].Name != "hawser-engine" || got[1].Default || got[1].Running() {
-		t.Errorf("hawser-engine = %+v", got[1])
+	if got[1].Name != "skrog-engine" || got[1].Default || got[1].Running() {
+		t.Errorf("skrog-engine = %+v", got[1])
 	}
 	if got[3].Version != 1 {
 		t.Errorf("legacy distro version = %d, want 1", got[3].Version)

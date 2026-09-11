@@ -1,6 +1,6 @@
 # Bumping upstream: the engine and the docker CLI
 
-Hawser pins every upstream byte it ships. Nothing is ever fetched as "latest" —
+Skrog pins every upstream byte it ships. Nothing is ever fetched as "latest" —
 that is the determinism promise in PLAN §04, and breaking it once costs the
 wedge market. So a version bump is a reviewed commit, and this is what one
 involves.
@@ -11,7 +11,7 @@ carry a Docker version number, and they can legitimately differ:
 | stream | what it is | pinned in |
 | --- | --- | --- |
 | **engine** | `dockerd` and friends, built from source into the rootfs | `guest/rootfs/versions.env` + `internal/release/manifest.json` |
-| **docker CLI** | the `docker.exe` `hawser cli install` puts on PATH, plus compose, buildx, the credential helper | `internal/dockercli/manifest.json` |
+| **docker CLI** | the `docker.exe` `skrog cli install` puts on PATH, plus compose, buildx, the credential helper | `internal/dockercli/manifest.json` |
 
 A newer CLI talking to an older daemon is supported — the API negotiates — but
 a large gap is worth closing, because the acceptance suite only validates the
@@ -50,11 +50,11 @@ the toolchain changes the output bytes, so raise it deliberately, not reflexivel
 
 moby's own `Dockerfile` carries `ARG CONTAINERD_VERSION` / `ARG RUNC_VERSION`.
 **These are informational, not authoritative.** They describe moby's dev
-container and CI, and Hawser has never simply mirrored them: at 29.7.2, moby's
-Dockerfile said containerd `v2.3.3` while Hawser shipped `v2.1.4` — on purpose.
+container and CI, and Skrog has never simply mirrored them: at 29.7.2, moby's
+Dockerfile said containerd `v2.3.3` while Skrog shipped `v2.1.4` — on purpose.
 
 The rule in `versions.env` is the one that governs: *the pinned set is a tested
-combination*, and `hawser engine upgrade` refuses combinations outside the
+combination*, and `skrog engine upgrade` refuses combinations outside the
 tested matrix. So:
 
 - Bumping moby alone is normal and is usually the right change.
@@ -81,10 +81,10 @@ bump on its own does not compile past the tests, by design.
 
 Add the new engine as `"default": true`, with the URL the release *will* have,
 and `"sha256": ""`. **Keep the previous engine listed** with its checksum
-intact: that is what `hawser engine list` offers and what `hawser engine
+intact: that is what `skrog engine list` offers and what `skrog engine
 rollback` returns to. Dropping it would strand anyone who needs to go back.
 
-The empty checksum is deliberate and temporary. While it is empty, `hawser
+The empty checksum is deliberate and temporary. While it is empty, `skrog
 install` refuses and tells the user to pass `--rootfs-url` / `--rootfs-sha256`
 rather than installing something unverified — there is no code path that
 installs an unverified rootfs.
@@ -103,8 +103,8 @@ Follow [RELEASING.md](../RELEASING.md): tag `rootfs-v<engine>-<revision>` (here
 `rootfs-v29.8.0-1`), let the workflow publish, then copy the value from the
 published `.sha256` asset into `manifest.json` and merge that as a normal PR.
 
-Finally, exercise `hawser engine upgrade` from the previous version and
-`hawser engine rollback` back to it, confirming data survives both.
+Finally, exercise `skrog engine upgrade` from the previous version and
+`skrog engine rollback` back to it, confirming data survives both.
 
 ---
 

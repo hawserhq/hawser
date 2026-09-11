@@ -1,8 +1,8 @@
-// Package tray holds the logic behind the Hawser system-tray status light,
+// Package tray holds the logic behind the Skrog system-tray status light,
 // separate from the GUI shell so it can be tested without a desktop.
 //
 // The tray is a status light, not a control panel (PLAN §03): a fixed, tiny
-// menu, and every item shells out to the `hawser` CLI — the tray itself holds
+// menu, and every item shells out to the `skrog` CLI — the tray itself holds
 // no engine logic and makes no decisions the CLI would not.
 package tray
 
@@ -13,10 +13,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/wslkit/skrog/internal/supervise"
 )
 
-// State is the engine state the dot reflects, mirroring `hawser status`.
+// State is the engine state the dot reflects, mirroring `skrog status`.
 type State string
 
 const (
@@ -27,7 +27,7 @@ const (
 	StateUnknown      State = "unknown"
 )
 
-// Status is the subset of `hawser status --json` the tray renders.
+// Status is the subset of `skrog status --json` the tray renders.
 type Status struct {
 	Installed  bool   `json:"installed"`
 	Engine     string `json:"engine"`
@@ -59,15 +59,15 @@ func (s Status) State() State {
 func Tooltip(st State) string {
 	switch st {
 	case StateRunning:
-		return "Hawser — engine running"
+		return "Skrog — engine running"
 	case StateIdle:
-		return "Hawser — engine idle (starts on demand)"
+		return "Skrog — engine idle (starts on demand)"
 	case StateStopped:
-		return "Hawser — engine stopped"
+		return "Skrog — engine stopped"
 	case StateNotInstalled:
-		return "Hawser — not installed"
+		return "Skrog — not installed"
 	default:
-		return "Hawser — engine state unknown"
+		return "Skrog — engine state unknown"
 	}
 }
 
@@ -75,7 +75,7 @@ func Tooltip(st State) string {
 // both "working as intended" (idle wakes on the next docker command).
 func Healthy(st State) bool { return st == StateRunning || st == StateIdle }
 
-// CLI runs the hawser binary for the tray. Exe is the resolved hawser.exe path.
+// CLI runs the skrog binary for the tray. Exe is the resolved skrog.exe path.
 type CLI struct {
 	Exe string
 }
@@ -88,7 +88,7 @@ func (c CLI) Poll(ctx context.Context) Status {
 	defer cancel()
 	out, err := hideWindow(exec.CommandContext(ctx, c.Exe, "status", "--json")).Output()
 	if err != nil {
-		// `hawser status` exits non-zero when the engine is not running, but
+		// `skrog status` exits non-zero when the engine is not running, but
 		// still prints valid JSON on stdout; parse it before giving up.
 		if len(out) == 0 {
 			return Status{}
@@ -128,7 +128,7 @@ func (c CLI) Run(ctx context.Context, a Action) (string, error) {
 }
 
 // PollPublished reads the state the supervisor already publishes, instead of
-// spawning `hawser status --json` to ask for it.
+// spawning `skrog status --json` to ask for it.
 //
 // This is the whole point of #192: the reconciler probes the engine every few
 // seconds anyway and writes the answer down, so the tray was paying 285 ms and
@@ -146,7 +146,7 @@ func PollPublished(stateDir string) (State, bool) {
 	if err != nil || !found || !st.Fresh() || st.Engine == "" {
 		return StateUnknown, false
 	}
-	// A supervisor is writing, so Hawser is installed; reuse the existing
+	// A supervisor is writing, so Skrog is installed; reuse the existing
 	// mapping rather than growing a second copy of it in the tray.
 	return Status{Installed: true, Engine: st.Engine}.State(), true
 }

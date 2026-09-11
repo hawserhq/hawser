@@ -3,7 +3,7 @@
 // A runner VM with 8 GB should not let the engine take four of them, and WSL2's
 // sizing lives in ~/.wslconfig -- which is **global**: every WSL2 distro on the
 // machine shares it, Docker Desktop's and Rancher's included. So nothing here
-// writes without being asked to, and `hawser wsl-config apply` shows the exact
+// writes without being asked to, and `skrog wsl-config apply` shows the exact
 // diff first. It is the same consent shape doctor already uses for the VPN
 // remedies (#63), for the same reason.
 //
@@ -17,7 +17,7 @@
 //   - A restart is REPORTED, never performed. Sizing takes effect when the WSL
 //     VM next starts, and the only way to force that is `wsl --shutdown`, which
 //     stops every distro on the machine -- someone else's containers included.
-//     Hawser stops its own distro and nothing else, ever.
+//     Skrog stops its own distro and nothing else, ever.
 package wslconfig
 
 import (
@@ -32,7 +32,7 @@ import (
 // Section is the only section this package writes into.
 const Section = "wsl2"
 
-// Keys are the settings Hawser manages, in the order a diff shows them.
+// Keys are the settings Skrog manages, in the order a diff shows them.
 const (
 	KeyMemory            = "memory"
 	KeyProcessors        = "processors"
@@ -165,7 +165,7 @@ func (f *File) Plan(desired map[string]string) []Change {
 	for _, k := range Managed() {
 		want, ok := desired[k]
 		if !ok || strings.TrimSpace(want) == "" {
-			continue // unset in Hawser's config: not ours to touch
+			continue // unset in Skrog's config: not ours to touch
 		}
 		cur, present := f.Get(k)
 		switch {
@@ -267,7 +267,7 @@ func (f *File) write() error {
 }
 
 // Validate checks one managed key's value the way WSL would read it, so a typo
-// fails at `hawser config set` rather than silently making the VM's sizing
+// fails at `skrog config set` rather than silently making the VM's sizing
 // something other than what was asked for.
 func Validate(key, value string) (string, error) {
 	v := strings.TrimSpace(value)

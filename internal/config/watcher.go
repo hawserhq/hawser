@@ -9,10 +9,10 @@ import (
 // Watcher hands out the current settings, re-reading config.json only when it
 // has actually changed on disk (#202).
 //
-// `hawser config` tells users "settings apply live: the supervisor re-reads
+// `skrog config` tells users "settings apply live: the supervisor re-reads
 // them every few seconds". That promise was true for exactly one key. Every
 // other consumer captured its value once when the supervisor started, so
-// `hawser config set audit on` — followed by the `hawser restart` the help
+// `skrog config set audit on` — followed by the `skrog restart` the help
 // text recommended — enabled nothing: restart bounces the engine, not the
 // supervisor that holds the setting. This type is how the promise is kept:
 // wherever a setting is consumed, it is consumed through a Watcher.

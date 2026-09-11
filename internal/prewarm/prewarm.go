@@ -1,7 +1,7 @@
 // Package prewarm pulls a pinned list of images ahead of need (#149): in a
 // golden-image bake, a post-start hook, or a runner warm-up step, so the first
 // job does not pay for the pulls. It drives the docker CLI, so pulls go to
-// whatever docker currently targets — the local engine or a `hawser remote` —
+// whatever docker currently targets — the local engine or a `skrog remote` —
 // and happen inside that engine, inheriting its proxy and CA configuration like
 // any other pull.
 package prewarm

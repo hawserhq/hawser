@@ -1,5 +1,5 @@
 // Package bundle is the air-gap install format (#75): a single .zip holding a
-// verified engine rootfs and a hawser.lock, so an isolated-network machine
+// verified engine rootfs and a skrog.lock, so an isolated-network machine
 // installs entirely from the file with zero network calls. It builds on the
 // lockfile (the pin + checksum) and the existing checksum-mandatory install
 // path (which already reads a local rootfs and verifies it).
@@ -13,11 +13,11 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/hawserhq/hawser/internal/lockfile"
+	"github.com/wslkit/skrog/internal/lockfile"
 )
 
 // lockEntry is the fixed name of the lock inside a bundle.
-const lockEntry = "hawser.lock"
+const lockEntry = "skrog.lock"
 
 // rootfsEntryName is where the rootfs lives inside the bundle: the basename of
 // the lock's rootfs URL, so the same filename the release uses is preserved.

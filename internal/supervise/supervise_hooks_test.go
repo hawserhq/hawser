@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/wslkit/skrog/internal/supervise"
 )
 
 type hookRec struct {

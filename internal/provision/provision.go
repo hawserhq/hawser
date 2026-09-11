@@ -12,16 +12,16 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/engineconfig"
-	"github.com/hawserhq/hawser/internal/gpu"
-	"github.com/hawserhq/hawser/internal/rootfsverify"
-	"github.com/hawserhq/hawser/internal/winpath"
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/engineconfig"
+	"github.com/wslkit/skrog/internal/gpu"
+	"github.com/wslkit/skrog/internal/rootfsverify"
+	"github.com/wslkit/skrog/internal/winpath"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
-// DefaultDistro is the WSL distribution Hawser imports. Deliberately distinct
+// DefaultDistro is the WSL distribution Skrog imports. Deliberately distinct
 // so it never collides with a user's own Ubuntu (PLAN §04).
-const DefaultDistro = "hawser-engine"
+const DefaultDistro = "skrog-engine"
 
 // distroNameRE bounds what a distro name may contain (#93). Names flow into
 // shells (the /mnt/wsl share/unshare scripts pass them as positional args, but
@@ -48,7 +48,7 @@ type Options struct {
 	// Distro is the WSL distribution name. Defaults to DefaultDistro.
 	Distro string
 	// StateDir holds the manifest and the rootfs cache.
-	// Defaults to %LOCALAPPDATA%\Hawser.
+	// Defaults to %LOCALAPPDATA%\Skrog.
 	StateDir string
 	// DataDir is where the distro's VHDX lives. Defaults to StateDir\distro.
 	// Exposed because "move it off C:" is a perennial request (PLAN §03).
@@ -57,7 +57,7 @@ type Options struct {
 	// is mandatory: an unverified rootfs becomes root inside the engine VM.
 	RootfsURL    string
 	RootfsSHA256 string
-	// EngineVersion is recorded in the manifest for `hawser version`.
+	// EngineVersion is recorded in the manifest for `skrog version`.
 	EngineVersion string
 	// Headless suppresses anything that would wait for a human.
 	Headless bool
@@ -89,7 +89,7 @@ type NetConfig struct {
 	NoProxy string
 	// HostCAPEM is a PEM bundle of extra root CAs to trust — the fix for a
 	// TLS-inspecting corporate proxy whose root the engine does not know. Empty
-	// removes any Hawser-installed host CAs.
+	// removes any Skrog-installed host CAs.
 	HostCAPEM []byte
 }
 
@@ -111,19 +111,19 @@ func (o Options) withDefaults() Options {
 
 func defaultStateDir() string {
 	if base := os.Getenv("LOCALAPPDATA"); base != "" {
-		return filepath.Join(base, "Hawser")
+		return filepath.Join(base, "Skrog")
 	}
 	// Non-Windows only happens in tests; keep it deterministic rather than
 	// panicking so the package stays testable everywhere.
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return filepath.Join(os.TempDir(), "hawser")
+		return filepath.Join(os.TempDir(), "skrog")
 	}
-	return filepath.Join(home, ".hawser")
+	return filepath.Join(home, ".skrog")
 }
 
 // Manifest records what an install put on the machine, so uninstall can remove
-// exactly that and `hawser version` can report it without re-deriving anything.
+// exactly that and `skrog version` can report it without re-deriving anything.
 type Manifest struct {
 	Distro        string    `json:"distro"`
 	DataDir       string    `json:"dataDir"`
@@ -139,16 +139,16 @@ type Manifest struct {
 	// two rootfs revisions can carry the same one (#65). Empty on installs that
 	// predate this field.
 	EngineRef string `json:"engineRef,omitempty"`
-	// PreviousEngineRef is where `hawser engine rollback` goes back to: the ref
+	// PreviousEngineRef is where `skrog engine rollback` goes back to: the ref
 	// that was installed before the last upgrade.
 	PreviousEngineRef string `json:"previousEngineRef,omitempty"`
 	// UpgradedAt is when the last engine upgrade landed.
 	UpgradedAt time.Time `json:"upgradedAt,omitempty"`
-	// DockerContextHost is the endpoint this install wired the shared `hawser`
+	// DockerContextHost is the endpoint this install wired the shared `skrog`
 	// docker context to (#217).
 	//
 	// The context is a single global object, so two installs on one machine
-	// contend for it. Recording what we pointed it at is how `hawser
+	// contend for it. Recording what we pointed it at is how `skrog
 	// uninstall` can tell "this context is mine to remove" from "another
 	// install owns it now" -- without which removing the second install broke
 	// the first. Empty on installs that predate this field, and on machines
@@ -308,11 +308,11 @@ func (p *Provisioner) SocketBusy(ctx context.Context, opts Options) (bool, error
 }
 
 // EngineVersionFile is where the rootfs records the engine it carries.
-const EngineVersionFile = "/etc/hawser/engine-version"
+const EngineVersionFile = "/etc/skrog/engine-version"
 
 // engineVersionFromDistro reads the version the rootfs declares. Best-effort:
 // a rootfs without the marker is unusual but not a reason to fail an install,
-// and `hawser version` reports an unknown engine rather than a wrong one.
+// and `skrog version` reports an unknown engine rather than a wrong one.
 func (p *Provisioner) engineVersionFromDistro(ctx context.Context, opts Options) string {
 	out, err := p.wsl().Exec(ctx, opts.Distro, "root", "cat", EngineVersionFile)
 	if err != nil {
@@ -325,12 +325,12 @@ func (p *Provisioner) engineVersionFromDistro(ctx context.Context, opts Options)
 
 // Host-CA install paths. The bundle is staged whole, then split into one file
 // per certificate because Alpine's update-ca-certificates skips any .crt that is
-// not exactly one certificate. The glob is Hawser's own, so turning the feature
+// not exactly one certificate. The glob is Skrog's own, so turning the feature
 // off removes exactly what it added.
 const (
-	hostCABundle = "/etc/hawser/host-cas-bundle.pem"
+	hostCABundle = "/etc/skrog/host-cas-bundle.pem"
 	hostCADir    = "/usr/local/share/ca-certificates"
-	hostCAGlob   = hostCADir + "/hawser-host-*.crt"
+	hostCAGlob   = hostCADir + "/skrog-host-*.crt"
 )
 
 // proxyEnv builds the shell env file dockerd sources: HTTP(S)_PROXY and NO_PROXY
@@ -356,7 +356,7 @@ func proxyEnv(proxy, noProxy string) string {
 // bundle. Best-effort: a network-config failure logs but does not stop the
 // engine, which must still come up.
 func (p *Provisioner) applyNetwork(ctx context.Context, opts Options) {
-	if err := p.writeDistroFile(ctx, opts, "/etc/hawser/network.env",
+	if err := p.writeDistroFile(ctx, opts, "/etc/skrog/network.env",
 		[]byte(proxyEnv(opts.Network.Proxy, opts.Network.NoProxy))); err != nil {
 		p.logger().Warn("could not write engine proxy config", "error", err)
 	}
@@ -367,9 +367,9 @@ func (p *Provisioner) applyNetwork(ctx context.Context, opts Options) {
 			return
 		}
 		// Split the bundle into one cert per file (Alpine requirement) under
-		// Hawser's own prefix, then rebuild the trust store.
+		// Skrog's own prefix, then rebuild the trust store.
 		split := "rm -f " + hostCAGlob + "; " +
-			`awk '/-----BEGIN CERTIFICATE-----/{n++} {print > ("` + hostCADir + `/hawser-host-" n ".crt")}' ` + hostCABundle + "; " +
+			`awk '/-----BEGIN CERTIFICATE-----/{n++} {print > ("` + hostCADir + `/skrog-host-" n ".crt")}' ` + hostCABundle + "; " +
 			"update-ca-certificates 2>&1"
 		if out, err := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c", split); err != nil {
 			p.logger().Warn("installing host CAs failed", "error", err, "output", strings.TrimSpace(out))
@@ -377,7 +377,7 @@ func (p *Provisioner) applyNetwork(ctx context.Context, opts Options) {
 			p.logger().Info("imported host CA certificates into the engine trust store")
 		}
 	} else {
-		// Off: remove everything Hawser added and refresh the bundle.
+		// Off: remove everything Skrog added and refresh the bundle.
 		p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c",
 			"rm -f "+hostCAGlob+" "+hostCABundle+"; update-ca-certificates >/dev/null 2>&1 || true")
 	}
@@ -529,7 +529,7 @@ func (p *Provisioner) StartEngine(ctx context.Context, opts Options) error {
 	// startup and a rootfs re-import keeps GPU access (#83).
 	p.applyGPU(ctx, opts)
 
-	// Engine defaults Hawser holds an opinion on (engineconfig.Defaults), for
+	// Engine defaults Skrog holds an opinion on (engineconfig.Defaults), for
 	// installs whose daemon.json predates them. Only absent keys are written,
 	// and only after `dockerd --validate` accepts the result; a failure here
 	// is logged, not fatal -- the engine must still come up.
@@ -537,9 +537,9 @@ func (p *Provisioner) StartEngine(ctx context.Context, opts Options) error {
 
 	p.logger().Info("starting dockerd", "distro", opts.Distro)
 	// Output goes to a log inside the distro; the caller gets it via
-	// `hawser logs` rather than having it interleaved here.
+	// `skrog logs` rather than having it interleaved here.
 	if _, err := p.wsl().Start(ctx, opts.Distro, "root",
-		"sh", "-c", "[ -f /etc/hawser/network.env ] && . /etc/hawser/network.env; dockerd >>/var/log/dockerd.log 2>&1"); err != nil {
+		"sh", "-c", "[ -f /etc/skrog/network.env ] && . /etc/skrog/network.env; dockerd >>/var/log/dockerd.log 2>&1"); err != nil {
 		return fmt.Errorf("launching dockerd: %w", err)
 	}
 	p.ensureAgentSecret(ctx, opts)
@@ -605,7 +605,22 @@ func (p *Provisioner) shareEngineSocket(ctx context.Context, opts Options) {
 	}
 }
 
-// agentStartCmd is what launches hawser-agent (#40), guarded three ways: a
+// agentBinaries are the in-distro agent's names, newest first.
+//
+// The rename from Hawser to Skrog (#1) renamed the binary the rootfs build
+// produces, but a published rootfs tarball is immutable and its checksum is
+// pinned in this build's manifest — so every already-installed engine, and
+// every rootfs cut before the rename, still carries `hawser-agent`. Looking
+// only for the new name would have found nothing on those, and because
+// agentStartCmd is deliberately never fatal, the failure would have been
+// silent: no agent, no vsock, and the bridge quietly falling back to socat at
+// ~165 ms per connection instead of ~0.6 ms.
+//
+// Drop the old name once the manifest's oldest published rootfs ships the new
+// one, and not before.
+var agentBinaries = []string{"skrog-agent", "hawser-agent"}
+
+// agentStartCmd is what launches the agent (#40), guarded three ways: a
 // rootfs that predates the agent has nothing to start (the socat relay stays
 // the transport), an agent already running must not be doubled, and `exec`
 // keeps the process tree flat. Never fatal by design — the engine is fully
@@ -613,17 +628,25 @@ func (p *Provisioner) shareEngineSocket(ctx context.Context, opts Options) {
 //
 // The agent's -socket is passed explicitly as EngineSocket (#92): both
 // transports must target the same engine socket. A host-side `--socket`
-// override on `hawser proxy` steers only the socat fallback and cannot reach
+// override on `skrog proxy` steers only the socat fallback and cannot reach
 // the agent (which runs in-distro and connects to dockerd's real socket
 // there), so binding the agent to the same constant keeps the two from
 // silently diverging.
-const agentStartCmd = "command -v hawser-agent >/dev/null 2>&1 || exit 0; " +
-	"pgrep -x hawser-agent >/dev/null 2>&1 && exit 0; " +
-	"exec hawser-agent -socket " + EngineSocket + " >>/var/log/hawser-agent.log 2>&1"
+func agentStartCmd() string {
+	var b strings.Builder
+	for _, bin := range agentBinaries {
+		fmt.Fprintf(&b, "if command -v %s >/dev/null 2>&1; then "+
+			"pgrep -x %s >/dev/null 2>&1 && exit 0; "+
+			"exec %s -socket %s >>/var/log/%s.log 2>&1; fi; ",
+			bin, bin, bin, EngineSocket, bin)
+	}
+	b.WriteString("exit 0")
+	return b.String()
+}
 
 func (p *Provisioner) startAgent(ctx context.Context, opts Options) {
-	if _, err := p.wsl().Start(ctx, opts.Distro, "root", "sh", "-c", agentStartCmd); err != nil {
-		p.logger().Debug("hawser-agent not started", "error", err)
+	if _, err := p.wsl().Start(ctx, opts.Distro, "root", "sh", "-c", agentStartCmd()); err != nil {
+		p.logger().Debug("agent not started", "error", err)
 	}
 }
 
@@ -637,8 +660,8 @@ func AgentSecretPath(stateDir string) string {
 // prints it. Generating in-distro (from /dev/urandom) keeps the secret out of
 // any process argv; the value crosses only the wsl.exe stdout pipe, host to
 // distro, within the user's own session.
-const agentSecretScript = `f=/etc/hawser/agent-secret; ` +
-	`[ -s "$f" ] || { mkdir -p /etc/hawser && umask 077 && ` +
+const agentSecretScript = `f=/etc/skrog/agent-secret; ` +
+	`[ -s "$f" ] || { mkdir -p /etc/skrog && umask 077 && ` +
 	`head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$f"; }; cat "$f"`
 
 // ensureAgentSecret makes the agent's vsock handshake mutually authenticated
@@ -656,8 +679,8 @@ func (p *Provisioner) ensureAgentSecret(ctx context.Context, opts Options) {
 	hostPath := AgentSecretPath(opts.StateDir)
 
 	ver, _ := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c",
-		"hawser-agent -version 2>/dev/null || true")
-	if !strings.Contains(ver, "hawser-agent/2") {
+		"skrog-agent -version 2>/dev/null || hawser-agent -version 2>/dev/null || true")
+	if !strings.Contains(ver, "skrog-agent/2") && !strings.Contains(ver, "hawser-agent/2") {
 		// No auth-capable agent: ensure the host holds no secret, so the
 		// dialer uses the v1 handshake this agent understands.
 		os.Remove(hostPath)
@@ -695,7 +718,7 @@ func (p *Provisioner) ensureAgentSecret(ctx context.Context, opts Options) {
 // already ships (socat): a stale socket file left by a crashed dockerd must
 // read as DOWN, not up (#82 — `test -S` said "running" forever after an
 // OOM-kill, so the supervisor never repaired and status lied).
-const enginePing = `printf 'GET /_ping HTTP/1.1\r\nHost: hawser\r\nConnection: close\r\n\r\n'` +
+const enginePing = `printf 'GET /_ping HTTP/1.1\r\nHost: skrog\r\nConnection: close\r\n\r\n'` +
 	` | socat -t 2 - UNIX-CONNECT:` + EngineSocket
 
 func (p *Provisioner) engineRunning(ctx context.Context, opts Options) (bool, error) {
@@ -726,7 +749,7 @@ func (p *Provisioner) engineRunning(ctx context.Context, opts Options) (bool, er
 	return strings.Contains(out, "200 OK"), nil
 }
 
-// Uninstall removes the distro and Hawser's own state, and nothing else.
+// Uninstall removes the distro and Skrog's own state, and nothing else.
 //
 // Best-effort by design: a partially installed machine must still come clean,
 // so a missing distro or absent state directory is not an error. Errors are
@@ -780,7 +803,7 @@ func (p *Provisioner) Uninstall(ctx context.Context, opts Options) error {
 		p.logger().Info("distro not registered, nothing to unregister", "distro", opts.Distro)
 	}
 
-	// Only paths Hawser created. DataDir is removed because wsl --unregister
+	// Only paths Skrog created. DataDir is removed because wsl --unregister
 	// deletes the VHDX but leaves the directory.
 	if err := os.RemoveAll(opts.DataDir); err != nil {
 		errs = append(errs, fmt.Errorf("removing %s: %w", opts.DataDir, err))
@@ -844,7 +867,7 @@ func (p *Provisioner) ReadManifest(opts Options) (*Manifest, error) {
 	if err := json.Unmarshal(b, &m); err != nil {
 		return nil, fmt.Errorf("parsing manifest: %w", err)
 	}
-	// An install made before the move to the hawserhq organisation recorded a
+	// An install made before the move to the wslkit organisation recorded a
 	// URL that only resolves through GitHub's redirect (#212). Correcting it
 	// here means every reader — `engine rollback`, which re-fetches from this
 	// exact URL, above all — stops depending on that redirect. The file on
@@ -862,7 +885,7 @@ func (p *Provisioner) EngineRunning(ctx context.Context, opts Options) bool {
 }
 
 // StopEngine terminates the engine's own distro — and nothing else. This is
-// the only stop primitive Hawser has on purpose: `wsl --shutdown` stops every
+// the only stop primitive Skrog has on purpose: `wsl --shutdown` stops every
 // distro on the machine, including Docker Desktop's and the user's own, and is
 // never called (PLAN §02; the coexistence note on #35).
 func (p *Provisioner) StopEngine(ctx context.Context, opts Options) error {
@@ -871,7 +894,7 @@ func (p *Provisioner) StopEngine(ctx context.Context, opts Options) error {
 	return p.wsl().Terminate(ctx, opts.Distro)
 }
 
-// SaveManifest persists an updated install manifest. Exported for `hawser
+// SaveManifest persists an updated install manifest. Exported for `skrog
 // engine upgrade` (#65), which changes what is installed without reinstalling:
 // the record of which engine is in the distro, and which one to roll back to,
 // has to move with it.
@@ -898,7 +921,7 @@ func (p *Provisioner) verifyRootfsSignature(ctx context.Context, opts Options, t
 		return fmt.Errorf("%w.\n"+
 			"  install.verify-signature is on, and verification needs cosign on PATH:\n"+
 			"    winget install sigstore.cosign   (or see https://docs.sigstore.dev)\n"+
-			"  Turn it off with `hawser config set install.verify-signature off` to install\n"+
+			"  Turn it off with `skrog config set install.verify-signature off` to install\n"+
 			"  on the SHA-256 pin alone, which is always enforced", err)
 	case err != nil:
 		var nm *rootfsverify.ErrNoMaterial
@@ -906,7 +929,7 @@ func (p *Provisioner) verifyRootfsSignature(ctx context.Context, opts Options, t
 			return fmt.Errorf("%w.\n"+
 				"  Releases from before signing was added (and rootfs images you built\n"+
 				"  yourself) carry no signature. The SHA-256 pin still applies; turn the\n"+
-				"  check off with `hawser config set install.verify-signature off` to\n"+
+				"  check off with `skrog config set install.verify-signature off` to\n"+
 				"  install this one", err)
 		}
 		return err
@@ -918,4 +941,4 @@ func (p *Provisioner) verifyRootfsSignature(ctx context.Context, opts Options, t
 // signingRepo is the repository whose release workflow signs the rootfs. A
 // signature made by any other repository's workflow -- a fork's included -- is
 // rejected, so this is a trust anchor and not a convenience.
-const signingRepo = "hawserhq/hawser"
+const signingRepo = "wslkit/skrog"

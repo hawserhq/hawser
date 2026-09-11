@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 )
 
-// Metrics counts what the bridge carried, so `hawser status --stats` can answer
+// Metrics counts what the bridge carried, so `skrog status --stats` can answer
 // "is docker slow because the fast path degraded?" — the one question the
 // engine's own stats cannot answer, because from the engine's side nothing is
 // wrong.

@@ -9,33 +9,33 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/hawserhq/hawser/internal/config"
-	"github.com/hawserhq/hawser/internal/dockercli"
-	"github.com/hawserhq/hawser/internal/hooks"
-	"github.com/hawserhq/hawser/internal/provision"
-	"github.com/hawserhq/hawser/internal/remote"
-	"github.com/hawserhq/hawser/internal/runner"
-	"github.com/hawserhq/hawser/internal/supervise"
-	"github.com/hawserhq/hawser/internal/version"
-	"github.com/hawserhq/hawser/internal/vpnfingerprint"
-	"github.com/hawserhq/hawser/internal/wsl"
-	"github.com/hawserhq/hawser/internal/wslconfig"
+	"github.com/wslkit/skrog/internal/config"
+	"github.com/wslkit/skrog/internal/dockercli"
+	"github.com/wslkit/skrog/internal/hooks"
+	"github.com/wslkit/skrog/internal/provision"
+	"github.com/wslkit/skrog/internal/remote"
+	"github.com/wslkit/skrog/internal/runner"
+	"github.com/wslkit/skrog/internal/supervise"
+	"github.com/wslkit/skrog/internal/version"
+	"github.com/wslkit/skrog/internal/vpnfingerprint"
+	"github.com/wslkit/skrog/internal/wsl"
+	"github.com/wslkit/skrog/internal/wslconfig"
 )
 
 // Facts is everything the checks read, gathered once from the machine. Checks
 // are pure functions of a Facts value, so a test builds the struct by hand and
 // never touches WSL, PATH, the registry, or an engine.
 type Facts struct {
-	// StateDir is Hawser's resolved state directory.
+	// StateDir is Skrog's resolved state directory.
 	StateDir string
-	// AppVersion is Hawser's own build version.
+	// AppVersion is Skrog's own build version.
 	AppVersion string
 
 	// WSL is the host's WSL status. WSLErr is set when querying it failed.
 	WSL    wsl.Status
 	WSLErr string
 
-	// Report is the `hawser version` picture: docker binaries on PATH, active
+	// Report is the `skrog version` picture: docker binaries on PATH, active
 	// context, negotiated API version, and the install manifest. Never nil after
 	// Gather.
 	Report *version.Report
@@ -88,10 +88,10 @@ type Facts struct {
 	Runner runner.Facts
 
 	// WSLSizing is the WSL2 VM.s effective sizing from the global ~/.wslconfig,
-	// plus what Hawser.s own settings would change (#148).
+	// plus what Skrog.s own settings would change (#148).
 	WSLSizing WSLSizingInfo
 
-	// InjectedModules are third-party DLLs loaded into Hawser.s own process
+	// InjectedModules are third-party DLLs loaded into Skrog.s own process
 	// (#166) -- endpoint-security agents, almost always. Reported because they
 	// are the known cause of a supervisor crash no dump can explain.
 	InjectedModules []hooks.Module
@@ -103,7 +103,7 @@ type Facts struct {
 type GPUStatus struct {
 	// EngineInstalled gates the check; GPU is meaningless without an engine.
 	EngineInstalled bool `json:"engineInstalled"`
-	// ConfigEnabled is the `gpu` setting (`hawser enable-gpu`).
+	// ConfigEnabled is the `gpu` setting (`skrog enable-gpu`).
 	ConfigEnabled bool `json:"configEnabled"`
 	// Vendor is which vendor spec is configured (#185); empty means nvidia.
 	Vendor string `json:"vendor,omitempty"`
@@ -129,7 +129,7 @@ type CLIStatus struct {
 
 // CredHelper is one docker credential helper referenced by the CLI config, and
 // whether its executable can be found. A referenced-but-missing helper is what
-// broke `hawser migrate` live (docker-credential-wincred absent from PATH).
+// broke `skrog migrate` live (docker-credential-wincred absent from PATH).
 type CredHelper struct {
 	// Name is the helper's short name, e.g. "desktop", "wincred".
 	Name string `json:"name"`
@@ -163,7 +163,7 @@ type Session0Info struct {
 // GatherOptions locates what Gather needs.
 type GatherOptions struct {
 	StateDir   string
-	HawserBin  string
+	SkrogBin   string
 	AppVersion string
 	// AutostartConfigured reports whether logon autostart is set up; supplied by
 	// the caller because it lives in an OS-specific package.
@@ -194,7 +194,7 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 
 	f.Report = (&version.Collector{
 		App:         opts.AppVersion,
-		Env:         version.Env{HawserBin: opts.HawserBin},
+		Env:         version.Env{SkrogBin: opts.SkrogBin},
 		WSL:         w,
 		Provisioner: p,
 		Options:     pOpts,
@@ -400,7 +400,7 @@ func parseCredHelpers(configJSON []byte, lookPath func(string) (string, error)) 
 }
 
 // WSLSizingInfo is the WSL2 VM's sizing picture (#148): what ~/.wslconfig sets
-// today, what Hawser's settings ask for that is not there yet, and the host's
+// today, what Skrog's settings ask for that is not there yet, and the host's
 // RAM — which is what WSL's 50% default is half of, and therefore the only way
 // to tell a sensible default from a tight one.
 type WSLSizingInfo struct {
@@ -414,7 +414,7 @@ type WSLSizingInfo struct {
 	Err       string `json:"err,omitempty"`
 }
 
-// gatherWSLSizing reads the global ~/.wslconfig and compares it with Hawser's
+// gatherWSLSizing reads the global ~/.wslconfig and compares it with Skrog's
 // recorded wsl.* settings. Read-only: doctor never writes a file every distro
 // on the machine shares.
 func gatherWSLSizing(stateDir string) WSLSizingInfo {
@@ -433,8 +433,8 @@ func gatherWSLSizing(stateDir string) WSLSizingInfo {
 	info.Effective = f.All()
 
 	desired := map[string]string{}
-	for hawserKey, wslKey := range config.WSLKeys {
-		if v, err := config.Get(stateDir, hawserKey); err == nil && strings.TrimSpace(v) != "" {
+	for skrogKey, wslKey := range config.WSLKeys {
+		if v, err := config.Get(stateDir, skrogKey); err == nil && strings.TrimSpace(v) != "" {
 			desired[wslKey] = v
 		}
 	}

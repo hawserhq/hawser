@@ -7,9 +7,9 @@ import (
 	"text/tabwriter"
 )
 
-// Report is the full component picture `hawser version` prints.
+// Report is the full component picture `skrog version` prints.
 type Report struct {
-	// App is Hawser's own version, stamped at build time.
+	// App is Skrog's own version, stamped at build time.
 	App string `json:"app"`
 	// Engine describes the installed engine, from the install manifest.
 	Engine EngineInfo `json:"engine"`
@@ -35,7 +35,7 @@ type EngineInfo struct {
 	Version   string `json:"version,omitempty"`
 	Distro    string `json:"distro,omitempty"`
 	Rootfs    string `json:"rootfsSha256,omitempty"`
-	// WSLAtInstall is the WSL version present when Hawser was installed;
+	// WSLAtInstall is the WSL version present when Skrog was installed;
 	// a difference from WSL means the host was updated since.
 	WSLAtInstall string `json:"wslAtInstall,omitempty"`
 }
@@ -45,32 +45,32 @@ type EngineInfo struct {
 func (r *Report) analyze() {
 	first := r.firstDocker()
 
-	// PATH shadowing: the hawser context is selected, but a foreign docker.exe
+	// PATH shadowing: the skrog context is selected, but a foreign docker.exe
 	// runs first. Commands still work — that binary talks to whatever its
-	// context says — but the user is not driving Hawser, which looks like a
-	// Hawser fault (PLAN §05, v0.3 doctor check).
-	if r.Context == "hawser" && first != nil && first.Origin != OriginHawser {
+	// context says — but the user is not driving Skrog, which looks like a
+	// Skrog fault (PLAN §05, v0.3 doctor check).
+	if r.Context == "skrog" && first != nil && first.Origin != OriginSkrog {
 		r.Warnings = append(r.Warnings, fmt.Sprintf(
-			"the hawser context is active but %s (%s) resolves first on PATH; "+
-				"put Hawser's bin directory earlier, or use its full path",
+			"the skrog context is active but %s (%s) resolves first on PATH; "+
+				"put Skrog's bin directory earlier, or use its full path",
 			first.Path, first.Origin))
 	}
 
 	if len(r.Docker) == 0 {
 		r.Warnings = append(r.Warnings,
-			"no docker.exe found on PATH; install Hawser's bundled CLI or add it to PATH")
+			"no docker.exe found on PATH; install Skrog's bundled CLI or add it to PATH")
 	}
 
 	if r.Engine.Installed && r.Engine.WSLAtInstall != "" && r.WSL != "" &&
 		r.Engine.WSLAtInstall != r.WSL {
 		r.Warnings = append(r.Warnings, fmt.Sprintf(
-			"WSL was %s when Hawser was installed and is %s now; "+
-				"run `hawser doctor` if the engine misbehaves",
+			"WSL was %s when Skrog was installed and is %s now; "+
+				"run `skrog doctor` if the engine misbehaves",
 			r.Engine.WSLAtInstall, r.WSL))
 	}
 
 	if !r.Engine.Installed {
-		r.Warnings = append(r.Warnings, "no engine installed; run `hawser install`")
+		r.Warnings = append(r.Warnings, "no engine installed; run `skrog install`")
 	}
 }
 
@@ -87,7 +87,7 @@ func (r *Report) firstDocker() *Binary {
 func (r *Report) WriteText(w io.Writer) error {
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)
 
-	fmt.Fprintf(tw, "hawser\t%s\n", r.App)
+	fmt.Fprintf(tw, "skrog\t%s\n", r.App)
 	if r.Engine.Installed {
 		fmt.Fprintf(tw, "engine\t%s\t(distro %s)\n", orUnknown(r.Engine.Version), r.Engine.Distro)
 		if r.Engine.Rootfs != "" {

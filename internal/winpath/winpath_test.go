@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/winpath"
+	"github.com/wslkit/skrog/internal/winpath"
 )
 
 func TestToWSL(t *testing.T) {
@@ -77,7 +77,7 @@ func TestToWSLRejectsUNC(t *testing.T) {
 }
 
 func TestToWSLMapsPipesToEngineSocket(t *testing.T) {
-	for _, in := range []string{`\\.\pipe\docker_engine`, "//./pipe/hawser_engine", `\\.\PIPE\anything`} {
+	for _, in := range []string{`\\.\pipe\docker_engine`, "//./pipe/skrog_engine", `\\.\PIPE\anything`} {
 		got, err := winpath.ToWSL(in)
 		if err != nil {
 			t.Errorf("ToWSL(%q) error: %v", in, err)
@@ -130,7 +130,7 @@ func TestTranslateBind(t *testing.T) {
 		{"posix host path", "/home/user/src:/app", "/home/user/src:/app"},
 		// The engine pipe, as Testcontainers' Ryuk and `-v //./pipe/docker_engine:
 		// /var/run/docker.sock` name it: it means the engine's own socket.
-		{"engine pipe forward", "//./pipe/hawser_engine:/var/run/docker.sock", "/var/run/docker.sock:/var/run/docker.sock"},
+		{"engine pipe forward", "//./pipe/skrog_engine:/var/run/docker.sock", "/var/run/docker.sock:/var/run/docker.sock"},
 		{"engine pipe backslash", `\\.\pipe\docker_engine:/var/run/docker.sock:ro`, "/var/run/docker.sock:/var/run/docker.sock:ro"},
 	}
 	for _, tt := range tests {

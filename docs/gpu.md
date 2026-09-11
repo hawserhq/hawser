@@ -4,16 +4,16 @@ NVIDIA is supported and validated. AMD is **experimental** and untested on
 hardware -- see [AMD (experimental)](#amd-experimental) at the end.
 
 Run CUDA workloads — Ollama, vLLM, PyTorch, `nvidia-smi` — in containers on the
-Hawser engine:
+Skrog engine:
 
 ```
-hawser enable-gpu
+skrog enable-gpu
 docker run --rm --device nvidia.com/gpu=all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
 ```
 
 WSL2 already does the hard part: the Windows NVIDIA driver projects the CUDA
 libraries into every WSL2 distro at `/usr/lib/wsl/lib` and exposes the GPU at
-`/dev/dxg`. `hawser enable-gpu` installs a **Container Device Interface (CDI)**
+`/dev/dxg`. `skrog enable-gpu` installs a **Container Device Interface (CDI)**
 spec so the engine injects those into containers. dockerd supports CDI natively
 (on by default since Docker 28.3.0), so nothing else is configured.
 
@@ -22,9 +22,9 @@ spec so the engine injects those into containers. dockerd supports CDI natively
 - An **NVIDIA** GPU with a recent, WSL-capable Windows driver (`nvidia-smi` works
   in a WSL distro). AMD and Intel GPUs expose compute to WSL differently and are
   not wired up here.
-- WSL up to date (`wsl --update`) and the Hawser engine installed.
+- WSL up to date (`wsl --update`) and the Skrog engine installed.
 
-`hawser enable-gpu` checks that the distro actually sees the GPU (`/dev/dxg` and
+`skrog enable-gpu` checks that the distro actually sees the GPU (`/dev/dxg` and
 the WSL CUDA library) before enabling, and tells you which of driver/WSL/GPU is
 missing if not.
 
@@ -57,7 +57,7 @@ services:
 condition: the engine must find an `nvidia-cdi-hook` binary **when dockerd
 starts** — that is what makes moby register its NVIDIA GPU driver and route
 `--gpus` to the CDI spec instead of the legacy runtime hook. Rootfs 29.7.2-4
-and later ship it; `hawser enable-gpu` tells you which spelling your rootfs
+and later ship it; `skrog enable-gpu` tells you which spelling your rootfs
 supports. On an older rootfs `--gpus all` reports "AMD CDI spec not found" —
 use `--device nvidia.com/gpu=all`, which works everywhere.
 
@@ -69,9 +69,9 @@ works: the spec names the single WSL GPU both `all` and `0`.
 
 ## Why this works on the musl engine
 
-The Hawser engine is Alpine (musl libc). The usual NVIDIA container stack targets
+The Skrog engine is Alpine (musl libc). The usual NVIDIA container stack targets
 glibc — `libnvidia-container` does not build for musl, and the standard WSL CDI
-spec runs an `ldconfig` hook that also breaks inside musl. Hawser's spec is
+spec runs an `ldconfig` hook that also breaks inside musl. Skrog's spec is
 **hookless**: it rbind-mounts `/usr/lib/wsl` into the container and sets
 `LD_LIBRARY_PATH=/usr/lib/wsl/lib` — which both glibc and musl containers honor —
 so the driver libraries are found with no hook, no `libnvidia-container`, and no
@@ -85,11 +85,11 @@ best-tested path. musl (Alpine) containers can find the libraries too via
 
 The setting persists: the CDI spec is re-applied on every engine start, so a
 reinstall keeps GPU access. dockerd reads CDI specs dynamically, so
-`hawser enable-gpu` takes effect on the next `docker run` — no restart.
+`skrog enable-gpu` takes effect on the next `docker run` — no restart.
 
 ```
-hawser enable-gpu --off      # remove the spec
-hawser doctor                # reports GPU visible / enabled / spec installed
+skrog enable-gpu --off      # remove the spec
+skrog doctor                # reports GPU visible / enabled / spec installed
 ```
 
 ## AMD (experimental)
@@ -100,7 +100,7 @@ by name so nothing claims to work until somebody with a Radeon reports back.
 If you try it, please say so on that issue either way.
 
 ```
-hawser enable-gpu --vendor amd
+skrog enable-gpu --vendor amd
 docker run --rm --device amd.com/gpu=all rocm/rocm-terminal rocm-smi
 ```
 
@@ -127,7 +127,7 @@ installed into it either way.
 | Hardware | the discrete Radeon lineup, plus Ryzen **Strix** / **Strix Halo** APUs |
 | Container image | a **ROCm** image. ROCm supports Ubuntu 24.04/22.04 — glibc, so a musl image will not work whatever the spec mounts |
 
-### Limits, all AMD's rather than Hawser's
+### Limits, all AMD's rather than Skrog's
 
 - **multi-GPU** is not supported under WSL
 - **MIGraphX** is not supported under WSL
@@ -146,6 +146,6 @@ you about whose it is. Guessing would be worse — a silent false positive on an
 NVIDIA machine.
 
 Switching vendors removes the other spec, so you never end up with two kinds
-installed. `hawser enable-gpu --off` removes both.
+installed. `skrog enable-gpu --off` removes both.
 
-[#185]: https://github.com/hawserhq/hawser/issues/185
+[#185]: https://github.com/wslkit/skrog/issues/185

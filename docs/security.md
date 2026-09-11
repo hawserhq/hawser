@@ -1,26 +1,26 @@
-# Hawser security model & trust boundaries
+# Skrog security model & trust boundaries
 
-Hawser runs the real Docker Engine as root inside a WSL2 distro and bridges it
+Skrog runs the real Docker Engine as root inside a WSL2 distro and bridges it
 to `docker.exe`. Access to that engine is access to root inside the distro,
 which — through WSL's automounted drives — can read and write your Windows
 files. This page states, plainly, who can reach the engine and where the
-boundaries are, so you can decide whether Hawser fits your threat model. Where
+boundaries are, so you can decide whether Skrog fits your threat model. Where
 a boundary is looser than you need, it says so.
 
 ## Who can reach the engine
 
-**The Windows named pipe** (`\\.\pipe\docker_engine`, or `\\.\pipe\hawser_engine`
+**The Windows named pipe** (`\\.\pipe\docker_engine`, or `\\.\pipe\skrog_engine`
 when Docker Desktop owns the default). Its ACL grants access to **SYSTEM,
-local administrators, and the user who installed Hawser** — and no one else.
+local administrators, and the user who installed Skrog** — and no one else.
 A second, unrelated account logged onto the same machine (via RDP or fast user
 switching) cannot reach your engine.
 
 > Earlier v0.2.0 builds granted access to *all interactive users*; that was
 > tightened to the owning user in v0.3 (issue #79). A future opt-in
-> "Hawser Users" group (#8) will let you admit specific additional accounts
+> "Skrog Users" group (#8) will let you admit specific additional accounts
 > deliberately, the way Docker Desktop's `docker-users` group works.
 
-**Other WSL2 distros of the same user**, if you run `hawser wsl-integrate`.
+**Other WSL2 distros of the same user**, if you run `skrog wsl-integrate`.
 That command shares the engine socket into a distro at
 `/mnt/wsl/<distro>/docker.sock` with mode `0666`, so any user in that distro
 can use docker without sudo. Two consequences worth understanding:
@@ -31,9 +31,9 @@ can use docker without sudo. Two consequences worth understanding:
 - **A distro you integrate becomes root-equivalent to the engine**, and thus to
   your Windows files via drvfs. If you deliberately harden a distro as a
   sandbox (interop and automount disabled), integrating it **voids that
-  sandbox**. Only integrate distros you trust with your engine. `hawser
-  wsl-integrate --remove <distro>` reverses it, and `hawser uninstall` removes
-  every integration Hawser created.
+  sandbox**. Only integrate distros you trust with your engine. `skrog
+  wsl-integrate --remove <distro>` reverses it, and `skrog uninstall` removes
+  every integration Skrog created.
 
 **The vsock transport.** On a normal install the bridge reaches the engine
 over an AF_HYPERV vsock connection to an in-distro agent, not socat. The agent
@@ -41,20 +41,20 @@ accepts connections only from the host partition (CID 2), and every connection
 must pass a handshake before any byte reaches dockerd. Hardening of this path
 against a hostile *sibling distro impersonating the agent* is tracked in #81.
 
-## What Hawser deliberately does not do
+## What Skrog deliberately does not do
 
 - **It is not a Windows service and holds no elevated persistent privilege.**
   Install and the supervisor run as your normal user. A logged-on session is
   required (WSL2 cannot start from session 0); for unattended machines see
   [auto-logon-runner.md](auto-logon-runner.md).
 - **It never takes Docker Desktop's pipe.** If Desktop is serving the default
-  pipe, Hawser serves its own and the two coexist.
+  pipe, Skrog serves its own and the two coexist.
 - **It manages only the distro it created**, never `wsl --shutdown` and never
   other distros.
 
 ## Supply chain
 
-Who may produce a binary that claims to be Hawser, and how, is written down
+Who may produce a binary that claims to be Skrog, and how, is written down
 separately in the [code signing policy](code-signing.md) — including the fact
 that the Windows binaries are **not signed yet**.
 
@@ -69,11 +69,16 @@ The engine (dockerd, containerd, runc, buildkit) is **built from source** at
 pinned upstream tags whose commit SHAs are verified during the build, and the
 Alpine base is pinned by digest (#88) — a moved tag or re-pushed image fails
 the build rather than shipping. The rootfs is published with a SHA-256 that
-`hawser install` verifies before importing; there is no code path that imports
+`skrog install` verifies before importing; there is no code path that imports
 an unverified rootfs.
 
 ### Verifying a download
 
+> **Releases through v0.3.1 were published as *Hawser*,** under
+> `hawserhq/hawser`, with assets named `hawser_<version>_windows_<arch>.zip`.
+> The old URLs redirect and those releases verify normally — pass the filename
+> they actually have, and `--owner hawserhq` for anything before the rename.
+>
 > **v0.3.0 and earlier predate this.** Cosign signing and SLSA provenance were
 > added two days after v0.3.0 was tagged, so it ships the two zips and
 > `SHA256SUMS` and nothing else — `gh attestation verify` returns 404 against
@@ -87,12 +92,12 @@ different questions:
 
 ```
 # 1. Did GitHub Actions build this, from this repository, at a known commit?
-gh attestation verify hawser_0.3.1_windows_amd64.zip --owner hawserhq
+gh attestation verify skrog_0.4.0_windows_amd64.zip --owner wslkit
 
 # 2. Is the checksum list itself authentic? (offline against the Sigstore log)
 cosign verify-blob \
   --bundle SHA256SUMS.cosign.bundle \
-  --certificate-identity-regexp '^https://github.com/hawserhq/hawser/' \
+  --certificate-identity-regexp '^https://github.com/wslkit/skrog/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
 
@@ -105,7 +110,7 @@ sha256sum -c SHA256SUMS --ignore-missing
 The engine components are Apache-2.0 and the Alpine userland is a mix
 (busybox and apk-tools are GPL-2.0). Every component's licence text is inside
 the rootfs at `/usr/share/licenses/<component>/`, copied at build time from
-the exact commit recorded in `/etc/hawser/commits`.
+the exact commit recorded in `/etc/skrog/commits`.
 
 Alpine's own images carry no licence files, so `/usr/share/licenses/README`
 names the Alpine release and points at `aports` and the package mirror, which
@@ -120,15 +125,15 @@ way, so a tampered rootfs fails verification **even if the attacker also edits
 the sha256 in `internal/release/manifest.json`** — the signature is independent
 of the pin.
 
-### Making `hawser install` check it for you
+### Making `skrog install` check it for you
 
 The SHA-256 pin is always enforced. The signature check is opt-in:
 
 ```
-hawser config set install.verify-signature on
+skrog config set install.verify-signature on
 ```
 
-From then on, every install and `hawser engine upgrade` verifies the rootfs
+From then on, every install and `skrog engine upgrade` verifies the rootfs
 signature before importing, and **refuses** if it cannot — verification that
 silently does nothing is the failure this exists to prevent. Three refusals,
 each with its own message because each needs a different action:
@@ -152,7 +157,7 @@ named the original bytes.
 
 Release binaries are **not yet Authenticode code-signed** — that needs a
 purchased certificate and is tracked by
-[#77](https://github.com/hawserhq/hawser/issues/77) — so SmartScreen will
+[#77](https://github.com/wslkit/skrog/issues/77) — so SmartScreen will
 still warn. Provenance and Authenticode are different things and neither
 substitutes for the other.
 
@@ -169,7 +174,7 @@ substitutes for the other.
   guarantee: it proves origin, not that Windows will trust the executable.
 - **The signature check is off by default.** The SHA-256 pin is always
   enforced; signature verification is opt-in
-  (`hawser config set install.verify-signature on`) because it needs `cosign`
+  (`skrog config set install.verify-signature on`) because it needs `cosign`
   on PATH and cannot work on an air-gapped install (above).
 - **The sibling-distro vsock boundary** is authenticated only by a handshake,
   not a secret, today; see #81.

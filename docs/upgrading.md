@@ -3,27 +3,27 @@
 Three things have to stay current, and they are not independent:
 
 ```
-$ hawser upgrade
+$ skrog upgrade
 app     0.3.0   -> 0.4.0 available
 engine  29.8.0  (current)
 cli     29.8.0  (current)
 
-app:     download from https://github.com/hawserhq/hawser/releases
+app:     download from https://github.com/wslkit/skrog/releases
 
-note: the engines `hawser engine upgrade` can reach are pinned in this build's
-manifest, so hawser 0.4.0 may offer newer engines than the 29.8.0 listed here —
-upgrade hawser first, then re-check
+note: the engines `skrog engine upgrade` can reach are pinned in this build's
+manifest, so skrog 0.4.0 may offer newer engines than the 29.8.0 listed here —
+upgrade skrog first, then re-check
 ```
 
 ## The note is the point
 
 The convenience of one answer is the small part. The reason this command
-exists is in that last paragraph: **the engines `hawser engine upgrade` can
-install are compiled into the hawser binary you are running.**
+exists is in that last paragraph: **the engines `skrog engine upgrade` can
+install are compiled into the skrog binary you are running.**
 
 So "engine: current" is only ever true *of this build*. A newer engine can
-require a newer hawser first — and without being told, someone on an older
-hawser runs `engine upgrade`, is told they are already current, and is wrong.
+require a newer skrog first — and without being told, someone on an older
+skrog runs `engine upgrade`, is told they are already current, and is wrong.
 The note appears only when the app is actually behind, because a warning
 printed every time is a warning nobody reads.
 
@@ -31,16 +31,16 @@ Same verb at two scopes:
 
 | | |
 |---|---|
-| `hawser upgrade` | everything — app, engine, bundled docker CLI |
-| `hawser engine upgrade` | just the engine ([details](engine-upgrade.md)) |
+| `skrog upgrade` | everything — app, engine, bundled docker CLI |
+| `skrog engine upgrade` | just the engine ([details](engine-upgrade.md)) |
 
 ## What it applies, and what it only reports
 
 | stream | |
 |---|---|
-| app | **reported, never applied** — download the release zip; a signed installer is coming ([#77](https://github.com/hawserhq/hawser/issues/77)) |
-| engine | applied — `hawser engine upgrade`, reversible with `hawser engine rollback` |
-| bundled CLI | applied — `hawser cli install` |
+| app | **reported, never applied** — download the release zip; a signed installer is coming ([#77](https://github.com/wslkit/skrog/issues/77)) |
+| engine | applied — `skrog engine upgrade`, reversible with `skrog engine rollback` |
+| bundled CLI | applied — `skrog cli install` |
 
 A running `.exe` cannot cleanly replace itself on Windows, and once there is a
 signed distribution channel it owns that path properly — self-replacement earns
@@ -50,8 +50,8 @@ It always shows you the plan and asks first:
 
 ```
 will run:
-  hawser cli install      29.7.2 -> 29.8.0
-  hawser engine upgrade   29.7.2 -> 29.8.0
+  skrog cli install      29.7.2 -> 29.8.0
+  skrog engine upgrade   29.7.2 -> 29.8.0
 
 proceed? [y/N]
 ```
@@ -80,7 +80,7 @@ would tell it anyway.
 `--offline` skips that request entirely:
 
 ```
-hawser upgrade --offline
+skrog upgrade --offline
 ```
 
 The engine and CLI answers are still real, because both manifests are compiled
@@ -91,10 +91,10 @@ passed. See [air-gapped installs](air-gap.md).
 ## Scripting it
 
 ```
-hawser upgrade --json
+skrog upgrade --json
 ```
 
-Exit codes follow `hawser cli status`, so either can gate a script the same
+Exit codes follow `skrog cli status`, so either can gate a script the same
 way: **0** nothing to do (or everything applied), **3** something can be
 upgraded, **1** error, **2** usage. The 3 is reported by `--check` and
 `--dry-run`; a plain run that applies successfully exits **0**.

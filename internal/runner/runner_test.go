@@ -12,8 +12,8 @@ func byName(fs []Finding) map[string]Finding {
 
 func healthy() Facts {
 	return Facts{
-		AutoLogonConfigured: true, AutoLogonUser: "hawser-runner", AutoLogonDomain: "BUILD01",
-		CurrentUser: "hawser-runner", CurrentDomain: "BUILD01",
+		AutoLogonConfigured: true, AutoLogonUser: "skrog-runner", AutoLogonDomain: "BUILD01",
+		CurrentUser: "skrog-runner", CurrentDomain: "BUILD01",
 		AutostartRegistered: true, SupervisorRunning: true, Engine: "running",
 	}
 }

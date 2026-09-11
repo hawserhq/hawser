@@ -7,11 +7,11 @@ import (
 )
 
 // Switch is an AuditSink that turns the log on and off while the supervisor
-// runs, so `hawser config set audit on` takes effect on the next docker call
+// runs, so `skrog config set audit on` takes effect on the next docker call
 // with nothing to restart (#202).
 //
 // Before this, the setting was read once when the supervisor started and the
-// CLI told users to run `hawser restart`. That advice did not work: restart
+// CLI told users to run `skrog restart`. That advice did not work: restart
 // bounces the *engine*, and the supervisor holding the setting survives it.
 // Turning the audit log on therefore did nothing, reported no error, and
 // produced no log — the worst shape a security feature can fail in, because

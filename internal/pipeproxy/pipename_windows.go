@@ -39,10 +39,10 @@ func PipeInUse(name string) bool {
 
 // SelectPipeName picks the pipe to serve.
 //
-// Hawser prefers the default pipe, because that is what stock docker.exe
+// Skrog prefers the default pipe, because that is what stock docker.exe
 // connects to with no configuration. But it never takes it from Docker Desktop:
-// if something is already listening there, Hawser serves its own pipe instead so
-// the two coexist and trying Hawser stays a zero-risk experiment (PLAN §02).
+// if something is already listening there, Skrog serves its own pipe instead so
+// the two coexist and trying Skrog stays a zero-risk experiment (PLAN §02).
 //
 // preferred may be empty for DefaultPipeName. The returned reason is worth
 // surfacing to the user, since which pipe is in play determines whether they
@@ -67,7 +67,7 @@ func SelectPipeName(preferred string) (name, reason string) {
 // DockerHostFor renders the DOCKER_HOST value for a pipe, in the npipe form the
 // docker CLI expects. The CLI wants forward slashes even on Windows.
 func DockerHostFor(pipeName string) string {
-	// \\.\pipe\hawser_engine -> npipe:////./pipe/hawser_engine
+	// \\.\pipe\skrog_engine -> npipe:////./pipe/skrog_engine
 	trimmed := pipeName
 	for _, prefix := range []string{`\\.\pipe\`, `//./pipe/`} {
 		if len(trimmed) > len(prefix) && trimmed[:len(prefix)] == prefix {

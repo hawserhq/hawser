@@ -1,5 +1,5 @@
 // Package vsockproto is the tiny wire protocol between the Windows host and
-// the in-distro hawser-agent (#40), shared by both ends.
+// the in-distro skrog-agent (#40), shared by both ends.
 //
 // The connection starts line-oriented — the client says hello, the agent
 // answers with its identity — and then goes fully transparent, a byte relay to
@@ -35,7 +35,7 @@ import (
 const Port uint32 = 0x68617773
 
 const (
-	hello     = "HAWSER/1\n"
+	hello     = "SKROG/1\n"
 	okPrefix  = "OK "  // v1 (no auth) banner
 	ok2Prefix = "OK/2" // v2 banner: server advertises it holds a secret
 	authPref  = "AUTH "
@@ -151,7 +151,7 @@ func ClientHandshake(c io.ReadWriter, secret string) (string, error) {
 
 	if secret == "" {
 		if !strings.HasPrefix(banner, okPrefix) {
-			return "", fmt.Errorf("peer is not a hawser agent: %q", banner)
+			return "", fmt.Errorf("peer is not a skrog agent: %q", banner)
 		}
 		return strings.TrimPrefix(banner, okPrefix), nil
 	}

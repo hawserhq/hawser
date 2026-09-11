@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/pipeproxy"
 )
 
 // TestInterim1xxDoesNotDesyncTheLoop covers #90: an interim response (103

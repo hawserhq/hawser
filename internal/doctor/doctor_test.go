@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/version"
+	"github.com/wslkit/skrog/internal/version"
 )
 
 func TestWorst(t *testing.T) {

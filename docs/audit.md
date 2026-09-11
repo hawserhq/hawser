@@ -1,6 +1,6 @@
 # Audit log
 
-Because Hawser proxies the docker API at the pipe, it can record the
+Because Skrog proxies the docker API at the pipe, it can record the
 container-affecting calls that actually crossed it — image pulls, container
 create / start / stop / remove, exec, and builds — something Docker Desktop
 exposes nowhere. Useful for "what did that compose file pull and mount?", and
@@ -10,26 +10,26 @@ Off by default. Turn it on; it takes effect on the next docker call, with
 nothing to restart:
 
 ```
-hawser config set audit on
-hawser audit tail
-hawser audit tail --since 30m
-hawser audit tail -n 50
+skrog config set audit on
+skrog audit tail
+skrog audit tail --since 30m
+skrog audit tail -n 50
 ```
 
 ## Tracing a command
 
-`hawser audit trace` answers "what did *that* just do to the engine?" — run
+`skrog audit trace` answers "what did *that* just do to the engine?" — run
 anything, get a summary of the records written while it ran:
 
 ```
-hawser audit trace -- act -j build
-hawser audit trace -- docker compose up -d
-hawser audit --json trace -- gitlab-ci-local test        # machine-readable
-hawser audit --raw trace -- ./deploy.ps1                 # the records themselves
+skrog audit trace -- act -j build
+skrog audit trace -- docker compose up -d
+skrog audit --json trace -- gitlab-ci-local test        # machine-readable
+skrog audit --raw trace -- ./deploy.ps1                 # the records themselves
 ```
 
 ```
---- hawser audit trace: act -j build (exit 0, 41.2s) ---
+--- skrog audit trace: act -j build (exit 0, 41.2s) ---
   container-create   3
   container-start    3
   exec-start         1
@@ -41,7 +41,7 @@ hawser audit --raw trace -- ./deploy.ps1                 # the records themselve
 It is the trace for opaque CI YAML — see exactly which images a pipeline pulls
 and which containers it starts, locally, before pushing — and for auditing a
 script you did not write. The traced command's exit code is propagated, so
-`hawser audit trace -- make test` fails exactly when `make test` does.
+`skrog audit trace -- make test` fails exactly when `make test` does.
 
 Two honest limits: attribution is **by position in the log** (everything
 appended after the command started), so concurrent docker use during the run is
@@ -78,12 +78,12 @@ query field) but not the image or mounts (body fields).
   on and closes it when you turn it off, both on the next docker call.
 
   > An earlier version read the setting once when the supervisor started and
-  > told you to run `hawser restart`. That did not work — `restart` bounces
+  > told you to run `skrog restart`. That did not work — `restart` bounces
   > the engine, not the supervisor that holds the setting — so turning the
   > audit log on produced no error and no log. Fixed in
-  > [#202](https://github.com/hawserhq/hawser/issues/202); the worst way for
+  > [#202](https://github.com/wslkit/skrog/issues/202); the worst way for
   > a security feature to fail is the way you cannot see.
 - Records are best-effort: a write failure never blocks or fails the docker
   command being proxied.
-- It pairs with the coming policy engine ([#120](https://github.com/hawserhq/hawser/issues/120)):
+- It pairs with the coming policy engine ([#120](https://github.com/wslkit/skrog/issues/120)):
   every allow/deny decision there becomes one audit record here.

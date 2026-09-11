@@ -3,10 +3,10 @@ package doctor
 import (
 	"fmt"
 
-	"github.com/hawserhq/hawser/internal/runner"
+	"github.com/wslkit/skrog/internal/runner"
 )
 
-// checkRunner folds `hawser runner check` (#150) into doctor, gated on the
+// checkRunner folds `skrog runner check` (#150) into doctor, gated on the
 // runner fingerprint: auto-logon configured. On an ordinary laptop it skips and
 // points at the standalone command; on a runner it rolls the findings up into
 // one result so a dead build agent is diagnosed with the rest of the machine.
@@ -14,7 +14,7 @@ func checkRunner() Check {
 	c := Check{Name: "runner", Title: "unattended runner setup"}
 	c.Run = func(f Facts) Result {
 		if !f.Runner.AutoLogonConfigured {
-			return result(c, Skip, "no auto-logon configured; not an unattended runner (`hawser runner check` evaluates anyway)")
+			return result(c, Skip, "no auto-logon configured; not an unattended runner (`skrog runner check` evaluates anyway)")
 		}
 		findings := runner.Evaluate(f.Runner)
 		worst := OK

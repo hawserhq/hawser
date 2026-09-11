@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/vpnfingerprint"
+	"github.com/wslkit/skrog/internal/vpnfingerprint"
 )
 
 func TestCheckVPNNoneDetected(t *testing.T) {
@@ -93,7 +93,7 @@ func TestCheckVPNRemedyNamesTheEngineMTUCommand(t *testing.T) {
 		Adapter:     vpnfingerprint.Adapter{Name: "Ethernet 4", Up: true},
 	}}}
 	got := checkVPN().Run(f)
-	if !strings.Contains(got.Remedy, "hawser config set engine.mtu 1400") {
+	if !strings.Contains(got.Remedy, "skrog config set engine.mtu 1400") {
 		t.Errorf("remedy should name the exact command with the recommended value:\n%s", got.Remedy)
 	}
 }
@@ -125,7 +125,7 @@ func TestCheckVPNWithoutRecommendedMTUStillGivesACommand(t *testing.T) {
 		Adapter:     vpnfingerprint.Adapter{Name: "vpn9", Up: true},
 	}}}
 	got := checkVPN().Run(f)
-	if !strings.Contains(got.Remedy, "hawser config set engine.mtu") {
+	if !strings.Contains(got.Remedy, "skrog config set engine.mtu") {
 		t.Errorf("remedy should still name the command:\n%s", got.Remedy)
 	}
 }

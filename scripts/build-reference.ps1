@@ -5,7 +5,7 @@
 # beside it is a second copy that drifts, and the drift is invisible until
 # someone follows it.
 #
-# So this asks the binary. Every command in `hawser help --json` is run with
+# So this asks the binary. Every command in `skrog help --json` is run with
 # --help and its output captured verbatim; nothing here knows what any command
 # does, which is the property that keeps it correct.
 #
@@ -29,16 +29,16 @@ $out = Join-Path $repo 'docs/reference.md'
 Push-Location $repo
 try {
     if (-not $Exe) {
-        $Exe = Join-Path ([IO.Path]::GetTempPath()) 'hawser-reference.exe'
-        Write-Host "building hawser..." -ForegroundColor DarkGray
+        $Exe = Join-Path ([IO.Path]::GetTempPath()) 'skrog-reference.exe'
+        Write-Host "building skrog..." -ForegroundColor DarkGray
         # No version stamp: the reference must not change just because it was
         # generated from a tagged build rather than a working tree.
-        & go build -o $Exe ./cmd/hawser
+        & go build -o $Exe ./cmd/skrog
         if ($LASTEXITCODE -ne 0) { throw "go build failed" }
     }
 
     $index = & $Exe help --json | ConvertFrom-Json
-    if (-not $index) { throw "``hawser help --json`` returned nothing" }
+    if (-not $index) { throw "``skrog help --json`` returned nothing" }
 
     # `--help` prints usage on stderr and exits 2 (the usage code), because for
     # every other invocation that text accompanies a mistake. Both are expected
@@ -56,7 +56,7 @@ Every command, its flags and its exit codes — generated from the binary's own
 `--help` output by `scripts/build-reference.ps1`, so it cannot drift from what
 the CLI actually does. CI regenerates it and fails if the result differs.
 
-Run `hawser <command> --help` for the same text in your terminal.
+Run `skrog <command> --help` for the same text in your terminal.
 
 '@)
 

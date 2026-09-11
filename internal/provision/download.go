@@ -99,7 +99,7 @@ func (e *ErrChecksumMismatch) Error() string {
 }
 
 // FetchRootfs downloads (or copies, for a local/file:// URL) the rootfs to dest
-// and verifies its SHA-256. Exposed so `hawser bundle` can pack a verified
+// and verifies its SHA-256. Exposed so `skrog bundle` can pack a verified
 // rootfs into an air-gap archive (#75). Idempotent: a cached file at dest that
 // already matches is reused rather than refetched.
 func (p *Provisioner) FetchRootfs(ctx context.Context, url, wantSHA, dest string) error {

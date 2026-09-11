@@ -13,7 +13,7 @@ import (
 func useScratchEnv(t *testing.T) {
 	t.Helper()
 	orig := envKeyPath
-	envKeyPath = `Software\HawserTest\Environment`
+	envKeyPath = `Software\SkrogTest\Environment`
 	k, _, err := registry.CreateKey(registry.CURRENT_USER, envKeyPath, registry.ALL_ACCESS)
 	if err != nil {
 		t.Fatalf("creating scratch env key: %v", err)
@@ -21,7 +21,7 @@ func useScratchEnv(t *testing.T) {
 	k.Close()
 	t.Cleanup(func() {
 		registry.DeleteKey(registry.CURRENT_USER, envKeyPath)
-		registry.DeleteKey(registry.CURRENT_USER, `Software\HawserTest`)
+		registry.DeleteKey(registry.CURRENT_USER, `Software\SkrogTest`)
 		envKeyPath = orig
 	})
 }
@@ -61,7 +61,7 @@ func TestAddPrependsAndIsIdempotent(t *testing.T) {
 	useScratchEnv(t)
 	setPath(t, `C:\existing;%USERPROFILE%\bin`, true)
 
-	dir := `C:\Users\me\AppData\Local\Hawser\bin`
+	dir := `C:\Users\me\AppData\Local\Skrog\bin`
 	added, err := AddToUserPath(dir)
 	if err != nil || !added {
 		t.Fatalf("AddToUserPath = (%v,%v), want (true,nil)", added, err)
@@ -86,9 +86,9 @@ func TestAddPrependsAndIsIdempotent(t *testing.T) {
 
 func TestAddIsCaseAndSlashInsensitive(t *testing.T) {
 	useScratchEnv(t)
-	setPath(t, `C:\Hawser\Bin`, false)
+	setPath(t, `C:\Skrog\Bin`, false)
 	// Same dir, different case + trailing slash: must be recognized as present.
-	added, err := AddToUserPath(`c:\hawser\bin\`)
+	added, err := AddToUserPath(`c:\skrog\bin\`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -99,7 +99,7 @@ func TestAddIsCaseAndSlashInsensitive(t *testing.T) {
 
 func TestRemoveOnlyOurEntry(t *testing.T) {
 	useScratchEnv(t)
-	dir := `C:\Hawser\bin`
+	dir := `C:\Skrog\bin`
 	setPath(t, `C:\keep;`+dir+`;C:\also-keep`, false)
 
 	removed, err := RemoveFromUserPath(dir)

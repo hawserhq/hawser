@@ -1,14 +1,14 @@
-# Kubernetes on Hawser
+# Kubernetes on Skrog
 
-**Hawser will never ship a Kubernetes.** It is a Docker engine; a bundled
+**Skrog will never ship a Kubernetes.** It is a Docker engine; a bundled
 control plane is a second product with its own upgrade cycle, its own failure
 modes and its own opinions, and Docker Desktop's built-in one is a good example
-of what that costs. What Hawser does instead is run the tools that build a
+of what that costs. What Skrog does instead is run the tools that build a
 cluster out of containers — and it runs them well, because that is just
 containers.
 
 Both [kind](https://kind.sigs.k8s.io) and [k3d](https://k3d.io) were verified
-against a Hawser engine end to end: cluster created, node `Ready`, `kubectl`
+against a Skrog engine end to end: cluster created, node `Ready`, `kubectl`
 from **Windows**, and a workload reachable from a browser on the Windows side.
 
 ## The one thing you must know: bind on `0.0.0.0`, not `127.0.0.1`
@@ -17,7 +17,7 @@ WSL2 mirrored networking projects **wildcard-bound** listeners inside the engine
 VM onto the Windows host. A listener bound explicitly to `127.0.0.1` *inside*
 the VM stays inside the VM, so nothing on Windows can reach it.
 
-That is a WSL platform behavior, not a Docker or Hawser one, and it is the
+That is a WSL platform behavior, not a Docker or Skrog one, and it is the
 whole reason the recipes below set an API-server address. Measured on this
 engine:
 
@@ -33,7 +33,7 @@ fixes it.
 ## kind
 
 ```yaml
-# kind-hawser.yaml
+# kind-skrog.yaml
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 networking:
@@ -49,8 +49,8 @@ nodes:
 ```
 
 ```powershell
-$env:DOCKER_HOST = 'npipe:////./pipe/hawser_engine'   # or: docker context use hawser
-kind create cluster --name dev --config kind-hawser.yaml --wait 180s
+$env:DOCKER_HOST = 'npipe:////./pipe/skrog_engine'   # or: docker context use skrog
+kind create cluster --name dev --config kind-skrog.yaml --wait 180s
 kubectl get nodes
 ```
 
@@ -69,7 +69,7 @@ Lighter, and the better default recommendation for most people — one k3s serve
 container plus a proxy, and its kubeconfig needs nothing done to it:
 
 ```powershell
-$env:DOCKER_HOST = 'npipe:////./pipe/hawser_engine'
+$env:DOCKER_HOST = 'npipe:////./pipe/skrog_engine'
 k3d cluster create dev --api-port 0.0.0.0:6550 -p "8080:80@loadbalancer" --wait
 kubectl get nodes
 ```
@@ -82,21 +82,21 @@ about **2.7 GB** of the VM's memory with the cluster and a workload running.
 `--api-port 0.0.0.0:6550` is the same rule as kind's `apiServerAddress`: k3d's
 default binds the API to the host gateway address, which is inside the VM.
 
-## Why this is nicer on Hawser than on Docker Desktop
+## Why this is nicer on Skrog than on Docker Desktop
 
-- **The engine is pinned.** A cluster built on a `hawser.lock`-pinned engine is
+- **The engine is pinned.** A cluster built on a `skrog.lock`-pinned engine is
   the same engine your CI runner uses — see [local-ci.md](local-ci.md).
 - **Idle stop still applies to the engine, not to your cluster.** A running
   cluster keeps the engine busy, so it stays up; delete the cluster and the
-  engine parks itself again (`hawser config set idle-timeout 30m`).
-- **`hawser prune` will not eat your cluster.** It reclaims dangling images and
+  engine parks itself again (`skrog config set idle-timeout 30m`).
+- **`skrog prune` will not eat your cluster.** It reclaims dangling images and
   stopped containers; a running kind/k3d node container is neither. Stop the
   cluster before a `--all` prune if you want its images gone too.
-- **`hawser snapshot` covers the whole engine**, cluster included: save before
-  a risky Helm chart, `hawser reset --to <snapshot>` after —
+- **`skrog snapshot` covers the whole engine**, cluster included: save before
+  a risky Helm chart, `skrog reset --to <snapshot>` after —
   [snapshots.md](snapshots.md).
 - **GPU workloads work** in a cluster the same way they do in a container, once
-  `hawser enable-gpu` has run ([gpu.md](gpu.md)); the device plugin still needs
+  `skrog enable-gpu` has run ([gpu.md](gpu.md)); the device plugin still needs
   installing inside the cluster.
 
 ## What was not verified
@@ -106,5 +106,5 @@ default binds the API to the host gateway address, which is inside the VM.
   spike used single-node clusters.
 - LoadBalancer services beyond k3d's built-in proxy (MetalLB and friends).
 - Anything on a machine where an EDR agent destabilizes the supervisor; see
-  [#166](https://github.com/hawserhq/hawser/issues/166) and the
-  `hawser doctor` injected-modules check.
+  [#166](https://github.com/wslkit/skrog/issues/166) and the
+  `skrog doctor` injected-modules check.

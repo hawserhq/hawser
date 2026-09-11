@@ -7,7 +7,7 @@ import (
 	"testing"
 	"unicode/utf16"
 
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // fakeRunner records invocations and replays canned output, so every wsl.exe
@@ -147,12 +147,12 @@ func TestStatusLocalizedDefaultVersion(t *testing.T) {
 func TestImportBuildsCorrectArgs(t *testing.T) {
 	r := newFakeRunner().on("--import", "The operation completed successfully.", nil)
 	err := (&wsl.Local{Runner: r}).Import(context.Background(),
-		"hawser-engine", `C:\data\hawser`, `C:\tmp\rootfs.tar.gz`)
+		"skrog-engine", `C:\data\skrog`, `C:\tmp\rootfs.tar.gz`)
 	if err != nil {
 		t.Fatalf("Import: %v", err)
 	}
 
-	want := []string{"--import", "hawser-engine", `C:\data\hawser`, `C:\tmp\rootfs.tar.gz`, "--version", "2"}
+	want := []string{"--import", "skrog-engine", `C:\data\skrog`, `C:\tmp\rootfs.tar.gz`, "--version", "2"}
 	got := r.lastCall()
 	if strings.Join(got, "|") != strings.Join(want, "|") {
 		t.Errorf("args =\n %v\nwant\n %v", got, want)
@@ -192,7 +192,7 @@ func TestListParsesDistros(t *testing.T) {
 	r := newFakeRunner().on("--list --verbose", strings.Join([]string{
 		"  NAME             STATE           VERSION",
 		"* Ubuntu           Running         2",
-		"  hawser-engine    Stopped         2",
+		"  skrog-engine    Stopped         2",
 	}, "\r\n"), nil)
 
 	got, err := (&wsl.Local{Runner: r}).List(context.Background())
@@ -202,8 +202,8 @@ func TestListParsesDistros(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("got %d distros %+v, want 2", len(got), got)
 	}
-	if got[1].Name != "hawser-engine" || got[1].Running() {
-		t.Errorf("hawser-engine = %+v", got[1])
+	if got[1].Name != "skrog-engine" || got[1].Running() {
+		t.Errorf("skrog-engine = %+v", got[1])
 	}
 }
 
@@ -223,10 +223,10 @@ func TestListNoDistrosIsEmptyNotError(t *testing.T) {
 }
 
 func TestExecUsesExecToBypassShell(t *testing.T) {
-	r := newFakeRunner().onRaw("-d hawser-engine", []byte("alive"), nil)
+	r := newFakeRunner().onRaw("-d skrog-engine", []byte("alive"), nil)
 
 	out, err := (&wsl.Local{Runner: r}).Exec(context.Background(),
-		"hawser-engine", "root", "echo", "alive")
+		"skrog-engine", "root", "echo", "alive")
 	if err != nil {
 		t.Fatalf("Exec: %v", err)
 	}
@@ -234,7 +234,7 @@ func TestExecUsesExecToBypassShell(t *testing.T) {
 		t.Errorf("output = %q, want %q", out, "alive")
 	}
 
-	want := []string{"-d", "hawser-engine", "-u", "root", "--exec", "echo", "alive"}
+	want := []string{"-d", "skrog-engine", "-u", "root", "--exec", "echo", "alive"}
 	if strings.Join(r.lastCall(), "|") != strings.Join(want, "|") {
 		t.Errorf("args = %v, want %v", r.lastCall(), want)
 	}
@@ -281,7 +281,7 @@ func TestExecValidates(t *testing.T) {
 func TestStartDoesNotWait(t *testing.T) {
 	r := newFakeRunner()
 	stop, err := (&wsl.Local{Runner: r}).Start(context.Background(),
-		"hawser-engine", "root", "dockerd")
+		"skrog-engine", "root", "dockerd")
 	if err != nil {
 		t.Fatalf("Start: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestStartDoesNotWait(t *testing.T) {
 	if len(r.started) != 1 {
 		t.Fatalf("started %d commands, want 1", len(r.started))
 	}
-	want := []string{"-d", "hawser-engine", "-u", "root", "--exec", "dockerd"}
+	want := []string{"-d", "skrog-engine", "-u", "root", "--exec", "dockerd"}
 	if strings.Join(r.started[0], "|") != strings.Join(want, "|") {
 		t.Errorf("args = %v, want %v", r.started[0], want)
 	}
@@ -306,16 +306,16 @@ func TestTerminateAndUnregister(t *testing.T) {
 	l := &wsl.Local{Runner: r}
 	ctx := context.Background()
 
-	if err := l.Terminate(ctx, "hawser-engine"); err != nil {
+	if err := l.Terminate(ctx, "skrog-engine"); err != nil {
 		t.Fatalf("Terminate: %v", err)
 	}
-	if got := strings.Join(r.lastCall(), " "); got != "--terminate hawser-engine" {
+	if got := strings.Join(r.lastCall(), " "); got != "--terminate skrog-engine" {
 		t.Errorf("terminate args = %q", got)
 	}
-	if err := l.Unregister(ctx, "hawser-engine"); err != nil {
+	if err := l.Unregister(ctx, "skrog-engine"); err != nil {
 		t.Fatalf("Unregister: %v", err)
 	}
-	if got := strings.Join(r.lastCall(), " "); got != "--unregister hawser-engine" {
+	if got := strings.Join(r.lastCall(), " "); got != "--unregister skrog-engine" {
 		t.Errorf("unregister args = %q", got)
 	}
 

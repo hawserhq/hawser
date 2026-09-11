@@ -2,7 +2,7 @@
 
 // Package e2e is the v0.1 acceptance suite (#11).
 //
-// It drives the real hawser.exe against the real published rootfs on a real
+// It drives the real skrog.exe against the real published rootfs on a real
 // Windows machine with WSL2 — the class of testing that found all ten of the
 // defects the unit tests could not (see #38 for the tally). It deliberately
 // shells out to the same binaries a user runs rather than importing internal
@@ -14,7 +14,7 @@
 //
 // The suite installs into an isolated distro and state dir, and removes both;
 // a failure can leave the distro behind, in which case
-// `hawser uninstall --state-dir <printed dir> --yes` cleans up.
+// `skrog uninstall --state-dir <printed dir> --yes` cleans up.
 package e2e
 
 import (
@@ -32,18 +32,18 @@ import (
 )
 
 const (
-	distro   = "hawser-e2e-suite"
-	pipeName = `\\.\pipe\hawser-e2e-suite`
+	distro   = "skrog-e2e-suite"
+	pipeName = `\\.\pipe\skrog-e2e-suite`
 	// dockerHost matches pipeName in the form the docker CLI wants.
-	dockerHost = "npipe:////./pipe/hawser-e2e-suite"
+	dockerHost = "npipe:////./pipe/skrog-e2e-suite"
 	// dockerPipePath is the same pipe as a path, for `docker run -v`.
-	dockerPipePath = "//./pipe/hawser-e2e-suite"
+	dockerPipePath = "//./pipe/skrog-e2e-suite"
 )
 
 // state carries everything the ordered stages share.
 type state struct {
 	workDir  string // parent-scoped scratch: subtest TempDirs die with the subtest
-	hawser   string // built hawser.exe
+	skrog    string // built skrog.exe
 	docker   string // resolved docker CLI
 	stateDir string
 	dataDir  string
@@ -53,10 +53,10 @@ type state struct {
 	// baselines captured before anything runs, compared after teardown.
 	wslProcsBefore int
 	ddWorkedBefore bool
-	// hawserCtxBefore is the machine's own `hawser` docker context endpoint,
+	// skrogCtxBefore is the machine's own `skrog` docker context endpoint,
 	// empty when it has none. The suite installs beside a real install and
 	// shares that one global context with it (#217).
-	hawserCtxBefore string
+	skrogCtxBefore string
 }
 
 // TestAcceptance is one ordered scenario, not independent tests: install must
@@ -81,7 +81,7 @@ func TestAcceptance(t *testing.T) {
 		fn   func(t *testing.T, s *state)
 	}{
 		{"Baselines", stageBaselines},
-		{"BuildHawser", stageBuild},
+		{"BuildSkrog", stageBuild},
 		{"InstallFromPublishedRelease", stageInstall},
 		{"EnableAuditLog", stageEnableAudit},
 		{"EnableHostCAImport", stageEnableHostCAs},
@@ -165,7 +165,7 @@ func run(t *testing.T, timeout time.Duration, name string, args ...string) (stri
 
 // runEnv is run() with an explicit environment, for subprocesses that shell
 // out to docker and thus need docker's credential helper on PATH (hostEnv adds
-// docker's own directory). A real `hawser migrate` inherits a shell where
+// docker's own directory). A real `skrog migrate` inherits a shell where
 // Docker Desktop is on PATH; the suite must reproduce that for its subprocess.
 func runEnv(t *testing.T, env []string, timeout time.Duration, name string, args ...string) (string, error) {
 	t.Helper()
@@ -236,16 +236,16 @@ func stageBaselines(t *testing.T, s *state) {
 	s.wslProcsBefore = wslProcCount(t)
 	t.Logf("wsl.exe baseline: %d", s.wslProcsBefore)
 
-	// The `hawser` docker context is a single global object, and this suite
+	// The `skrog` docker context is a single global object, and this suite
 	// installs beside whatever is already on the machine. Recording where it
 	// points is how the teardown can prove the suite handed it back (#217) —
 	// before that fix, running the acceptance suite silently left the
-	// developer's own `docker --context hawser` broken.
-	s.hawserCtxBefore = hawserContextEndpoint(t, s)
-	if s.hawserCtxBefore == "" {
-		t.Log("no `hawser` docker context on this machine before the suite")
+	// developer's own `docker --context skrog` broken.
+	s.skrogCtxBefore = skrogContextEndpoint(t, s)
+	if s.skrogCtxBefore == "" {
+		t.Log("no `skrog` docker context on this machine before the suite")
 	} else {
-		t.Logf("`hawser` docker context before: %s", s.hawserCtxBefore)
+		t.Logf("`skrog` docker context before: %s", s.skrogCtxBefore)
 	}
 
 	// Whether Docker Desktop worked BEFORE decides whether the intact-after
@@ -263,11 +263,11 @@ func stageBuild(t *testing.T, s *state) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.hawser = filepath.Join(s.workDir, "hawser.exe")
-	cmd := exec.Command("go", "build", "-o", s.hawser, "./cmd/hawser")
+	s.skrog = filepath.Join(s.workDir, "skrog.exe")
+	cmd := exec.Command("go", "build", "-o", s.skrog, "./cmd/skrog")
 	cmd.Dir = repoRoot
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("building hawser.exe: %v\n%s", err, out)
+		t.Fatalf("building skrog.exe: %v\n%s", err, out)
 	}
 }
 
@@ -277,9 +277,9 @@ func stageInstall(t *testing.T, s *state) {
 
 	// No rootfs flags: this installs what a user installs, verifying the
 	// embedded manifest against the published release asset.
-	out, err := run(t, 10*time.Minute, s.hawser, "install",
+	out, err := run(t, 10*time.Minute, s.skrog, "install",
 		"--distro", distro, "--state-dir", s.stateDir, "--data-dir", s.dataDir, "--headless")
-	must(t, out, err, "hawser install")
+	must(t, out, err, "skrog install")
 
 	if !strings.Contains(out, "installed and running") {
 		t.Errorf("install output does not report success:\n%s", out)
@@ -294,13 +294,13 @@ func stageProxy(t *testing.T, s *state) {
 	}
 	s.proxyLog = f
 
-	// The bridge is `hawser supervise`, not `hawser proxy`: it is what real
+	// The bridge is `skrog supervise`, not `skrog proxy`: it is what real
 	// installs run (autostart launches it), and it is where the idle/on-demand
 	// behavior the IdleStop stage exercises lives. The suite's own pipe and
-	// state dir keep a Hawser or Docker Desktop already on the machine
+	// state dir keep a Skrog or Docker Desktop already on the machine
 	// undisturbed — the state dir also scopes the supervisor's single-instance
 	// mutex, so a real supervisor can coexist with the suite's.
-	s.proxy = exec.Command(s.hawser, "supervise",
+	s.proxy = exec.Command(s.skrog, "supervise",
 		"--distro", distro, "--state-dir", s.stateDir,
 		"--pipe", pipeName, "--no-context")
 	s.proxy.Stdout = f
@@ -322,17 +322,17 @@ func stageProxy(t *testing.T, s *state) {
 	t.Fatalf("engine never answered through the pipe. Proxy log:\n%s", log)
 }
 
-// stageDoctor runs `hawser doctor --json` against the live install and asserts
+// stageDoctor runs `skrog doctor --json` against the live install and asserts
 // the checks that describe a healthy engine all pass. It does not assert the
 // overall exit code: host-specific checks (which docker.exe is on PATH, whether
 // a credential helper resolves, the machine's default docker context) depend on
-// the developer's or CI runner's environment, not on Hawser, so pinning them
+// the developer's or CI runner's environment, not on Skrog, so pinning them
 // would make the suite flaky. The engine-shaped checks are what doctor owns.
 func stageDoctor(t *testing.T, s *state) {
 	// doctor exits non-zero when any check fails (e.g. no docker.exe on the CI
 	// runner's PATH), but still writes the full JSON report to stdout, so parse
 	// the output regardless of the exit error.
-	out, _ := run(t, 60*time.Second, s.hawser, "doctor", "--json", "--state-dir", s.stateDir)
+	out, _ := run(t, 60*time.Second, s.skrog, "doctor", "--json", "--state-dir", s.stateDir)
 	var rep struct {
 		Results []struct {
 			Name   string `json:"name"`
@@ -367,10 +367,10 @@ func stageDoctor(t *testing.T, s *state) {
 // end against the live engine.
 func stageEngineConfig(t *testing.T, s *state) {
 	set := func(key, value string) (string, error) {
-		return run(t, 3*time.Minute, s.hawser, "config", "--state-dir", s.stateDir, "set", key, value)
+		return run(t, 3*time.Minute, s.skrog, "config", "--state-dir", s.stateDir, "set", key, value)
 	}
 	get := func(key string) string {
-		out, err := run(t, 30*time.Second, s.hawser, "config", "--state-dir", s.stateDir, "get", key)
+		out, err := run(t, 30*time.Second, s.skrog, "config", "--state-dir", s.stateDir, "get", key)
 		must(t, out, err, "config get "+key)
 		return strings.TrimSpace(out)
 	}
@@ -423,7 +423,7 @@ func stageHooks(t *testing.T, s *state) {
 	preScript := writeScript("pre-stop.cmd", preMarker)
 
 	setHook := func(key, val string) {
-		out, err := run(t, 30*time.Second, s.hawser, "config", "--state-dir", s.stateDir, "set", key, val)
+		out, err := run(t, 30*time.Second, s.skrog, "config", "--state-dir", s.stateDir, "set", key, val)
 		must(t, out, err, "config set "+key)
 	}
 	setHook("hook.post-start", postScript)
@@ -433,8 +433,8 @@ func stageHooks(t *testing.T, s *state) {
 
 	// Bounce through the supervisor so it observes stop (pre-stop) and start
 	// (post-start) transitions and fires both hooks.
-	out, err := run(t, 3*time.Minute, s.hawser, "restart", "--state-dir", s.stateDir)
-	must(t, out, err, "hawser restart")
+	out, err := run(t, 3*time.Minute, s.skrog, "restart", "--state-dir", s.stateDir)
+	must(t, out, err, "skrog restart")
 
 	waitFile := func(path, which string) {
 		deadline := time.Now().Add(60 * time.Second)
@@ -456,11 +456,11 @@ func stageHooks(t *testing.T, s *state) {
 }
 
 // stageDeclarative proves the infrastructure-as-code loop (#69): export the
-// live install as a hawser.yaml, then feed it back to `install --config` and
+// live install as a skrog.yaml, then feed it back to `install --config` and
 // confirm it converges idempotently (skips provisioning, engine stays healthy)
 // rather than erroring on the already-installed distro.
 func stageDeclarative(t *testing.T, s *state) {
-	out, err := run(t, 60*time.Second, s.hawser, "config", "--state-dir", s.stateDir, "export")
+	out, err := run(t, 60*time.Second, s.skrog, "config", "--state-dir", s.stateDir, "export")
 	must(t, out, err, "config export")
 	if !strings.Contains(out, "distro: "+distro) {
 		t.Fatalf("exported YAML missing the distro:\n%s", out)
@@ -469,14 +469,14 @@ func stageDeclarative(t *testing.T, s *state) {
 		t.Fatalf("exported YAML missing the engine version:\n%s", out)
 	}
 
-	yamlPath := filepath.Join(s.workDir, "hawser.yaml")
+	yamlPath := filepath.Join(s.workDir, "skrog.yaml")
 	if err := os.WriteFile(yamlPath, []byte(out), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	// Re-apply the exported file: already installed, so this must converge, not
 	// reinstall. --no-autostart keeps it from touching the registry.
-	out, err = run(t, 3*time.Minute, s.hawser, "install", "--config", yamlPath,
+	out, err = run(t, 3*time.Minute, s.skrog, "install", "--config", yamlPath,
 		"--state-dir", s.stateDir, "--no-autostart")
 	must(t, out, err, "install --config (idempotent converge)")
 
@@ -485,14 +485,14 @@ func stageDeclarative(t *testing.T, s *state) {
 	}
 }
 
-// stageLock proves `hawser lock` (#74) emits a lock that pins the same engine
+// stageLock proves `skrog lock` (#74) emits a lock that pins the same engine
 // the machine is actually running: the reproducible-install guarantee is only
 // real if the lock reflects reality, so it is cross-checked against
-// `hawser version --json`.
+// `skrog version --json`.
 func stageLock(t *testing.T, s *state) {
-	lockPath := filepath.Join(s.workDir, "hawser.lock")
-	out, err := run(t, 60*time.Second, s.hawser, "lock", "-o", lockPath)
-	must(t, out, err, "hawser lock")
+	lockPath := filepath.Join(s.workDir, "skrog.lock")
+	out, err := run(t, 60*time.Second, s.skrog, "lock", "-o", lockPath)
+	must(t, out, err, "skrog lock")
 
 	b, err := os.ReadFile(lockPath)
 	if err != nil {
@@ -512,8 +512,8 @@ func stageLock(t *testing.T, s *state) {
 		t.Fatalf("lock rootfs looks wrong: %+v", lk.Rootfs)
 	}
 
-	vout, err := run(t, 30*time.Second, s.hawser, "version", "--state-dir", s.stateDir, "--json")
-	must(t, vout, err, "hawser version --json")
+	vout, err := run(t, 30*time.Second, s.skrog, "version", "--state-dir", s.stateDir, "--json")
+	must(t, vout, err, "skrog version --json")
 	var v struct {
 		Engine struct {
 			Version      string `json:"version"`
@@ -534,13 +534,13 @@ func stageLock(t *testing.T, s *state) {
 // stageProfiles proves the headline of network profiles (#73): a profile
 // captures engine config, and switching to it actually applies that config to
 // the live engine — the thing every other tool makes you hand-toggle. It also
-// checks that `hawser status` names the active profile.
+// checks that `skrog status` names the active profile.
 func stageProfiles(t *testing.T, s *state) {
 	cfg := func(args ...string) (string, error) {
-		return run(t, 3*time.Minute, s.hawser, append([]string{"config", "--state-dir", s.stateDir}, args...)...)
+		return run(t, 3*time.Minute, s.skrog, append([]string{"config", "--state-dir", s.stateDir}, args...)...)
 	}
 	prof := func(args ...string) (string, error) {
-		return run(t, 3*time.Minute, s.hawser, append([]string{"profile", "--state-dir", s.stateDir}, args...)...)
+		return run(t, 3*time.Minute, s.skrog, append([]string{"profile", "--state-dir", s.stateDir}, args...)...)
 	}
 	getDL := func() string {
 		out, err := cfg("get", "engine.max-concurrent-downloads")
@@ -569,7 +569,7 @@ func stageProfiles(t *testing.T, s *state) {
 	}
 
 	// status names the active profile.
-	sout, err := run(t, 30*time.Second, s.hawser, "status", "--state-dir", s.stateDir, "--json")
+	sout, err := run(t, 30*time.Second, s.skrog, "status", "--state-dir", s.stateDir, "--json")
 	must(t, sout, err, "status --json")
 	var st struct {
 		Profile string `json:"profile"`
@@ -590,16 +590,16 @@ func stageProfiles(t *testing.T, s *state) {
 	cfg("set", "engine.max-concurrent-downloads", "")
 }
 
-// stageAirGap proves `hawser bundle` (#75) packs a self-contained, verified
-// archive: the rootfs plus a hawser.lock. It reuses the rootfs already cached in
+// stageAirGap proves `skrog bundle` (#75) packs a self-contained, verified
+// archive: the rootfs plus a skrog.lock. It reuses the rootfs already cached in
 // the state dir, so it does not re-download. The full offline install path is
 // verified separately (it reuses the same checksum-verified local-rootfs import
 // a networked install uses); here we assert the bundle a connected machine
 // produces is complete and self-describing.
 func stageAirGap(t *testing.T, s *state) {
 	bundlePath := filepath.Join(s.workDir, "bundle.zip")
-	out, err := run(t, 5*time.Minute, s.hawser, "bundle", "-o", bundlePath, "--state-dir", s.stateDir)
-	must(t, out, err, "hawser bundle")
+	out, err := run(t, 5*time.Minute, s.skrog, "bundle", "-o", bundlePath, "--state-dir", s.stateDir)
+	must(t, out, err, "skrog bundle")
 
 	zr, err := zip.OpenReader(bundlePath)
 	if err != nil {
@@ -611,7 +611,7 @@ func stageAirGap(t *testing.T, s *state) {
 	var rootfsSize uint64
 	for _, f := range zr.File {
 		switch {
-		case f.Name == "hawser.lock":
+		case f.Name == "skrog.lock":
 			rc, err := f.Open()
 			if err != nil {
 				t.Fatal(err)
@@ -624,7 +624,7 @@ func stageAirGap(t *testing.T, s *state) {
 	}
 
 	if lockData == nil {
-		t.Fatal("bundle is missing hawser.lock")
+		t.Fatal("bundle is missing skrog.lock")
 	}
 	var lk struct {
 		EngineVersion string `json:"engineVersion"`
@@ -661,7 +661,7 @@ func readAll(t *testing.T, r interface{ Read([]byte) (int, error) }) []byte {
 // bridge records the container-affecting calls the later stages make. The
 // handler is chosen at supervise start, which is why this runs before StartProxy.
 func stageEnableAudit(t *testing.T, s *state) {
-	out, err := run(t, 30*time.Second, s.hawser, "config", "--state-dir", s.stateDir, "set", "audit", "on")
+	out, err := run(t, 30*time.Second, s.skrog, "config", "--state-dir", s.stateDir, "set", "audit", "on")
 	must(t, out, err, "config set audit on")
 }
 
@@ -672,7 +672,7 @@ func stageAudit(t *testing.T, s *state) {
 	var out string
 	deadline := time.Now().Add(15 * time.Second)
 	for {
-		o, err := run(t, 30*time.Second, s.hawser, "audit", "--state-dir", s.stateDir, "tail")
+		o, err := run(t, 30*time.Second, s.skrog, "audit", "--state-dir", s.stateDir, "tail")
 		must(t, o, err, "audit tail")
 		out = o
 		if strings.Contains(out, "container-create") {
@@ -704,7 +704,7 @@ func stageAudit(t *testing.T, s *state) {
 	// summary attributes its container to it. hello-world is already pulled, so
 	// the expected records are create/start, not a pull. The child inherits the
 	// suite's DOCKER_HOST so it reaches the suite's engine.
-	out, err := runEnv(t, s.dockerEnv(), 3*time.Minute, s.hawser,
+	out, err := runEnv(t, s.dockerEnv(), 3*time.Minute, s.skrog,
 		"audit", "--state-dir", s.stateDir, "--json", "trace", "--", s.docker, "run", "--rm", "hello-world")
 	must(t, out, err, "audit trace")
 	// The traced command prints to the same stdout; the JSON summary is the
@@ -727,17 +727,17 @@ func stageAudit(t *testing.T, s *state) {
 	t.Logf("audit trace attributed %d events (%d container-create) to the traced docker run", sum.Events, sum.Actions["container-create"])
 }
 
-// stageSnapshot exercises `hawser snapshot` (#122): a real `wsl --export` of the
+// stageSnapshot exercises `skrog snapshot` (#122): a real `wsl --export` of the
 // engine distro with a recorded checksum, listed and deleted. The full restore
 // (unregister + re-import) is destructive and verified separately on a throwaway
 // distro; here we prove save/list/delete against the live engine near the end of
 // the run, where the export's brief engine bounce disturbs nothing (Uninstall is
 // next). Flags come before the subcommand, as the CLI expects.
 func stageSnapshot(t *testing.T, s *state) {
-	out, err := run(t, 3*time.Minute, s.hawser, "snapshot", "--state-dir", s.stateDir, "--force", "save", "e2e")
+	out, err := run(t, 3*time.Minute, s.skrog, "snapshot", "--state-dir", s.stateDir, "--force", "save", "e2e")
 	must(t, out, err, "snapshot save")
 
-	out, err = run(t, 30*time.Second, s.hawser, "snapshot", "--state-dir", s.stateDir, "list")
+	out, err = run(t, 30*time.Second, s.skrog, "snapshot", "--state-dir", s.stateDir, "list")
 	must(t, out, err, "snapshot list")
 	if !strings.Contains(out, "e2e") {
 		t.Fatalf("snapshot list missing the saved snapshot:\n%s", out)
@@ -751,12 +751,12 @@ func stageSnapshot(t *testing.T, s *state) {
 		t.Errorf("snapshot metadata not written: %v", err)
 	}
 
-	// `hawser reset --to` (#142): the runner's clean slate. Resetting to the
+	// `skrog reset --to` (#142): the runner's clean slate. Resetting to the
 	// snapshot just taken is non-destructive in effect and exercises the whole
 	// path — verify, unregister, import, engine back — with a real timing that
 	// the log records for the fast-restore follow-up.
-	out, err = run(t, 5*time.Minute, s.hawser, "reset", "--state-dir", s.stateDir, "--json", "--to", "e2e")
-	must(t, out, err, "hawser reset --to e2e")
+	out, err = run(t, 5*time.Minute, s.skrog, "reset", "--state-dir", s.stateDir, "--json", "--to", "e2e")
+	must(t, out, err, "skrog reset --to e2e")
 	// Supervisor log lines may precede the JSON on the combined stream.
 	if i := strings.Index(out, "{"); i >= 0 {
 		out = out[i:]
@@ -773,9 +773,9 @@ func stageSnapshot(t *testing.T, s *state) {
 	}
 	t.Logf("reset to snapshot in %d ms; engine answering", rs.Millis)
 
-	out, err = run(t, 30*time.Second, s.hawser, "snapshot", "--state-dir", s.stateDir, "delete", "e2e")
+	out, err = run(t, 30*time.Second, s.skrog, "snapshot", "--state-dir", s.stateDir, "delete", "e2e")
 	must(t, out, err, "snapshot delete")
-	out, _ = run(t, 30*time.Second, s.hawser, "snapshot", "--state-dir", s.stateDir, "list")
+	out, _ = run(t, 30*time.Second, s.skrog, "snapshot", "--state-dir", s.stateDir, "list")
 	if strings.Contains(out, "e2e") {
 		t.Errorf("snapshot still listed after delete:\n%s", out)
 	}
@@ -786,7 +786,7 @@ func stageSnapshot(t *testing.T, s *state) {
 // because the network config is read at supervise start. Harmless to the rest
 // of the run: it only adds trusted roots.
 func stageEnableHostCAs(t *testing.T, s *state) {
-	out, err := run(t, 30*time.Second, s.hawser, "config", "--state-dir", s.stateDir, "set", "network.import-host-cas", "on")
+	out, err := run(t, 30*time.Second, s.skrog, "config", "--state-dir", s.stateDir, "set", "network.import-host-cas", "on")
 	must(t, out, err, "config set network.import-host-cas on")
 }
 
@@ -794,7 +794,7 @@ func stageEnableHostCAs(t *testing.T, s *state) {
 func stageHostCAs(t *testing.T, s *state) {
 	// One file per imported cert lands under the CA source dir (Alpine splits them).
 	out, err := run(t, 60*time.Second, "wsl.exe", "-d", distro, "-u", "root", "sh", "-c",
-		"find /usr/local/share/ca-certificates -name 'hawser-host-*.crt' | wc -l")
+		"find /usr/local/share/ca-certificates -name 'skrog-host-*.crt' | wc -l")
 	if err != nil {
 		t.Fatalf("checking imported CAs: %v\n%s", err, out)
 	}
@@ -805,7 +805,7 @@ func stageHostCAs(t *testing.T, s *state) {
 	t.Logf("engine now trusts %s imported host CA certificate(s)", out)
 }
 
-// stageDevContainer proves the Dev Containers CLI works against the Hawser
+// stageDevContainer proves the Dev Containers CLI works against the Skrog
 // engine with no shim (#67): `devcontainer up` builds and starts a container —
 // including a Windows-path workspace bind mount the bridge rewrites — and
 // `devcontainer exec` runs a command inside it. Skipped when the CLI is not
@@ -820,7 +820,7 @@ func stageDevContainer(t *testing.T, s *state) {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(ws, ".devcontainer", "devcontainer.json"),
-		[]byte(`{"image":"alpine:3.20","runArgs":["--label","hawser-dc-e2e"]}`), 0o644); err != nil {
+		[]byte(`{"image":"alpine:3.20","runArgs":["--label","skrog-dc-e2e"]}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -830,7 +830,7 @@ func stageDevContainer(t *testing.T, s *state) {
 		"PATH="+filepath.Dir(s.docker)+string(os.PathListSeparator)+os.Getenv("PATH"),
 	)
 	defer func() { // best-effort teardown of the dev container
-		ids, _ := dockerE(t, s, 30*time.Second, "ps", "-aq", "--filter", "label=hawser-dc-e2e")
+		ids, _ := dockerE(t, s, 30*time.Second, "ps", "-aq", "--filter", "label=skrog-dc-e2e")
 		for _, id := range strings.Fields(ids) {
 			dockerE(t, s, 30*time.Second, "rm", "-f", id)
 		}
@@ -848,19 +848,19 @@ func stageDevContainer(t *testing.T, s *state) {
 	if !strings.Contains(out, "dc-exec-ok") {
 		t.Fatalf("devcontainer exec output unexpected:\n%s", out)
 	}
-	t.Logf("Dev Containers CLI ran through the Hawser pipe")
+	t.Logf("Dev Containers CLI ran through the Skrog pipe")
 }
 
 // stageServeMTLS proves the remote-engine door (#123): mint the mutual-TLS
-// material, run `hawser serve --tcp` on loopback, and reach the engine with a
+// material, run `skrog serve --tcp` on loopback, and reach the engine with a
 // stock docker client over TCP+TLS — then confirm a client WITHOUT the signed
 // certificate is refused, which is the whole guarantee.
 func stageServeMTLS(t *testing.T, s *state) {
 	const addr = "127.0.0.1:52376"
 
-	out, err := run(t, 60*time.Second, s.hawser, "serve", "cert",
+	out, err := run(t, 60*time.Second, s.skrog, "serve", "cert",
 		"--state-dir", s.stateDir, "--host", "127.0.0.1")
-	must(t, out, err, "hawser serve cert")
+	must(t, out, err, "skrog serve cert")
 
 	tlsDir := filepath.Join(s.stateDir, "tls")
 	ca := filepath.Join(tlsDir, "ca.pem")
@@ -873,9 +873,9 @@ func stageServeMTLS(t *testing.T, s *state) {
 	}
 
 	// Run the server in the background; it serves until killed.
-	srv := exec.Command(s.hawser, "serve", "--state-dir", s.stateDir, "--tcp", addr)
+	srv := exec.Command(s.skrog, "serve", "--state-dir", s.stateDir, "--tcp", addr)
 	if err := srv.Start(); err != nil {
-		t.Fatalf("starting hawser serve: %v", err)
+		t.Fatalf("starting skrog serve: %v", err)
 	}
 	defer func() {
 		if srv.Process != nil {
@@ -922,26 +922,26 @@ func stageServeMTLS(t *testing.T, s *state) {
 		t.Log("no docker on PATH for the remote client round trip; skipping that part")
 		return
 	}
-	out, err = run(t, 60*time.Second, s.hawser, "remote", "--state-dir", s.stateDir,
+	out, err = run(t, 60*time.Second, s.skrog, "remote", "--state-dir", s.stateDir,
 		"--host", host, "--certs", tlsDir, "add", "e2e-loop")
-	must(t, out, err, "hawser remote add")
-	defer run(t, 30*time.Second, s.hawser, "remote", "--state-dir", s.stateDir, "remove", "e2e-loop")
+	must(t, out, err, "skrog remote add")
+	defer run(t, 30*time.Second, s.skrog, "remote", "--state-dir", s.stateDir, "remove", "e2e-loop")
 
-	out, err = run(t, 30*time.Second, s.hawser, "remote", "--state-dir", s.stateDir, "--json", "list")
-	must(t, out, err, "hawser remote list --json")
+	out, err = run(t, 30*time.Second, s.skrog, "remote", "--state-dir", s.stateDir, "--json", "list")
+	must(t, out, err, "skrog remote list --json")
 	if !strings.Contains(out, `"e2e-loop"`) {
 		t.Fatalf("remote list --json does not show the remote:\n%s", out)
 	}
 
-	out, err = run(t, 60*time.Second, s.hawser, "remote", "--state-dir", s.stateDir, "test", "e2e-loop")
-	must(t, out, err, "hawser remote test")
+	out, err = run(t, 60*time.Second, s.skrog, "remote", "--state-dir", s.stateDir, "test", "e2e-loop")
+	must(t, out, err, "skrog remote test")
 	if !strings.Contains(out, verOut) {
 		t.Errorf("remote test did not report server version %q:\n%s", verOut, out)
 	}
-	t.Logf("remote client round trip through context hawser-e2e-loop OK")
+	t.Logf("remote client round trip through context skrog-e2e-loop OK")
 }
 
-// stageDockerCLIBundle proves `hawser cli install` (#66) fetches and installs
+// stageDockerCLIBundle proves `skrog cli install` (#66) fetches and installs
 // the pinned upstream docker CLI + compose + buildx, checksum-verified, and that
 // each one runs. It keeps the embedded pins honest: a rotted URL or a drifted
 // checksum fails here. PATH is left alone (--no-path) and the plugins land in a
@@ -950,9 +950,9 @@ func stageDockerCLIBundle(t *testing.T, s *state) {
 	cfg := filepath.Join(s.workDir, "clibundle-dockercfg")
 	env := append(os.Environ(), "DOCKER_CONFIG="+cfg)
 
-	out, err := runEnv(t, env, 5*time.Minute, s.hawser, "cli", "install",
+	out, err := runEnv(t, env, 5*time.Minute, s.skrog, "cli", "install",
 		"--no-path", "--state-dir", s.stateDir)
-	must(t, out, err, "hawser cli install")
+	must(t, out, err, "skrog cli install")
 
 	docker := filepath.Join(s.stateDir, "bin", "docker.exe")
 	if _, err := os.Stat(docker); err != nil {
@@ -995,9 +995,9 @@ func stageGPU(t *testing.T, s *state) {
 		t.Skip("no NVIDIA GPU visible to WSL; skipping GPU passthrough")
 	}
 
-	out, err = run(t, 60*time.Second, s.hawser, "enable-gpu", "--state-dir", s.stateDir, "--distro", distro)
-	must(t, out, err, "hawser enable-gpu")
-	defer run(t, 30*time.Second, s.hawser, "enable-gpu", "--off", "--state-dir", s.stateDir, "--distro", distro)
+	out, err = run(t, 60*time.Second, s.skrog, "enable-gpu", "--state-dir", s.stateDir, "--distro", distro)
+	must(t, out, err, "skrog enable-gpu")
+	defer run(t, 30*time.Second, s.skrog, "enable-gpu", "--off", "--state-dir", s.stateDir, "--distro", distro)
 
 	// The CDI device must be registered with the engine.
 	info, err := dockerE(t, s, 30*time.Second, "info")
@@ -1033,7 +1033,7 @@ func stageGPU(t *testing.T, s *state) {
 	t.Logf("--gpus all routed to the CDI spec: %s", strings.TrimSpace(out))
 }
 
-// stagePrewarm proves `hawser prewarm` (#149) pulls a pinned list through
+// stagePrewarm proves `skrog prewarm` (#149) pulls a pinned list through
 // whatever docker targets — here the suite's engine via DOCKER_HOST — and
 // reports per-image results. hello-world is already present; alpine:latest is
 // new, and pre-pulling it here is exactly the warm-up the later stages enjoy.
@@ -1042,8 +1042,8 @@ func stagePrewarm(t *testing.T, s *state) {
 	if err := os.WriteFile(list, []byte("# pinned by the suite\nhello-world\nalpine:latest\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	out, err := runEnv(t, s.dockerEnv(), 5*time.Minute, s.hawser, "prewarm", "--json", list)
-	must(t, out, err, "hawser prewarm")
+	out, err := runEnv(t, s.dockerEnv(), 5*time.Minute, s.skrog, "prewarm", "--json", list)
+	must(t, out, err, "skrog prewarm")
 	var res struct {
 		Pulled int `json:"pulled"`
 		Failed int `json:"failed"`
@@ -1061,13 +1061,13 @@ func stagePrewarm(t *testing.T, s *state) {
 	t.Logf("prewarm pulled %d pinned images through the suite's engine", res.Pulled)
 }
 
-// stageRunnerCheck proves `hawser runner check` (#150) evaluates the machine
+// stageRunnerCheck proves `skrog runner check` (#150) evaluates the machine
 // and reports findings in the documented shape, with the exit code agreeing
 // with the verdict. The suite machine is normally not a runner (no auto-logon,
 // and the suite installs with --no-autostart), so the expected verdict is "not
 // ready" — but the assertions hold either way, so a real runner passes too.
 func stageRunnerCheck(t *testing.T, s *state) {
-	out, err := run(t, 60*time.Second, s.hawser, "runner", "--state-dir", s.stateDir, "--json", "check")
+	out, err := run(t, 60*time.Second, s.skrog, "runner", "--state-dir", s.stateDir, "--json", "check")
 	// A non-zero exit is the expected verdict here, not a failure of the command.
 	var res struct {
 		Ready    bool `json:"ready"`
@@ -1097,14 +1097,14 @@ func stageRunnerCheck(t *testing.T, s *state) {
 	t.Logf("runner check: ready=%v, %d findings", res.Ready, len(res.Findings))
 }
 
-// stagePrune proves `hawser prune` (#145) runs against the suite's engine and
+// stagePrune proves `skrog prune` (#145) runs against the suite's engine and
 // reports per-step results. Earlier stages leave stopped containers and
 // dangling layers behind, so there is usually something to reclaim — but the
 // assertion is on shape and success, not a byte count. Tagged images survive
 // (no --all), so later stages keep hello-world and alpine.
 func stagePrune(t *testing.T, s *state) {
-	out, err := runEnv(t, s.dockerEnv(), 3*time.Minute, s.hawser, "prune", "--json", "--build-cache")
-	must(t, out, err, "hawser prune")
+	out, err := runEnv(t, s.dockerEnv(), 3*time.Minute, s.skrog, "prune", "--json", "--build-cache")
+	must(t, out, err, "skrog prune")
 	var res struct {
 		ReclaimedBytes int64 `json:"reclaimedBytes"`
 		Failed         int   `json:"failed"`
@@ -1202,7 +1202,7 @@ func stageSocketMount(t *testing.T, s *state) {
 }
 
 // stageTestcontainers runs the Testcontainers acceptance module (a separate Go
-// module so its dependency tree stays out of hawser's) against the suite's
+// module so its dependency tree stays out of skrog's) against the suite's
 // engine (#144). Testcontainers is the single best proxy for "does this engine
 // behave like Docker Desktop": it maps a published port and polls it from the
 // host, and its Ryuk reaper mounts the engine's own docker socket.
@@ -1315,9 +1315,9 @@ func stageDagger(t *testing.T, s *state) {
 	env := append(s.dockerEnv(), "DOCKER_HOST="+dockerHost, "DAGGER_NO_NAG=1")
 	out, err := runEnv(t, env, 10*time.Minute, bin, "core", "container",
 		"from", "--address=alpine:3.20",
-		"with-exec", "--args=echo,dagger-on-hawser-ok", "stdout")
+		"with-exec", "--args=echo,dagger-on-skrog-ok", "stdout")
 	must(t, out, err, "dagger core container")
-	if !strings.Contains(out, "dagger-on-hawser-ok") {
+	if !strings.Contains(out, "dagger-on-skrog-ok") {
 		t.Errorf("the Dagger pipeline produced no output:\n%s", out)
 	}
 	// Its engine container should be on this engine, not somewhere else.
@@ -1354,7 +1354,7 @@ func stageBuildCache(t *testing.T, s *state) {
 	}
 	cache := filepath.Join(s.workDir, "buildcache")
 
-	const builder = "hawser-e2e-cache"
+	const builder = "skrog-e2e-cache"
 	dockerE(t, s, time.Minute, "buildx", "rm", builder) // best effort
 	if out, err := dockerE(t, s, 5*time.Minute, "buildx", "create", "--name", builder,
 		"--driver", "docker-container"); err != nil {
@@ -1385,7 +1385,7 @@ func stageBuildCache(t *testing.T, s *state) {
 }
 
 // stageKind proves a Kubernetes cluster built out of containers works on this
-// engine, and that a workload in it is reachable from Windows (#153). Hawser
+// engine, and that a workload in it is reachable from Windows (#153). Skrog
 // ships no Kubernetes; running kind is the whole claim, so this is the test
 // that keeps it true.
 //
@@ -1402,7 +1402,7 @@ func stageKind(t *testing.T, s *state) {
 		t.Skip("kubectl not on PATH; install kubectl to exercise this")
 	}
 
-	const cluster = "hawser-e2e"
+	const cluster = "skrog-e2e"
 	const nodePort = "30089"
 	dir := filepath.Join(s.workDir, "kind")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -1683,18 +1683,18 @@ func stageIdle(t *testing.T, s *state) {
 	// The #41 story end to end: configure a short idle timeout, watch the
 	// supervisor stop the quiet engine (status says idle, exit 0 — "stopped
 	// by design" is not an error), then have one docker command wake it.
-	out, err := run(t, 30*time.Second, s.hawser, "config",
+	out, err := run(t, 30*time.Second, s.skrog, "config",
 		"--state-dir", s.stateDir, "set", "idle-timeout", "15s")
-	must(t, out, err, "hawser config set idle-timeout")
+	must(t, out, err, "skrog config set idle-timeout")
 	defer func() {
-		out, err := run(t, 30*time.Second, s.hawser, "config",
+		out, err := run(t, 30*time.Second, s.skrog, "config",
 			"--state-dir", s.stateDir, "set", "idle-timeout", "off")
-		must(t, out, err, "hawser config set idle-timeout off")
+		must(t, out, err, "skrog config set idle-timeout off")
 	}()
 
 	statusJSON := func() (engine string, exit int) {
 		t.Helper()
-		out, err := run(t, 30*time.Second, s.hawser, "status", "--state-dir", s.stateDir, "--json")
+		out, err := run(t, 30*time.Second, s.skrog, "status", "--state-dir", s.stateDir, "--json")
 		if err != nil {
 			return "", 1
 		}
@@ -1732,8 +1732,8 @@ func stageIdle(t *testing.T, s *state) {
 	}
 	t.Log("engine idle-stopped; status reports it as such")
 
-	// `hawser status` must treat idle as healthy: exit 0.
-	if out, err := run(t, 30*time.Second, s.hawser, "status", "--state-dir", s.stateDir); err != nil {
+	// `skrog status` must treat idle as healthy: exit 0.
+	if out, err := run(t, 30*time.Second, s.skrog, "status", "--state-dir", s.stateDir); err != nil {
 		t.Errorf("status exited non-zero on an idle engine (stopped by design is not broken):\n%s", out)
 	}
 
@@ -1742,7 +1742,7 @@ func stageIdle(t *testing.T, s *state) {
 	// poll. Hammer status a few times, give a couple of supervisor ticks a
 	// chance to misbehave, then require the distro to still be Stopped.
 	for i := 0; i < 3; i++ {
-		run(t, 30*time.Second, s.hawser, "status", "--state-dir", s.stateDir, "--json")
+		run(t, 30*time.Second, s.skrog, "status", "--state-dir", s.stateDir, "--json")
 	}
 	time.Sleep(7 * time.Second) // > two supervisor ticks
 	list, _ := run(t, 30*time.Second, "wsl.exe", "--list", "--verbose")
@@ -1774,8 +1774,8 @@ func stageWSLIntegrate(t *testing.T, s *state) {
 	// Never clobber a real integration: if the user's Ubuntu already carries
 	// the profile script, this stage's --remove would delete theirs.
 	if _, err := run(t, 30*time.Second, "wsl.exe", "-d", "Ubuntu",
-		"--", "test", "-f", "/etc/profile.d/hawser.sh"); err == nil {
-		t.Skip("Ubuntu already has a hawser integration; not touching it")
+		"--", "test", "-f", "/etc/profile.d/skrog.sh"); err == nil {
+		t.Skip("Ubuntu already has a skrog integration; not touching it")
 	}
 
 	// The engine's socket must be visible from the OTHER distro — that is
@@ -1800,19 +1800,19 @@ func stageWSLIntegrate(t *testing.T, s *state) {
 		}
 	}
 
-	out, err := run(t, time.Minute, s.hawser, "wsl-integrate", "--state-dir", s.stateDir, "Ubuntu")
-	must(t, out, err, "hawser wsl-integrate Ubuntu")
-	defer run(t, time.Minute, s.hawser, "wsl-integrate", "--state-dir", s.stateDir, "--remove", "Ubuntu")
+	out, err := run(t, time.Minute, s.skrog, "wsl-integrate", "--state-dir", s.stateDir, "Ubuntu")
+	must(t, out, err, "skrog wsl-integrate Ubuntu")
+	defer run(t, time.Minute, s.skrog, "wsl-integrate", "--state-dir", s.stateDir, "--remove", "Ubuntu")
 
 	if out, err := run(t, 30*time.Second, "wsl.exe", "-d", "Ubuntu",
-		"--", "cat", "/etc/profile.d/hawser.sh"); err != nil || !strings.Contains(out, sock) {
+		"--", "cat", "/etc/profile.d/skrog.sh"); err != nil || !strings.Contains(out, sock) {
 		t.Errorf("profile script wrong or missing (%v):\n%s", err, out)
 	}
 
-	out, err = run(t, time.Minute, s.hawser, "wsl-integrate", "--state-dir", s.stateDir, "--remove", "Ubuntu")
-	must(t, out, err, "hawser wsl-integrate --remove")
+	out, err = run(t, time.Minute, s.skrog, "wsl-integrate", "--state-dir", s.stateDir, "--remove", "Ubuntu")
+	must(t, out, err, "skrog wsl-integrate --remove")
 	if _, err := run(t, 30*time.Second, "wsl.exe", "-d", "Ubuntu",
-		"--", "test", "-f", "/etc/profile.d/hawser.sh"); err == nil {
+		"--", "test", "-f", "/etc/profile.d/skrog.sh"); err == nil {
 		t.Error("profile script still present after --remove")
 	}
 }
@@ -1820,15 +1820,15 @@ func stageWSLIntegrate(t *testing.T, s *state) {
 func stageMigrate(t *testing.T, s *state) {
 	// #43 end to end against real Docker Desktop: seed a distinctive image and
 	// a volume with known contents in Desktop, migrate ONLY those into the
-	// Hawser engine (--only keeps this from copying the developer's whole
+	// Skrog engine (--only keeps this from copying the developer's whole
 	// Desktop), and prove they arrived intact while Desktop is untouched.
 	if !s.ddWorkedBefore {
 		t.Skip("Docker Desktop was not serving before the suite; nothing to migrate from")
 	}
 	const (
 		probeImg = "alpine:3.19"
-		probeVol = "hawser-e2e-migrate-probe"
-		marker   = "hawser-e2e-migrate-marker"
+		probeVol = "skrog-e2e-migrate-probe"
+		marker   = "skrog-e2e-migrate-marker"
 	)
 	// Seed Desktop. Cleaned up regardless of outcome.
 	if out, err := s.runDocker(t, 3*time.Minute, "--context", "desktop-linux", "pull", probeImg); err != nil {
@@ -1845,14 +1845,14 @@ func stageMigrate(t *testing.T, s *state) {
 	// Migrate just the probe items into the suite's engine. hostEnv puts
 	// docker's dir on PATH so the credential helper resolves for the pull of
 	// the tar-helper image — the environment a real migrate already has.
-	out, err := runEnv(t, s.hostEnv(), 5*time.Minute, s.hawser, "migrate", "--from-desktop",
+	out, err := runEnv(t, s.hostEnv(), 5*time.Minute, s.skrog, "migrate", "--from-desktop",
 		"--only", probeImg, "--only", probeVol, "--state-dir", s.stateDir,
 		"--docker", s.docker, "--docker-host", dockerHost)
-	must(t, out, err, "hawser migrate")
+	must(t, out, err, "skrog migrate")
 
 	// Image arrived.
 	if got, err := dockerE(t, s, time.Minute, "images", probeImg, "--format", "{{.Repository}}:{{.Tag}}"); err != nil || got == "" {
-		t.Errorf("migrated image not on the Hawser engine: %q (%v)", got, err)
+		t.Errorf("migrated image not on the Skrog engine: %q (%v)", got, err)
 	}
 	// Volume arrived with its contents intact — the real proof, not just presence.
 	got, err := dockerE(t, s, time.Minute, "run", "--rm", "-v", probeVol+":/d", probeImg, "cat", "/d/marker.txt")
@@ -1867,10 +1867,10 @@ func stageMigrate(t *testing.T, s *state) {
 	}
 
 	// Re-running is a no-op (everything already present), and idempotent.
-	out, err = run(t, 2*time.Minute, s.hawser, "migrate", "--from-desktop",
+	out, err = run(t, 2*time.Minute, s.skrog, "migrate", "--from-desktop",
 		"--only", probeImg, "--only", probeVol, "--state-dir", s.stateDir,
 		"--docker", s.docker, "--docker-host", dockerHost)
-	must(t, out, err, "hawser migrate (second run)")
+	must(t, out, err, "skrog migrate (second run)")
 	if !strings.Contains(out, "Nothing to migrate") {
 		t.Errorf("second migrate should be a no-op, got:\n%s", out)
 	}
@@ -1916,7 +1916,7 @@ func stageInterrupt(t *testing.T, s *state) {
 
 func stageVsockServed(t *testing.T, s *state) {
 	// The suite installed from the published release, so this asserts the
-	// shipping artifact chain end to end: the rootfs carries hawser-agent,
+	// shipping artifact chain end to end: the rootfs carries skrog-agent,
 	// the proxy's vsock dialer reached it, and no connection needed the socat
 	// fallback. The fallback logs one edge-triggered warning the moment it is
 	// first used; its absence over a suite's worth of traffic means the fast
@@ -1926,7 +1926,7 @@ func stageVsockServed(t *testing.T, s *state) {
 		t.Fatalf("reading proxy log: %v", err)
 	}
 	if strings.Contains(string(logBytes), "fallback transport") {
-		t.Error("proxy degraded to the socat fallback; the published rootfs should carry a reachable hawser-agent")
+		t.Error("proxy degraded to the socat fallback; the published rootfs should carry a reachable skrog-agent")
 	}
 }
 
@@ -1940,8 +1940,8 @@ func stageUninstall(t *testing.T, s *state) {
 		s.proxyLog.Close()
 	}
 
-	out, err := run(t, 5*time.Minute, s.hawser, "uninstall", "--state-dir", s.stateDir, "--yes")
-	must(t, out, err, "hawser uninstall")
+	out, err := run(t, 5*time.Minute, s.skrog, "uninstall", "--state-dir", s.stateDir, "--yes")
+	must(t, out, err, "skrog uninstall")
 }
 
 func stageClean(t *testing.T, s *state) {
@@ -1957,16 +1957,16 @@ func stageClean(t *testing.T, s *state) {
 	}
 
 	// The machine's own docker context must be exactly where the suite found
-	// it. This is not tidiness: the `hawser` context is one global object
+	// it. This is not tidiness: the `skrog` context is one global object
 	// shared with any real install, so a suite that took it and did not hand
-	// it back left the developer with a broken `docker --context hawser` and
+	// it back left the developer with a broken `docker --context skrog` and
 	// no clue why (#217). An empty baseline is just as much of an assertion —
 	// a suite that installs and uninstalls must leave no context behind
 	// either.
-	if after := hawserContextEndpoint(t, s); after != s.hawserCtxBefore {
-		t.Errorf("the machine's `hawser` docker context changed: before=%q after=%q\n"+
+	if after := skrogContextEndpoint(t, s); after != s.skrogCtxBefore {
+		t.Errorf("the machine's `skrog` docker context changed: before=%q after=%q\n"+
 			"the suite must hand back a context it took from another install",
-			s.hawserCtxBefore, after)
+			s.skrogCtxBefore, after)
 	}
 
 	// The bounded #35 leak means "returns to baseline" cannot be asserted yet;
@@ -2002,8 +2002,8 @@ func forceCleanup(s *state) {
 	if s.proxyLog != nil {
 		s.proxyLog.Close()
 	}
-	if s.hawser != "" && s.stateDir != "" {
-		exec.Command(s.hawser, "uninstall", "--state-dir", s.stateDir, "--yes").Run()
+	if s.skrog != "" && s.stateDir != "" {
+		exec.Command(s.skrog, "uninstall", "--state-dir", s.stateDir, "--yes").Run()
 	}
 	exec.Command("wsl.exe", "--unregister", distro).Run()
 }
@@ -2107,9 +2107,9 @@ func stageAuditToggle(t *testing.T, s *state) {
 	}
 	setAudit := func(v string) {
 		t.Helper()
-		out, err := run(t, 30*time.Second, s.hawser, "config",
+		out, err := run(t, 30*time.Second, s.skrog, "config",
 			"--state-dir", s.stateDir, "set", "audit", v)
-		must(t, out, err, "hawser config set audit "+v)
+		must(t, out, err, "skrog config set audit "+v)
 	}
 	// One container-affecting call, which the log must either gain or ignore.
 	touchEngine := func() {
@@ -2148,21 +2148,21 @@ func stageAuditToggle(t *testing.T, s *state) {
 	}
 
 	// And the new records are real events, not a truncated or corrupted file.
-	out, err := run(t, 30*time.Second, s.hawser, "audit", "--state-dir", s.stateDir, "tail", "-n", "5")
+	out, err := run(t, 30*time.Second, s.skrog, "audit", "--state-dir", s.stateDir, "tail", "-n", "5")
 	must(t, out, err, "audit tail after re-enabling")
 	if !strings.Contains(out, "container-create") {
 		t.Errorf("no container-create after re-enabling the audit log:\n%s", out)
 	}
 }
 
-// stageSupervisorRestart covers `hawser restart --supervisor` (#202): before
+// stageSupervisorRestart covers `skrog restart --supervisor` (#202): before
 // it, the only way to recycle the supervisor was to kill the process by hand,
 // which is not a documented action and not something a user should have to
 // discover.
 func stageSupervisorRestart(t *testing.T, s *state) {
 	supervisorRunning := func() bool {
 		t.Helper()
-		out, err := run(t, 30*time.Second, s.hawser, "status", "--state-dir", s.stateDir, "--json")
+		out, err := run(t, 30*time.Second, s.skrog, "status", "--state-dir", s.stateDir, "--json")
 		if err != nil {
 			return false
 		}
@@ -2180,11 +2180,11 @@ func stageSupervisorRestart(t *testing.T, s *state) {
 		t.Fatal("no supervisor running before the restart test")
 	}
 
-	out, err := run(t, 5*time.Minute, s.hawser, "restart", "--state-dir", s.stateDir, "--supervisor")
-	must(t, out, err, "hawser restart --supervisor")
+	out, err := run(t, 5*time.Minute, s.skrog, "restart", "--state-dir", s.stateDir, "--supervisor")
+	must(t, out, err, "skrog restart --supervisor")
 
 	if !supervisorRunning() {
-		t.Fatal("no supervisor running after `hawser restart --supervisor`")
+		t.Fatal("no supervisor running after `skrog restart --supervisor`")
 	}
 	// The point of recycling it is that the bridge comes back with it: a
 	// supervisor that exited and left no replacement would fail every docker
@@ -2199,7 +2199,7 @@ func stageSupervisorRestart(t *testing.T, s *state) {
 	}
 }
 
-// stageUpgradeCheck covers `hawser upgrade` (#191) against a fresh install:
+// stageUpgradeCheck covers `skrog upgrade` (#191) against a fresh install:
 // the engine it just installed is by definition the newest this build can
 // reach, so the check must say so and the plan must be empty.
 //
@@ -2207,8 +2207,8 @@ func stageSupervisorRestart(t *testing.T, s *state) {
 // engine rather than here, because making this stage install an old engine
 // first would add minutes to every run for one assertion.
 func stageUpgradeCheck(t *testing.T, s *state) {
-	out, err := run(t, 2*time.Minute, s.hawser, "upgrade", "--state-dir", s.stateDir, "--json")
-	must(t, out, err, "hawser upgrade --json")
+	out, err := run(t, 2*time.Minute, s.skrog, "upgrade", "--state-dir", s.stateDir, "--json")
+	must(t, out, err, "skrog upgrade --json")
 
 	var rep struct {
 		Streams []struct {
@@ -2240,8 +2240,8 @@ func stageUpgradeCheck(t *testing.T, s *state) {
 
 	// --offline must still answer for the engine, because the manifest is
 	// compiled in — and must not claim the app is current when it did not look.
-	out, err = run(t, 30*time.Second, s.hawser, "upgrade", "--state-dir", s.stateDir, "--offline", "--json")
-	must(t, out, err, "hawser upgrade --offline --json")
+	out, err = run(t, 30*time.Second, s.skrog, "upgrade", "--state-dir", s.stateDir, "--offline", "--json")
+	must(t, out, err, "skrog upgrade --offline --json")
 	if !strings.Contains(out, `"offline": true`) {
 		t.Errorf("--offline did not report itself as offline:\n%s", out)
 	}
@@ -2264,22 +2264,22 @@ func stageUpgradeCheck(t *testing.T, s *state) {
 	}
 
 	// A dry run on an up-to-date install has nothing to say and must exit 0.
-	out, err = run(t, 30*time.Second, s.hawser, "upgrade", "--state-dir", s.stateDir, "--dry-run")
-	must(t, out, err, "hawser upgrade --dry-run")
+	out, err = run(t, 30*time.Second, s.skrog, "upgrade", "--state-dir", s.stateDir, "--dry-run")
+	must(t, out, err, "skrog upgrade --dry-run")
 	if strings.Contains(out, "would run:") {
 		t.Errorf("a dry run proposed work on a current install:\n%s", out)
 	}
 }
 
-// hawserContextEndpoint reports where the machine's shared `hawser` docker
+// skrogContextEndpoint reports where the machine's shared `skrog` docker
 // context points, or "" when there is no such context.
 //
 // Deliberately tolerant: a missing context, a docker CLI that cannot run, and
 // an empty answer are all "", because the assertion this feeds is "unchanged",
 // and every one of those states compares correctly against itself.
-func hawserContextEndpoint(t *testing.T, s *state) string {
+func skrogContextEndpoint(t *testing.T, s *state) string {
 	t.Helper()
-	out, err := s.runDocker(t, 30*time.Second, "context", "inspect", "hawser",
+	out, err := s.runDocker(t, 30*time.Second, "context", "inspect", "skrog",
 		"--format", "{{.Endpoints.docker.Host}}")
 	if err != nil {
 		return ""

@@ -5,7 +5,7 @@ stock `docker.exe` through a named pipe relayed over `wsl.exe` stdio. **Nothing 
 product code** — it exists to produce the measurements listed at the bottom, recorded in
 issue #2, then `99-cleanup.ps1` erases all trace.
 
-Pins: Alpine minirootfs **3.24.1** · Docker static **29.7.2** · pipe `\\.\pipe\hawser_spike`
+Pins: Alpine minirootfs **3.24.1** · Docker static **29.7.2** · pipe `\\.\pipe\skrog_spike`
 (never `docker_engine` — Docker Desktop owns that here, and coexistence is part of the test).
 
 ## Prerequisites
@@ -18,7 +18,7 @@ Pins: Alpine minirootfs **3.24.1** · Docker static **29.7.2** · pipe `\\.\pipe
 
 ```powershell
 .\01-fetch.ps1        # download + verify alpine rootfs, download docker static tgz
-.\02-import.ps1       # wsl --import hawser-spike, run 03-setup.sh inside it
+.\02-import.ps1       # wsl --import skrog-spike, run 03-setup.sh inside it
 .\04-start-engine.ps1 # start dockerd (hidden), wait for the socket
 cd relay; go mod tidy; go build; .\relay.exe   # leave running in this terminal
 # new terminal:

@@ -1,7 +1,7 @@
 # Remote engine over mutual TLS
 
-By default Hawser's engine is reachable only from the host it runs on, through a
-Windows named pipe — nothing listens on the network. `hawser serve` opens a
+By default Skrog's engine is reachable only from the host it runs on, through a
+Windows named pipe — nothing listens on the network. `skrog serve` opens a
 second door: a TCP listener protected by **mutual TLS**, so a teammate, a second
 machine, or a CI runner can point a stock `docker` client at your engine.
 
@@ -11,13 +11,13 @@ holding a certificate signed by *this machine's* CA can connect — the engine i
 never open to the network at large, even while the port is listening.
 
 ```
-hawser serve cert --host my-desktop.corp        # once: mint the certificates
-hawser serve --tcp 0.0.0.0:2376                 # run the server (foreground)
+skrog serve cert --host my-desktop.corp        # once: mint the certificates
+skrog serve --tcp 0.0.0.0:2376                 # run the server (foreground)
 ```
 
 ## Minting the certificates
 
-`hawser serve cert` writes three things into `tls/` under the state dir:
+`skrog serve cert` writes three things into `tls/` under the state dir:
 
 - **`ca.pem` / `ca-key.pem`** — a private certificate authority. Generated once
   and **reused** on later runs, so certificates you have already handed out keep
@@ -28,7 +28,7 @@ hawser serve --tcp 0.0.0.0:2376                 # run the server (foreground)
   other name or address a client will dial with `--host` (repeatable):
 
   ```
-  hawser serve cert --host my-desktop.corp --host 10.1.2.3
+  skrog serve cert --host my-desktop.corp --host 10.1.2.3
   ```
 - **`client.pem` / `client-key.pem`** — the certificate you give to whoever
   connects. Name it with `--client <name>` (the certificate's CN) to tell clients
@@ -41,19 +41,19 @@ signed client certificate can reach the engine.
 ## Running the server
 
 ```
-hawser serve --tcp 0.0.0.0:2376
+skrog serve --tcp 0.0.0.0:2376
 ```
 
 Runs in the foreground and relays to the engine through the same bind-path
 rewriting the local pipe uses, so remote `docker run -v` behaves as it does
 locally. Stop it with Ctrl-C.
 
-The engine must be running (`hawser start`). Because a remote client has no way
+The engine must be running (`skrog start`). Because a remote client has no way
 to wake a stopped engine, pair remote serving with the idle timeout off (its
 default):
 
 ```
-hawser config set idle-timeout off
+skrog config set idle-timeout off
 ```
 
 `2376` is the IANA port for the Docker TLS endpoint. Bind `0.0.0.0` to accept
@@ -65,27 +65,27 @@ Copy `ca.pem`, `client.pem`, and `client-key.pem` to the client machine, into a
 directory of their own, then register the remote — one command:
 
 ```
-hawser remote --host tcp://my-desktop.corp:2376 --certs C:\path\to\certs add desktop
-hawser remote test desktop          # engine version + round-trip time
-hawser remote use desktop           # plain `docker` now targets the remote
-hawser remote use local             # ...and back to the local engine
+skrog remote --host tcp://my-desktop.corp:2376 --certs C:\path\to\certs add desktop
+skrog remote test desktop          # engine version + round-trip time
+skrog remote use desktop           # plain `docker` now targets the remote
+skrog remote use local             # ...and back to the local engine
 ```
 
 `add` validates the certificates (a wrong file fails here, not on first
-connect), copies them under Hawser's state dir with the key at 0600, and creates
-a docker context named **`hawser-desktop`** carrying the TLS material. Because
+connect), copies them under Skrog's state dir with the key at 0600, and creates
+a docker context named **`skrog-desktop`** carrying the TLS material. Because
 it is a real docker context, **anything that follows the docker context follows
 the remote** — `docker compose`, and VS Code Dev Containers: "Reopen in
-Container" builds and runs on the remote engine. `hawser remote` lists remotes
-and which one docker is on; `hawser doctor` reports `remote:desktop` and warns
-two weeks before the client certificate expires. `hawser remote remove desktop`
+Container" builds and runs on the remote engine. `skrog remote` lists remotes
+and which one docker is on; `skrog doctor` reports `remote:desktop` and warns
+two weeks before the client certificate expires. `skrog remote remove desktop`
 removes the context and the copied material.
 
-Both certificate layouts are accepted: what `hawser serve cert` writes
+Both certificate layouts are accepted: what `skrog serve cert` writes
 (`ca.pem`, `client.pem`, `client-key.pem`) and docker's own
 (`ca.pem`, `cert.pem`, `key.pem`).
 
-### Without `hawser remote`
+### Without `skrog remote`
 
 Any docker client can reach the engine with the standard TLS variables, if you
 prefer to wire them yourself. `DOCKER_CERT_PATH` expects **`ca.pem`, `cert.pem`,
@@ -107,12 +107,12 @@ docker --tlsverify --tlscacert ca.pem --tlscert client.pem --tlskey client-key.p
 
 ## Security notes
 
-- **Off by default.** Nothing listens on TCP until you run `hawser serve`, and it
+- **Off by default.** Nothing listens on TCP until you run `skrog serve`, and it
   runs only while that command is in the foreground.
 - **No elevation.** Certificates are generated with Go's `crypto/x509`; the
   listener binds an unprivileged high port. Opening the port through the Windows
   firewall to other machines is the one step that may prompt for elevation, and
-  that is Windows' firewall, not Hawser.
+  that is Windows' firewall, not Skrog.
 - **Mutual TLS, not a password.** There are no plaintext secrets. Access is
   revoked by rotating the CA (invalidating all clients) — per-client revocation
   lists are not implemented; mint clients narrowly and rotate when someone leaves.

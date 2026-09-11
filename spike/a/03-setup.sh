@@ -1,5 +1,5 @@
 #!/bin/sh
-# Spike A step 3 (runs INSIDE the hawser-spike distro, as root, invoked by 02-import.ps1).
+# Spike A step 3 (runs INSIDE the skrog-spike distro, as root, invoked by 02-import.ps1).
 # $1 = /mnt/... path to docker-29.7.2.tgz
 set -eu
 TGZ="$1"

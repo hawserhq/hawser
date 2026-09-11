@@ -25,11 +25,11 @@ out="${1:?usage: boot-test.sh <out-dir>}"
 . "$here/versions.env"
 rootfs_version="${ENGINE_VERSION}-${ROOTFS_REVISION}"
 
-tarball="$out/hawser-rootfs-${rootfs_version}.tar.gz"
+tarball="$out/skrog-rootfs-${rootfs_version}.tar.gz"
 test -f "$tarball" || { echo "missing $tarball"; exit 1; }
 
-image="hawser-boot-test:${ENGINE_VERSION}"
-name="hawser-boot-test-$$"
+image="skrog-boot-test:${ENGINE_VERSION}"
+name="skrog-boot-test-$$"
 cleanup() {
     docker rm -f "$name" >/dev/null 2>&1 || true
     docker rmi -f "$image" >/dev/null 2>&1 || true

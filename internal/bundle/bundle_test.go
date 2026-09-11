@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/lockfile"
+	"github.com/wslkit/skrog/internal/lockfile"
 )
 
 func writeFakeRootfs(t *testing.T, dir string) (path, sha string) {
@@ -78,7 +78,7 @@ func TestCreateRejectsInvalidLock(t *testing.T) {
 
 func TestOpenRejectsNonBundle(t *testing.T) {
 	dir := t.TempDir()
-	// A zip with no hawser.lock: reuse Create's output but tamper is overkill;
+	// A zip with no skrog.lock: reuse Create's output but tamper is overkill;
 	// a plain non-zip file exercises the open-error path.
 	junk := filepath.Join(dir, "not.zip")
 	os.WriteFile(junk, []byte("not a zip"), 0o644)

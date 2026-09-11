@@ -1,8 +1,8 @@
 // Package release exposes the locked version manifest compiled into the binary.
 //
 // PLAN §04: nothing is fetched as "latest at install time". The manifest ships
-// inside the executable, so a given Hawser build installs exactly the
-// components it was tested with, and `hawser install` on a CI runner in six
+// inside the executable, so a given Skrog build installs exactly the
+// components it was tested with, and `skrog install` on a CI runner in six
 // months produces the same engine it produces today. That determinism is a
 // direct anti-feature of Docker Desktop's auto-updating, and the reason the
 // manifest is embedded rather than downloaded.
@@ -53,7 +53,7 @@ type ErrNotPublished struct{ Version string }
 func (e *ErrNotPublished) Error() string {
 	return fmt.Sprintf("engine %s has no published rootfs checksum in this build's manifest.\n"+
 		"This happens in a development build before the rootfs release is cut. Either:\n"+
-		"  - install a release build of hawser, or\n"+
+		"  - install a release build of skrog, or\n"+
 		"  - build the rootfs yourself (guest/rootfs/build.sh) and pass\n"+
 		"    --rootfs-url file:///... together with --rootfs-sha256 <digest>",
 		e.Version)

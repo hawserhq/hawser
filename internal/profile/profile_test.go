@@ -3,7 +3,7 @@ package profile
 import (
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/hawserfile"
+	"github.com/wslkit/skrog/internal/skrogfile"
 )
 
 func TestValidName(t *testing.T) {
@@ -23,7 +23,7 @@ func TestValidName(t *testing.T) {
 
 func TestSaveLoadRoundTripKeepsOnlySettings(t *testing.T) {
 	m := &Manager{StateDir: t.TempDir()}
-	in := hawserfile.File{
+	in := skrogfile.File{
 		Distro:        "should-be-dropped",
 		EngineVersion: "should-be-dropped",
 		IdleTimeout:   "20m",
@@ -51,7 +51,7 @@ func TestListAndExists(t *testing.T) {
 		t.Fatalf("empty manager should list nothing, got %v", names)
 	}
 	for _, n := range []string{"home", "work", "corp"} {
-		if err := m.Save(n, hawserfile.File{IdleTimeout: "off"}); err != nil {
+		if err := m.Save(n, skrogfile.File{IdleTimeout: "off"}); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -72,7 +72,7 @@ func TestActiveLifecycle(t *testing.T) {
 	if m.Active() != "" {
 		t.Fatal("no active profile initially")
 	}
-	m.Save("work", hawserfile.File{IdleTimeout: "off"})
+	m.Save("work", skrogfile.File{IdleTimeout: "off"})
 	if err := m.SetActive("work"); err != nil {
 		t.Fatal(err)
 	}

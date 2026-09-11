@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/logging"
+	"github.com/wslkit/skrog/internal/logging"
 )
 
 func TestRotatesAtCap(t *testing.T) {

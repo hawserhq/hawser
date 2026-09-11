@@ -3,7 +3,7 @@
 # failure can be attributed to session 0 rather than to the environment.
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
-$distro = 'hawser-spike-b'
+$distro = 'skrog-spike-b'
 
 function Assert-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -54,7 +54,7 @@ go build -o probe.exe .
 if ($LASTEXITCODE -ne 0) { Pop-Location; throw "probe build failed" }
 Pop-Location
 
-$env:HAWSER_SPIKE_DISTRO = $distro
+$env:SKROG_SPIKE_DISTRO = $distro
 & (Join-Path $here 'agent\probe.exe')
 
 Write-Host "`nBaseline recorded. Every check below should be OK before continuing:" -ForegroundColor Cyan

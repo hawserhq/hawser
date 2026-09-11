@@ -1,9 +1,9 @@
-// Package dockerctx manages the `hawser` docker context.
+// Package dockerctx manages the `skrog` docker context.
 //
 // Contexts are created through the docker CLI rather than by writing
 // ~/.docker/contexts metadata directly. That on-disk layout is an
 // implementation detail Docker has changed before, and hand-writing it would
-// make Hawser the thing that breaks when it changes again. Shelling out costs a
+// make Skrog the thing that breaks when it changes again. Shelling out costs a
 // process and buys forward compatibility.
 package dockerctx
 
@@ -15,15 +15,15 @@ import (
 	"strings"
 )
 
-// Name is the context Hawser creates.
-const Name = "hawser"
+// Name is the context Skrog creates.
+const Name = "skrog"
 
 // Runner executes the docker CLI. Injectable so tests need no docker binary.
 type Runner interface {
 	Run(ctx context.Context, name string, args ...string) ([]byte, error)
 }
 
-// Manager creates, selects and removes the Hawser context.
+// Manager creates, selects and removes the Skrog context.
 type Manager struct {
 	// Docker is the docker executable to drive. Empty resolves through PATH.
 	Docker string
@@ -87,7 +87,7 @@ func (m *Manager) Available(ctx context.Context) error {
 	return nil
 }
 
-// Exists reports whether the Hawser context is already defined.
+// Exists reports whether the Skrog context is already defined.
 func (m *Manager) Exists(ctx context.Context) (bool, error) {
 	out, err := m.run(ctx, "context", "ls", "--format", "{{.Name}}")
 	if err != nil {
@@ -101,7 +101,7 @@ func (m *Manager) Exists(ctx context.Context) (bool, error) {
 	return false, nil
 }
 
-// Endpoint returns the docker host the Hawser context points at.
+// Endpoint returns the docker host the Skrog context points at.
 func (m *Manager) Endpoint(ctx context.Context) (string, error) {
 	out, err := m.run(ctx, "context", "inspect", Name,
 		"--format", "{{.Endpoints.docker.Host}}")
@@ -111,9 +111,9 @@ func (m *Manager) Endpoint(ctx context.Context) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
-// Ensure creates the Hawser context, or updates it when the endpoint has moved.
+// Ensure creates the Skrog context, or updates it when the endpoint has moved.
 //
-// The endpoint does move: Hawser serves the default pipe when it is free and its
+// The endpoint does move: Skrog serves the default pipe when it is free and its
 // own pipe when Docker Desktop holds it, so installing Desktop later changes
 // which pipe is correct. Updating rather than recreating keeps the user's
 // selection intact.
@@ -132,7 +132,7 @@ func (m *Manager) Ensure(ctx context.Context, dockerHost string) error {
 
 	if !exists {
 		_, err := m.run(ctx, "context", "create", Name,
-			"--description", "Hawser engine (WSL2)",
+			"--description", "Skrog engine (WSL2)",
 			"--docker", "host="+dockerHost)
 		return err
 	}
@@ -148,7 +148,7 @@ func (m *Manager) Ensure(ctx context.Context, dockerHost string) error {
 	return err
 }
 
-// Use selects the Hawser context as the default.
+// Use selects the Skrog context as the default.
 func (m *Manager) Use(ctx context.Context) error {
 	_, err := m.run(ctx, "context", "use", Name)
 	return err
@@ -163,7 +163,7 @@ func (m *Manager) Current(ctx context.Context) (string, error) {
 	return strings.TrimSpace(out), nil
 }
 
-// Remove deletes the Hawser context, restoring a previous selection first.
+// Remove deletes the Skrog context, restoring a previous selection first.
 //
 // Switching away is required rather than tidy: docker refuses to remove the
 // context in use, and leaving the user pointed at a context that no longer
@@ -192,7 +192,7 @@ func (m *Manager) Remove(ctx context.Context, restoreTo string) error {
 }
 
 // The remote-engine contexts (#138): the same operations for an arbitrary
-// context name, so `hawser remote` can back hawser-<name> with TLS material.
+// context name, so `skrog remote` can back skrog-<name> with TLS material.
 
 // ExistsNamed reports whether a context is defined.
 func (m *Manager) ExistsNamed(ctx context.Context, name string) (bool, error) {

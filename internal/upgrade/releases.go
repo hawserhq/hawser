@@ -10,11 +10,11 @@ import (
 )
 
 // DefaultReleasesURL is the one endpoint this package ever contacts.
-const DefaultReleasesURL = "https://api.github.com/repos/hawserhq/hawser/releases?per_page=30"
+const DefaultReleasesURL = "https://api.github.com/repos/wslkit/skrog/releases?per_page=30"
 
 // GitHubReleases reads the newest published app release from the GitHub API.
 //
-// It is the only network access in `hawser upgrade`, it happens only when a
+// It is the only network access in `skrog upgrade`, it happens only when a
 // user runs the command, and it sends nothing but the request itself — no
 // machine identifier, no version, no telemetry. The server learns an IP made
 // a request, which is what any download would tell it anyway.
@@ -53,7 +53,7 @@ type release struct {
 // app (v0.3.0) and the engine rootfs (rootfs-v29.8.0-1). Filtering to the
 // app's shape matters more than it looks — the rootfs versions are numerically
 // far higher, so taking the newest release of any kind would report that
-// hawser 0.3.0 should upgrade to 29.8.0.
+// skrog 0.3.0 should upgrade to 29.8.0.
 //
 // Pre-releases count. Every release so far is one, and a check that ignored
 // them would tell every user they are current forever.
@@ -63,7 +63,7 @@ func (g *GitHubReleases) LatestApp(ctx context.Context) (string, error) {
 		return "", err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "hawser")
+	req.Header.Set("User-Agent", "skrog")
 
 	resp, err := g.client().Do(req)
 	if err != nil {

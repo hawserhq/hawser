@@ -5,7 +5,7 @@
 # off, leave the service running, and read the heartbeat afterwards.
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
-$svc = 'HawserSpikeB'
+$svc = 'SkrogSpikeB'
 
 $s = Get-Service $svc -ErrorAction SilentlyContinue
 if (-not $s) { throw "no $svc service - run 02 or 03 first" }
@@ -16,7 +16,7 @@ if ($s.Status -ne 'Running') { throw "$svc is $($s.Status); start it before logg
 sc.exe config $svc start= auto | Out-Null
 Write-Host "$svc set to automatic start (survives reboot)" -ForegroundColor Green
 
-$marker = 'C:\ProgramData\hawser-spike-b\nologin-start.txt'
+$marker = 'C:\ProgramData\skrog-spike-b\nologin-start.txt'
 (Get-Date).ToString('o') | Set-Content $marker
 
 Write-Host @"

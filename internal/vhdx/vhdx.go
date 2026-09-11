@@ -11,7 +11,7 @@
 // Doing only the first leaves the file the same size. Doing only the second
 // reclaims almost nothing, because the disk was never told anything was free.
 //
-// The mechanics here follow the research in hawserhq/wsldisk (docs/COMPACT.md
+// The mechanics here follow the research in wslkit/wsldisk (docs/COMPACT.md
 // and RESEARCH.md), which established the two facts this package depends on:
 // CompactVirtualDisk on an *unattached* disk needs no administrator rights --
 // so this works on Windows Home, where Optimize-VHD does not exist -- and the

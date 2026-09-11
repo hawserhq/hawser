@@ -16,7 +16,7 @@ import (
 func useScratchKey(t *testing.T) {
 	t.Helper()
 	orig := runKeyPath
-	runKeyPath = `Software\HawserTest\Run`
+	runKeyPath = `Software\SkrogTest\Run`
 
 	// The scratch key must exist for OpenKey(SET_VALUE) to succeed.
 	k, _, err := registry.CreateKey(registry.CURRENT_USER, runKeyPath, registry.ALL_ACCESS)
@@ -27,21 +27,21 @@ func useScratchKey(t *testing.T) {
 
 	t.Cleanup(func() {
 		registry.DeleteKey(registry.CURRENT_USER, runKeyPath)
-		registry.DeleteKey(registry.CURRENT_USER, `Software\HawserTest`)
+		registry.DeleteKey(registry.CURRENT_USER, `Software\SkrogTest`)
 		runKeyPath = orig
 	})
 }
 
-// fakeInstall lays out hawser.exe + hawserw.exe in a temp dir.
+// fakeInstall lays out skrog.exe + skrogw.exe in a temp dir.
 func fakeInstall(t *testing.T, withLauncher bool) string {
 	t.Helper()
 	dir := t.TempDir()
-	exe := filepath.Join(dir, "hawser.exe")
+	exe := filepath.Join(dir, "skrog.exe")
 	if err := os.WriteFile(exe, []byte("stub"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	if withLauncher {
-		if err := os.WriteFile(filepath.Join(dir, "hawserw.exe"), []byte("stub"), 0o755); err != nil {
+		if err := os.WriteFile(filepath.Join(dir, "skrogw.exe"), []byte("stub"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -63,7 +63,7 @@ func TestEnableStatusDisableRoundTrip(t *testing.T) {
 	if !enabled {
 		t.Fatal("not enabled after Enable")
 	}
-	if !strings.Contains(cmd, "hawserw.exe") {
+	if !strings.Contains(cmd, "skrogw.exe") {
 		t.Errorf("registered command %q must run the windowless launcher, not the console binary", cmd)
 	}
 	if !strings.HasPrefix(cmd, `"`) {
@@ -84,9 +84,9 @@ func TestEnableRefusesWithoutLauncher(t *testing.T) {
 
 	err := Enable(exe)
 	if err == nil {
-		t.Fatal("Enable succeeded without hawserw.exe; a console binary at logon flashes a window")
+		t.Fatal("Enable succeeded without skrogw.exe; a console binary at logon flashes a window")
 	}
-	if !strings.Contains(err.Error(), "hawserw.exe") {
+	if !strings.Contains(err.Error(), "skrogw.exe") {
 		t.Errorf("error should name the missing launcher: %v", err)
 	}
 	if enabled, _, _ := Status(); enabled {

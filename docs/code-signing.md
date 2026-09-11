@@ -1,13 +1,13 @@
 # Code signing policy
 
 This page exists because the SignPath Foundation requires projects it sponsors
-to publish one, and because anyone installing a binary that claims to be Hawser
+to publish one, and because anyone installing a binary that claims to be Skrog
 deserves to know who can make one.
 
 > **Status: accepted, Authenticode not yet in effect.** The roles and the
-> CI-only signing below are settled. Hawser's binaries are **not
+> CI-only signing below are settled. Skrog's binaries are **not
 > Authenticode-signed**, because the application to the SignPath Foundation is
-> still open ([#77](https://github.com/hawserhq/hawser/issues/77)) — so
+> still open ([#77](https://github.com/wslkit/skrog/issues/77)) — so
 > SmartScreen still warns.
 >
 > What *is* in effect, from **v0.3.1**: every release artifact carries SLSA
@@ -32,7 +32,7 @@ produces a signed binary.
 | **Reviewers** | [@zcsizmadia](https://github.com/zcsizmadia) | review and merge external contributions |
 | **Approvers** | [@zcsizmadia](https://github.com/zcsizmadia) | approve an individual signing request |
 
-Hawser has one maintainer, so all three are currently the same person. Stating
+Skrog has one maintainer, so all three are currently the same person. Stating
 that plainly is the point: the separation is a real control only when the roles
 are held by different people, and claiming otherwise would misrepresent what
 the signature attests to. As the project gains maintainers, the Reviewer and
@@ -51,13 +51,13 @@ GitHub and SignPath.
 
 ## What is signed
 
-The Windows executables in a release: `hawser.exe`, `hawserw.exe` and
-`hawsertray.exe`.
+The Windows executables in a release: `skrog.exe`, `skrogw.exe` and
+`skrogtray.exe`.
 
 The engine rootfs is **not** covered by this certificate. It is a Linux tarball
 and is protected differently, and more strongly: pinned by SHA-256 in the
 manifest compiled into the binary, verified before import, and separately
-signed with [Sigstore/cosign](security.md). `hawser config set
+signed with [Sigstore/cosign](security.md). `skrog config set
 install.verify-signature on` enforces that signature at install time.
 
 ## How a signed build is produced
@@ -71,31 +71,31 @@ touched a laptop is a key whose custody cannot be described. Concretely:
 4. The signing request is submitted to SignPath and waits for **manual approval**
 5. Signed artifacts are published, with `SHA256SUMS` alongside
 
-The consequence worth stating: a signed Hawser binary is reproducible only
+The consequence worth stating: a signed Skrog binary is reproducible only
 through that pipeline, not from a local `go build`. The source is identical;
 the signature is not something a local build can produce.
 
 That is not a change SignPath introduces. The release already signs
 `SHA256SUMS` with **cosign keyless**, whose identity is a GitHub Actions OIDC
 token — an identity that exists nowhere but inside a workflow run. CI has
-therefore always been the only thing able to produce an official Hawser
+therefore always been the only thing able to produce an official Skrog
 release. SignPath adds an Authenticode signature to a pipeline that was
 already the sole source of signed artifacts.
 
 ## Data handling
 
-Hawser collects nothing. There is no telemetry, no analytics, no crash
+Skrog collects nothing. There is no telemetry, no analytics, no crash
 reporting, no phone-home, and no identifier of any kind is transmitted at any
 point — including by the signing process, which operates on artifacts in CI and
 never on a user's machine.
 
-The single outbound request the product makes is `hawser upgrade`'s query to
+The single outbound request the product makes is `skrog upgrade`'s query to
 the GitHub releases API, which happens only when a user runs that command and
 sends nothing but the request itself. `--offline` skips it. See
 [staying current](upgrading.md) and the [security model](security.md).
 
 SignPath receives the build artifacts and the repository metadata needed to
-verify them. It receives nothing about anyone who installs or runs Hawser,
+verify them. It receives nothing about anyone who installs or runs Skrog,
 because nothing about them exists to send.
 
 ## What the programme constrains
@@ -119,7 +119,7 @@ and it works on every release, including the ones that predate provenance:
 
 ```powershell
 # Download the zip and SHA256SUMS from the release page, then:
-(Get-FileHash .\hawser_0.3.1_windows_amd64.zip -Algorithm SHA256).Hash.ToLower()
+(Get-FileHash .\skrog_0.3.1_windows_amd64.zip -Algorithm SHA256).Hash.ToLower()
 # compare against the matching line in SHA256SUMS
 ```
 
@@ -127,7 +127,7 @@ Releases from v0.3.1 also carry SLSA provenance, verifiable with the
 [GitHub CLI](https://cli.github.com):
 
 ```powershell
-gh attestation verify .\hawser_0.3.1_windows_amd64.zip --owner hawserhq
+gh attestation verify .\skrog_0.3.1_windows_amd64.zip --owner wslkit
 ```
 
 That attestation is the stronger claim of the two: it says *this artifact was
@@ -139,8 +139,8 @@ days after v0.3.0 was tagged, so the command above returns 404 against it. A
 
 ## Reporting a problem
 
-A binary that claims to be Hawser and does not verify, or a signature you
+A binary that claims to be Skrog and does not verify, or a signature you
 cannot account for, is worth reporting immediately —
-[open an issue](https://github.com/hawserhq/hawser/issues/new) or, if it looks
+[open an issue](https://github.com/wslkit/skrog/issues/new) or, if it looks
 like a compromise rather than a mistake, mark it as such and do not include a
 working reproduction in public.

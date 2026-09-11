@@ -8,7 +8,7 @@
 // an *interactive* process in the user's session (a "run whether logged on or
 // not" task performs a batch logon into session 0, where WSL cannot start —
 // Spike B, #3), and it is trivially inspectable and removable by the user in
-// Task Manager's Startup tab. The registered command is hawserw.exe, the
+// Task Manager's Startup tab. The registered command is skrogw.exe, the
 // GUI-subsystem launcher, so no console flashes at logon.
 package autostart
 
@@ -22,17 +22,17 @@ import (
 )
 
 // ValueName is the Run-key entry name; visible to users in Task Manager.
-const ValueName = "Hawser"
+const ValueName = "Skrog"
 
 // runKeyPath is a var so tests can point at a scratch key instead of the
 // user's real Run key.
 var runKeyPath = `Software\Microsoft\Windows\CurrentVersion\Run`
 
-// Enable registers hawserw.exe (next to the given hawser.exe) to run at logon.
-func Enable(hawserExe string) error {
-	launcher := filepath.Join(filepath.Dir(hawserExe), "hawserw.exe")
+// Enable registers skrogw.exe (next to the given skrog.exe) to run at logon.
+func Enable(skrogExe string) error {
+	launcher := filepath.Join(filepath.Dir(skrogExe), "skrogw.exe")
 	if _, err := os.Stat(launcher); err != nil {
-		return fmt.Errorf("autostart needs the hawserw.exe launcher next to hawser.exe "+
+		return fmt.Errorf("autostart needs the skrogw.exe launcher next to skrog.exe "+
 			"(a console binary at logon would flash a console window): %w", err)
 	}
 

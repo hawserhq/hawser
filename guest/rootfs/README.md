@@ -1,7 +1,7 @@
-# Hawser rootfs
+# Skrog rootfs
 
-The Linux side of Hawser: an Alpine base plus the engine, built into a tarball that
-`wsl --import` turns into the `hawser-engine` distro.
+The Linux side of Skrog: an Alpine base plus the engine, built into a tarball that
+`wsl --import` turns into the `skrog-engine` distro.
 
 ## Provenance
 
@@ -22,9 +22,9 @@ Needs Linux + Docker — CI uses `ubuntu-latest`; locally a WSL2 Ubuntu distro w
 
 Outputs, all three of which become release assets:
 
-- `hawser-rootfs-<version>.tar.gz` — the distro image
-- `hawser-rootfs-<version>.tar.gz.sha256` — what `hawser install` verifies before importing
-- `hawser-rootfs-<version>.spdx.json` — SBOM, so a security team can diff what's inside
+- `skrog-rootfs-<version>.tar.gz` — the distro image
+- `skrog-rootfs-<version>.tar.gz.sha256` — what `skrog install` verifies before importing
+- `skrog-rootfs-<version>.spdx.json` — SBOM, so a security team can diff what's inside
 
 The tarball is built deterministically (sorted entries, fixed mtimes and ownership,
 timestamp-free gzip), so the same pins reproduce the same checksum.
@@ -40,7 +40,7 @@ tarball in seconds from cached binaries, while bumping a pin recompiles.
 The same mechanism works locally: point `BIN_DIR` at a directory you keep around.
 
 ```bash
-BIN_DIR=~/.cache/hawser-engine ./guest/rootfs/build.sh out   # compiles once, reuses after
+BIN_DIR=~/.cache/skrog-engine ./guest/rootfs/build.sh out   # compiles once, reuses after
 ```
 
 Two deliberate safety choices: there are **no `restore-keys`** (a partial cache match
@@ -54,13 +54,13 @@ recompile when something outside the keyed files changes.
 
 Every pin lives in `versions.env` — nothing is ever fetched as "latest". The component
 combination there is the one the acceptance suite validates; bumping any single pin means
-re-running acceptance, because `hawser engine upgrade` refuses combinations outside the
+re-running acceptance, because `skrog engine upgrade` refuses combinations outside the
 tested matrix (PLAN §04).
 
 ## What's baked in
 
 - `/usr/local/bin/` — dockerd, containerd, containerd-shim-runc-v2, ctr, runc, buildkitd, buildctl
 - `/etc/docker/daemon.json` — log rotation on from the first run
-- `/etc/wsl.conf` — systemd off (Hawser's Windows service supervises dockerd instead),
+- `/etc/wsl.conf` — systemd off (Skrog's Windows service supervises dockerd instead),
   metadata on automounts, Windows PATH not appended into the distro
-- `/etc/hawser/engine-version` — what `hawser version` reports
+- `/etc/skrog/engine-version` — what `skrog version` reports

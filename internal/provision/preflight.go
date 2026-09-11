@@ -1,4 +1,4 @@
-// Package provision installs and removes the Hawser engine distro: preflight,
+// Package provision installs and removes the Skrog engine distro: preflight,
 // checksum-verified rootfs download, wsl --import, engine start, clean removal.
 package provision
 
@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
-// MinWSLVersion is the oldest WSL release Hawser is tested against. Older
+// MinWSLVersion is the oldest WSL release Skrog is tested against. Older
 // releases may work, but several doctor remedies (mirrored networking, DNS
 // tunneling) do not exist there, so it is reported rather than assumed.
 const MinWSLVersion = "2.0.0"
@@ -24,7 +24,7 @@ type Report struct {
 	Problems []Problem
 	// Warnings do not block installation but limit what will work.
 	Warnings []Problem
-	// Status is what WSL reported, for `hawser version` and doctor output.
+	// Status is what WSL reported, for `skrog version` and doctor output.
 	Status wsl.Status
 	// ExistingDistro is set when the target distro is already registered.
 	ExistingDistro *wsl.Distro
@@ -59,7 +59,7 @@ func (p *Provisioner) Preflight(ctx context.Context, opts Options) (Report, erro
 		r.Problems = append(r.Problems, Problem{
 			Summary: "WSL2 is not installed or not enabled",
 			Remedy: "run `wsl --install --no-distribution` in an elevated prompt, reboot, " +
-				"then run `hawser install` again. If that fails, enable the " +
+				"then run `skrog install` again. If that fails, enable the " +
 				"'Virtual Machine Platform' and 'Windows Subsystem for Linux' Windows " +
 				"features and confirm virtualization is on in firmware.",
 		})
@@ -83,11 +83,11 @@ func (p *Provisioner) Preflight(ctx context.Context, opts Options) (Report, erro
 	}
 
 	if status.DefaultVersion == 1 {
-		// Only the default is wrong; Hawser imports with --version 2 anyway, so
+		// Only the default is wrong; Skrog imports with --version 2 anyway, so
 		// this is a warning rather than a blocker.
 		r.Warnings = append(r.Warnings, Problem{
 			Summary: "the default WSL version is 1",
-			Remedy: "Hawser imports its own distro as WSL 2 regardless, but " +
+			Remedy: "Skrog imports its own distro as WSL 2 regardless, but " +
 				"`wsl --set-default-version 2` avoids surprises with your other distros.",
 		})
 	}
@@ -106,9 +106,9 @@ func (p *Provisioner) Preflight(ctx context.Context, opts Options) (Report, erro
 			// or leave them running two engines by accident.
 			r.Problems = append(r.Problems, Problem{
 				Summary: fmt.Sprintf("distro %q is already registered", opts.Distro),
-				Remedy: fmt.Sprintf("`hawser engine upgrade` moves that engine to another\n"+
+				Remedy: fmt.Sprintf("`skrog engine upgrade` moves that engine to another\n"+
 					"         version, keeping your images, containers and volumes.\n"+
-					"         To start over instead, run `hawser uninstall` first. To run a\n"+
+					"         To start over instead, run `skrog uninstall` first. To run a\n"+
 					"         second engine alongside this one, install under another name\n"+
 					"         with `--distro`.\n"+
 					"         Its data lives in that distro, so %q is never overwritten\n"+

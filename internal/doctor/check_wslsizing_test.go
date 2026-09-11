@@ -56,7 +56,7 @@ func TestWSLSizingWarnsOnASmallHostWithNoLimits(t *testing.T) {
 		t.Errorf("summary should name the host size and the VM's likely share: %q", got.Summary)
 	}
 	// The remedy must be runnable, and must mention that the file is shared.
-	for _, want := range []string{"hawser config set wsl.memory", "hawser wsl-config apply", "every WSL2 distro"} {
+	for _, want := range []string{"skrog config set wsl.memory", "skrog wsl-config apply", "every WSL2 distro"} {
 		if !strings.Contains(got.Remedy, want) {
 			t.Errorf("remedy is missing %q:\n%s", want, got.Remedy)
 		}
@@ -73,7 +73,7 @@ func TestWSLSizingDoesNotJudgeWithoutHostRAM(t *testing.T) {
 }
 
 func TestWSLSizingWarnsAboutUnappliedChanges(t *testing.T) {
-	// The trap this catches: someone ran `hawser config set wsl.memory 4GB`,
+	// The trap this catches: someone ran `skrog config set wsl.memory 4GB`,
 	// never ran apply, and believes the engine is capped when it is not.
 	f := Facts{WSLSizing: WSLSizingInfo{
 		Path:      `C:\Users\me\.wslconfig`,
@@ -91,7 +91,7 @@ func TestWSLSizingWarnsAboutUnappliedChanges(t *testing.T) {
 	if !strings.Contains(strings.Join(got.Detail, "\n"), "memory=4GB") {
 		t.Errorf("detail should name the pending changes: %v", got.Detail)
 	}
-	if !strings.Contains(got.Remedy, "hawser wsl-config apply") {
+	if !strings.Contains(got.Remedy, "skrog wsl-config apply") {
 		t.Errorf("remedy = %q", got.Remedy)
 	}
 }

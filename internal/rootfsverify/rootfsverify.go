@@ -17,10 +17,10 @@
 // Signing the checksum file rather than the tarball keeps the signed artifact
 // tiny and covers the same bytes.
 //
-// Verification is opt-in (`hawser config set install.verify-signature on`) for
+// Verification is opt-in (`skrog config set install.verify-signature on`) for
 // two honest reasons. It needs cosign on PATH -- vendoring sigstore-go would
 // multiply the size of a binary budgeted under 15 MB, and shelling out to a
-// tool Hawser does not ship cannot be a silent default. And an air-gapped
+// tool Skrog does not ship cannot be a silent default. And an air-gapped
 // install (#75) has no transparency log to reach, so a default-on check would
 // break the one install path that most needs to be predictable.
 package rootfsverify
@@ -75,7 +75,7 @@ type Verifier struct {
 	// Fetch retrieves the .sha256 and .cosign.bundle files.
 	Fetch Fetcher
 	// Repo is the GitHub repository whose workflow must have signed it, e.g.
-	// "hawserhq/hawser". The certificate identity is required to start with
+	// "wslkit/skrog". The certificate identity is required to start with
 	// https://github.com/<repo>/, so a signature made by any other repository's
 	// workflow -- including a fork's -- is rejected.
 	Repo string
@@ -114,7 +114,7 @@ func (v *Verifier) Verify(ctx context.Context, rootfsURL, tarball string) (Resul
 
 	sumsURL := rootfsURL + ".sha256"
 	bundleURL := sumsURL + ".cosign.bundle"
-	dir, err := os.MkdirTemp(v.TempDir, "hawser-verify-*")
+	dir, err := os.MkdirTemp(v.TempDir, "skrog-verify-*")
 	if err != nil {
 		return Result{}, err
 	}

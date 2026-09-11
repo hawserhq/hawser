@@ -12,7 +12,7 @@ import (
 // has been up, how often the idle timeout has taken it down, and what the
 // bridge has carried (#179).
 //
-// It reaches `hawser status --stats` through a file rather than an IPC channel,
+// It reaches `skrog status --stats` through a file rather than an IPC channel,
 // for three reasons. The supervisor is a separate process, so something has to
 // cross the boundary. A file keeps working when the supervisor has died (#166),
 // which is exactly when a reading is most interesting — and because every
@@ -27,7 +27,7 @@ type Stats struct {
 	PID int `json:"pid"`
 
 	// Engine is the engine state the reconciler last observed -- running, idle
-	// or stopped -- in the same vocabulary `hawser status --json` uses. It is
+	// or stopped -- in the same vocabulary `skrog status --json` uses. It is
 	// published so a reader does not have to probe the engine itself: that
 	// probe is what made the tray cost 285 ms every four seconds (#192).
 	// Empty on a reading written before this field existed.

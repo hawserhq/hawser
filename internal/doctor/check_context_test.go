@@ -3,7 +3,7 @@ package doctor
 import (
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/version"
+	"github.com/wslkit/skrog/internal/version"
 )
 
 func TestCheckContext(t *testing.T) {
@@ -21,7 +21,7 @@ func TestCheckContext(t *testing.T) {
 		want Status
 	}{
 		{"no engine", Facts{Report: report(version.Report{})}, Skip},
-		{"hawser context", installed("hawser", "docker config.json"), OK},
+		{"skrog context", installed("skrog", "docker config.json"), OK},
 		{"foreign context", installed("desktop-linux", "docker config.json"), Warn},
 		{"docker_host override", installed("", "DOCKER_HOST=tcp://x"), Warn},
 	}

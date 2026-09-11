@@ -12,8 +12,8 @@ out="${1:?usage: smoke-test.sh <out-dir>}"
 . "$here/versions.env"
 rootfs_version="${ENGINE_VERSION}-${ROOTFS_REVISION}"
 
-tarball="$out/hawser-rootfs-${rootfs_version}.tar.gz"
-sbom="$out/hawser-rootfs-${rootfs_version}.spdx.json"
+tarball="$out/skrog-rootfs-${rootfs_version}.tar.gz"
+sbom="$out/skrog-rootfs-${rootfs_version}.spdx.json"
 
 echo "==> artifacts present"
 test -f "$tarball" || { echo "missing $tarball"; exit 1; }
@@ -32,10 +32,10 @@ echo "==> expected files"
 # userland-proxy is enabled, and `dockerd --validate` does not catch that - the
 # first rootfs release imported fine and then failed at startup.
 for f in usr/local/bin/dockerd usr/local/bin/docker-proxy usr/local/bin/containerd \
-         usr/local/bin/runc usr/local/bin/buildkitd usr/local/bin/hawser-agent \
+         usr/local/bin/runc usr/local/bin/buildkitd usr/local/bin/skrog-agent \
          usr/local/bin/nvidia-cdi-hook \
          etc/docker/daemon.json etc/wsl.conf \
-         etc/hawser/engine-version etc/hawser/agent-version etc/hawser/commits; do
+         etc/skrog/engine-version etc/skrog/agent-version etc/skrog/commits; do
     test -e "$work/$f" || { echo "missing $f"; exit 1; }
     echo "  ok $f"
 done
@@ -73,15 +73,15 @@ echo "==> binaries execute and report the pinned versions"
 # — its presence is what routes `docker run --gpus all` to the CDI spec.
 "$work/usr/local/bin/nvidia-cdi-hook" --version
 
-echo "==> hawser-agent identity matches what the rootfs declares"
-"$work/usr/local/bin/hawser-agent" -version
-test "$("$work/usr/local/bin/hawser-agent" -version)" = "$(cat "$work/etc/hawser/agent-version")" \
+echo "==> skrog-agent identity matches what the rootfs declares"
+"$work/usr/local/bin/skrog-agent" -version
+test "$("$work/usr/local/bin/skrog-agent" -version)" = "$(cat "$work/etc/skrog/agent-version")" \
     || { echo "agent-version file does not match the binary"; exit 1; }
 
 echo "==> provenance: one pinned commit per component"
-cat "$work/etc/hawser/commits"
+cat "$work/etc/skrog/commits"
 for c in moby containerd runc buildkit; do
-    grep -q "^$c " "$work/etc/hawser/commits" \
+    grep -q "^$c " "$work/etc/skrog/commits" \
         || { echo "no commit recorded for $c"; exit 1; }
 done
 
@@ -90,7 +90,7 @@ echo "==> licence text for everything we ship"
 # (#205). Apache-2.0 section 4(a) requires giving recipients a copy, so an
 # empty licenses tree is a release blocker, not a cosmetic gap -- and the only
 # reason it went unnoticed is that nothing checked.
-for c in moby containerd runc buildkit hawser-agent; do
+for c in moby containerd runc buildkit skrog-agent; do
     ls "$work/usr/share/licenses/$c/"* >/dev/null 2>&1 \
         || { echo "no licence shipped for $c"; exit 1; }
     echo "  ok usr/share/licenses/$c"

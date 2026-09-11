@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/wslkit/skrog/internal/wsl"
 )
 
 // fake proves the interface is implementable by hand without wsl.exe — the
@@ -41,11 +41,11 @@ func TestFakeRoundTrip(t *testing.T) {
 	if err != nil || !st.Installed || st.DefaultVersion != 2 {
 		t.Fatalf("Status() = %+v, %v", st, err)
 	}
-	if err := w.Import(ctx, "hawser-engine", `C:\data`, `C:\rootfs.tar`); err != nil {
+	if err := w.Import(ctx, "skrog-engine", `C:\data`, `C:\rootfs.tar`); err != nil {
 		t.Fatalf("Import() = %v", err)
 	}
 	got, err := w.List(ctx)
-	if err != nil || len(got) != 1 || got[0].Name != "hawser-engine" {
+	if err != nil || len(got) != 1 || got[0].Name != "skrog-engine" {
 		t.Fatalf("List() = %+v, %v", got, err)
 	}
 }

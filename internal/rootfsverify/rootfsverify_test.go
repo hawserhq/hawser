@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hawserhq/hawser/internal/rootfsverify"
+	"github.com/wslkit/skrog/internal/rootfsverify"
 )
 
 // fakeFetch serves canned URLs and records what was asked for.
@@ -30,7 +30,7 @@ func (f *fakeFetch) Fetch(_ context.Context, url string) (io.ReadCloser, error) 
 	return io.NopCloser(strings.NewReader(body)), nil
 }
 
-const rootfsURL = "https://example.invalid/hawser-rootfs-29.7.2-4.tar.gz"
+const rootfsURL = "https://example.invalid/skrog-rootfs-29.7.2-4.tar.gz"
 
 // setup writes a tarball and returns a verifier wired to serve a checksum file
 // matching (or, when tamper is set, not matching) it.
@@ -46,12 +46,12 @@ func setup(t *testing.T, content string, signedDigest string, runErr error) (*ro
 		signedDigest = hex.EncodeToString(sum[:])
 	}
 	f := &fakeFetch{files: map[string]string{
-		rootfsURL + ".sha256":               signedDigest + "  hawser-rootfs-29.7.2-4.tar.gz\n",
+		rootfsURL + ".sha256":               signedDigest + "  skrog-rootfs-29.7.2-4.tar.gz\n",
 		rootfsURL + ".sha256.cosign.bundle": `{"mediaType":"application/vnd.dev.sigstore.bundle+json;version=0.3"}`,
 	}}
 	v := &rootfsverify.Verifier{
 		Fetch:   f,
-		Repo:    "hawserhq/hawser",
+		Repo:    "wslkit/skrog",
 		Cosign:  "cosign", // never executed: Run is stubbed
 		TempDir: dir,
 		Run: func(_ context.Context, _ string, _ ...string) (string, error) {
@@ -132,7 +132,7 @@ func TestVerifyPinsTheRepositoryIdentity(t *testing.T) {
 		t.Fatalf("Verify: %v", err)
 	}
 	joined := strings.Join(gotArgs, " ")
-	if !strings.Contains(joined, "--certificate-identity-regexp ^https://github.com/hawserhq/hawser/") {
+	if !strings.Contains(joined, "--certificate-identity-regexp ^https://github.com/wslkit/skrog/") {
 		t.Errorf("identity not pinned: %s", joined)
 	}
 	if !strings.Contains(joined, "--certificate-oidc-issuer https://token.actions.githubusercontent.com") {

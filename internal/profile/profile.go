@@ -1,12 +1,12 @@
 // Package profile stores named bundles of engine settings (#73): the same
 // laptop wants different config on the corporate VPN than at home — proxy, CA
 // trust, registry mirrors, DNS — and every other tool makes you hand-toggle
-// each one. A profile is a named set of the settings Hawser already exposes
+// each one. A profile is a named set of the settings Skrog already exposes
 // (idle-timeout, engine daemon.json keys, lifecycle hooks), saved as a small
 // YAML file and applied in one switch.
 //
-// A profile reuses the hawser.yaml shape (hawserfile.File) so `profile show`
-// and `hawser config export` speak the same language; only the settings fields
+// A profile reuses the skrog.yaml shape (skrogfile.File) so `profile show`
+// and `skrog config export` speak the same language; only the settings fields
 // are used, never the install-time ones (distro, data-dir, engine version).
 package profile
 
@@ -18,7 +18,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/hawserhq/hawser/internal/hawserfile"
+	"github.com/wslkit/skrog/internal/skrogfile"
 )
 
 // Manager stores profiles under the state directory.
@@ -78,11 +78,11 @@ func (m *Manager) Exists(name string) bool {
 // Save writes a profile, keeping only the settings fields — a profile never
 // carries install-time identity (distro, data dir, engine version) or autostart,
 // which are machine-scoped, not network-scoped.
-func (m *Manager) Save(name string, f hawserfile.File) error {
+func (m *Manager) Save(name string, f skrogfile.File) error {
 	if err := ValidName(name); err != nil {
 		return err
 	}
-	settings := hawserfile.File{
+	settings := skrogfile.File{
 		IdleTimeout: f.IdleTimeout,
 		Engine:      f.Engine,
 		Hooks:       f.Hooks,
@@ -102,14 +102,14 @@ func (m *Manager) Save(name string, f hawserfile.File) error {
 }
 
 // Load reads and validates a saved profile.
-func (m *Manager) Load(name string) (hawserfile.File, error) {
+func (m *Manager) Load(name string) (skrogfile.File, error) {
 	if err := ValidName(name); err != nil {
-		return hawserfile.File{}, err
+		return skrogfile.File{}, err
 	}
 	if !m.Exists(name) {
-		return hawserfile.File{}, fmt.Errorf("no such profile %q", name)
+		return skrogfile.File{}, fmt.Errorf("no such profile %q", name)
 	}
-	return hawserfile.Load(m.path(name))
+	return skrogfile.Load(m.path(name))
 }
 
 // Delete removes a saved profile. Deleting the active profile clears the active

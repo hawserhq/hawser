@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hawserhq/hawser/internal/remotecert"
+	"github.com/wslkit/skrog/internal/remotecert"
 )
 
 // mintCerts writes a CA and a client cert/key into dir under the given
-// filenames, using the same generator `hawser serve cert` uses.
+// filenames, using the same generator `skrog serve cert` uses.
 func mintCerts(t *testing.T, dir, certName, keyName string) {
 	t.Helper()
 	ca, err := remotecert.GenerateCA()
@@ -36,7 +36,7 @@ func mintCerts(t *testing.T, dir, certName, keyName string) {
 }
 
 func TestAddAcceptsServeCertLayout(t *testing.T) {
-	// `hawser serve cert` writes client.pem / client-key.pem; Add normalizes to
+	// `skrog serve cert` writes client.pem / client-key.pem; Add normalizes to
 	// docker's cert.pem / key.pem.
 	certs := filepath.Join(t.TempDir(), "certs")
 	mintCerts(t, certs, "client.pem", "client-key.pem")
@@ -145,7 +145,7 @@ func TestListRemoveAndEmpty(t *testing.T) {
 }
 
 func TestContextName(t *testing.T) {
-	if ContextName("desk") != "hawser-desk" {
+	if ContextName("desk") != "skrog-desk" {
 		t.Errorf("ContextName = %q", ContextName("desk"))
 	}
 }
