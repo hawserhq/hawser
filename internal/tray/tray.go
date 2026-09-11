@@ -86,7 +86,7 @@ type CLI struct {
 func (c CLI) Poll(ctx context.Context) Status {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, c.Exe, "status", "--json").Output()
+	out, err := hideWindow(exec.CommandContext(ctx, c.Exe, "status", "--json")).Output()
 	if err != nil {
 		// `hawser status` exits non-zero when the engine is not running, but
 		// still prints valid JSON on stdout; parse it before giving up.
@@ -123,7 +123,7 @@ var Actions = []Action{
 func (c CLI) Run(ctx context.Context, a Action) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
 	defer cancel()
-	out, err := exec.CommandContext(ctx, c.Exe, a.Args...).CombinedOutput()
+	out, err := hideWindow(exec.CommandContext(ctx, c.Exe, a.Args...)).CombinedOutput()
 	return strings.TrimSpace(string(out)), err
 }
 
