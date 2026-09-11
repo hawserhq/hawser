@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Microsoft/go-winio"
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
 )
 
 // testPipeName keeps concurrent runs (and a developer's real Hawser install)

@@ -3,7 +3,7 @@ package doctor
 import (
 	"fmt"
 
-	"github.com/zcsizmadia/hawser/internal/version"
+	"github.com/hawserhq/hawser/internal/version"
 )
 
 // checkDockerCLI answers "which docker.exe actually runs, and is it the one you

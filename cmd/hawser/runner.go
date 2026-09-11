@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zcsizmadia/hawser/internal/autostart"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/runner"
-	"github.com/zcsizmadia/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/autostart"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/runner"
+	"github.com/hawserhq/hawser/internal/supervise"
 )
 
 // runRunner is `hawser runner check` (#150): one verdict on whether an

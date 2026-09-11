@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 func TestCheckWSL(t *testing.T) {

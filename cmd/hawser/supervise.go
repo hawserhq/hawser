@@ -11,16 +11,16 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/audit"
-	"github.com/zcsizmadia/hawser/internal/config"
-	"github.com/zcsizmadia/hawser/internal/dockerctx"
-	"github.com/zcsizmadia/hawser/internal/hostca"
-	"github.com/zcsizmadia/hawser/internal/logging"
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
-	"github.com/zcsizmadia/hawser/internal/policy"
-	"github.com/zcsizmadia/hawser/internal/profile"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/audit"
+	"github.com/hawserhq/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/dockerctx"
+	"github.com/hawserhq/hawser/internal/hostca"
+	"github.com/hawserhq/hawser/internal/logging"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/policy"
+	"github.com/hawserhq/hawser/internal/profile"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/supervise"
 )
 
 // engineAdapter satisfies supervise.Engine with the provisioner's primitives.

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/watchdog"
+	"github.com/hawserhq/hawser/internal/watchdog"
 )
 
 var now = time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)

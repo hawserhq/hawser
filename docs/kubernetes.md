@@ -106,5 +106,5 @@ default binds the API to the host gateway address, which is inside the VM.
   spike used single-node clusters.
 - LoadBalancer services beyond k3d's built-in proxy (MetalLB and friends).
 - Anything on a machine where an EDR agent destabilizes the supervisor; see
-  [#166](https://github.com/zcsizmadia/hawser/issues/166) and the
+  [#166](https://github.com/hawserhq/hawser/issues/166) and the
   `hawser doctor` injected-modules check.

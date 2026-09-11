@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/wslconfig"
+	"github.com/hawserhq/hawser/internal/wslconfig"
 )
 
 func write(t *testing.T, content string) string {

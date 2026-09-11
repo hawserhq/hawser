@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/vpnfingerprint"
+	"github.com/hawserhq/hawser/internal/vpnfingerprint"
 )
 
 func TestCheckVPNNoneDetected(t *testing.T) {

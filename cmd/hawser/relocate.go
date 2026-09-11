@@ -8,10 +8,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/relocate"
-	"github.com/zcsizmadia/hawser/internal/supervise"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/relocate"
+	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // exitNoSpace is its own code because it is the failure a script can act on —

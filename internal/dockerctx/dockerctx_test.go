@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/dockerctx"
+	"github.com/hawserhq/hawser/internal/dockerctx"
 )
 
 // fakeDocker records docker CLI invocations and replays canned output, so every

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/hooks"
+	"github.com/hawserhq/hawser/internal/hooks"
 )
 
 func TestHooksNoneInjected(t *testing.T) {

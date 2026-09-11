@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zcsizmadia/hawser/internal/autostart"
-	"github.com/zcsizmadia/hawser/internal/doctor"
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/autostart"
+	"github.com/hawserhq/hawser/internal/doctor"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 func runDoctor(args []string) int {

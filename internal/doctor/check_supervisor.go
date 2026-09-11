@@ -1,6 +1,6 @@
 package doctor
 
-import "github.com/zcsizmadia/hawser/internal/supervise"
+import "github.com/hawserhq/hawser/internal/supervise"
 
 // checkSupervisor cross-checks two independent signals of engine health: the
 // single-instance lock (a supervisor is running) and whether the engine

@@ -7,7 +7,7 @@ changes the engine under a pipeline.
 
 There are two halves to this, and they are independent:
 
-- **Installing Hawser on a runner** — [setup-hawser](https://github.com/zcsizmadia/setup-hawser)
+- **Installing Hawser on a runner** — [setup-hawser](https://github.com/hawserhq/setup-hawser)
   for GitHub Actions, the same script in `before_script` for GitLab, or a baked
   image (see `contrib/`).
 - **Running jobs against the engine** — everything below. Anything that follows
@@ -35,7 +35,7 @@ jobs:
     runs-on: [self-hosted, windows, hawser]
     steps:
       - uses: actions/checkout@v4
-      - uses: zcsizmadia/setup-hawser@v1
+      - uses: hawserhq/setup-hawser@v1
         with:
           version: 0.3.0        # pin it; "latest" resolves the newest release
       - run: docker run --rm alpine:3.20 echo hello
@@ -62,7 +62,7 @@ talks to:
 ```yaml
 default:
   before_script:
-    - Invoke-WebRequest https://raw.githubusercontent.com/zcsizmadia/setup-hawser/v1/scripts/install-hawser.ps1 -OutFile install-hawser.ps1
+    - Invoke-WebRequest https://raw.githubusercontent.com/hawserhq/setup-hawser/v1/scripts/install-hawser.ps1 -OutFile install-hawser.ps1
     - pwsh -File install-hawser.ps1 -Version 0.3.0
     - $env:DOCKER_CONTEXT = 'hawser'
 

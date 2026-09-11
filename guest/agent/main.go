@@ -26,7 +26,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/vsockproto"
+	"github.com/hawserhq/hawser/internal/vsockproto"
 	"golang.org/x/sys/unix"
 )
 

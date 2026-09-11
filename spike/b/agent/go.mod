@@ -1,4 +1,4 @@
-module github.com/zcsizmadia/hawser/spike/b/agent
+module github.com/hawserhq/hawser/spike/b/agent
 
 go 1.23
 

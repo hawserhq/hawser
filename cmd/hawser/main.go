@@ -76,7 +76,7 @@ commands:
 	}
 	fmt.Fprintf(w, `
 Commands still in development are tracked at
-https://github.com/zcsizmadia/hawser/issues
+https://github.com/hawserhq/hawser/issues
 
 run `+"`hawser <command> --help`"+` for a command's flags
 `)

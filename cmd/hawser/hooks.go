@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/config"
 )
 
 // hookTimeout bounds a lifecycle hook: long enough for a registry login or a

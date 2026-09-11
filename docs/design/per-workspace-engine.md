@@ -1,6 +1,6 @@
 # Design: per-workspace engines
 
-Status: **proposal** for [#140](https://github.com/zcsizmadia/hawser/issues/140)
+Status: **proposal** for [#140](https://github.com/hawserhq/hawser/issues/140)
 — the CLI shape and the trade-offs, before code. Owner review decides.
 
 ## The capability

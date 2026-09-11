@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/rootfsverify"
+	"github.com/hawserhq/hawser/internal/rootfsverify"
 )
 
 // fakeFetch serves canned URLs and records what was asked for.
@@ -51,7 +51,7 @@ func setup(t *testing.T, content string, signedDigest string, runErr error) (*ro
 	}}
 	v := &rootfsverify.Verifier{
 		Fetch:   f,
-		Repo:    "zcsizmadia/hawser",
+		Repo:    "hawserhq/hawser",
 		Cosign:  "cosign", // never executed: Run is stubbed
 		TempDir: dir,
 		Run: func(_ context.Context, _ string, _ ...string) (string, error) {
@@ -132,7 +132,7 @@ func TestVerifyPinsTheRepositoryIdentity(t *testing.T) {
 		t.Fatalf("Verify: %v", err)
 	}
 	joined := strings.Join(gotArgs, " ")
-	if !strings.Contains(joined, "--certificate-identity-regexp ^https://github.com/zcsizmadia/hawser/") {
+	if !strings.Contains(joined, "--certificate-identity-regexp ^https://github.com/hawserhq/hawser/") {
 		t.Errorf("identity not pinned: %s", joined)
 	}
 	if !strings.Contains(joined, "--certificate-oidc-issuer https://token.actions.githubusercontent.com") {

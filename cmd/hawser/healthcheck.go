@@ -7,8 +7,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/supervise"
 )
 
 // runHealthcheck is `hawser healthcheck` (#146): a yes/no readiness probe for

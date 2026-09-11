@@ -7,9 +7,9 @@ import (
 	"os"
 	"strings"
 
-	"github.com/zcsizmadia/hawser/internal/config"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/wslconfig"
+	"github.com/hawserhq/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/wslconfig"
 )
 
 // runWSLConfig is `hawser wsl-config`: propagate the VM sizing recorded in

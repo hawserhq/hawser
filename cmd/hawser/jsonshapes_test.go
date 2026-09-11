@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/hawserfile"
-	"github.com/zcsizmadia/hawser/internal/runner"
-	"github.com/zcsizmadia/hawser/internal/snapshot"
+	"github.com/hawserhq/hawser/internal/hawserfile"
+	"github.com/hawserhq/hawser/internal/runner"
+	"github.com/hawserhq/hawser/internal/snapshot"
 )
 
 // These tests pin the --json contract (#137, docs/cli-json.md): the keys tools

@@ -28,8 +28,8 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/zcsizmadia/hawser/internal/logging"
-	"github.com/zcsizmadia/hawser/internal/watchdog"
+	"github.com/hawserhq/hawser/internal/logging"
+	"github.com/hawserhq/hawser/internal/watchdog"
 )
 
 func main() {

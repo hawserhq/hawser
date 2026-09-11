@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zcsizmadia/hawser/internal/vhdx"
+	"github.com/hawserhq/hawser/internal/vhdx"
 	"golang.org/x/sys/windows"
 )
 

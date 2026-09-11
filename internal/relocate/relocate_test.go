@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // fakeWSL implements wsl.WSL. Export writes a stand-in tarball and Import

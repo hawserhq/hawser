@@ -3,7 +3,7 @@ package doctor
 import (
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/version"
+	"github.com/hawserhq/hawser/internal/version"
 )
 
 func TestCheckContext(t *testing.T) {

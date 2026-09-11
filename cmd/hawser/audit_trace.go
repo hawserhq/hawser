@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/audit"
-	"github.com/zcsizmadia/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/audit"
+	"github.com/hawserhq/hawser/internal/config"
 )
 
 // runAuditTrace is `hawser audit trace -- <cmd> [args]` (#152): run a command

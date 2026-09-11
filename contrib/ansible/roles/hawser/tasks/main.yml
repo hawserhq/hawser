@@ -30,7 +30,7 @@
 
 - name: Fetch the setup-hawser install script
   ansible.windows.win_get_url:
-    url: https://raw.githubusercontent.com/zcsizmadia/setup-hawser/{{ hawser_setup_ref }}/scripts/install-hawser.ps1
+    url: https://raw.githubusercontent.com/hawserhq/setup-hawser/{{ hawser_setup_ref }}/scripts/install-hawser.ps1
     dest: '{{ ansible_env.TEMP }}\install-hawser.ps1'
     force: true
   when: hawser_version not in (hawser_installed.stdout | default(''))

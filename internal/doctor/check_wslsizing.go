@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zcsizmadia/hawser/internal/wslconfig"
+	"github.com/hawserhq/hawser/internal/wslconfig"
 )
 
 // smallHostBytes is where WSL's default sizing starts to hurt. Below ~8 GB of

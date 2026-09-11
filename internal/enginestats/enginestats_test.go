@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/enginestats"
+	"github.com/hawserhq/hawser/internal/enginestats"
 )
 
 // fakeDistro answers the four shell commands the reader runs, and records them

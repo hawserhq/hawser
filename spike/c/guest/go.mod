@@ -1,4 +1,4 @@
-module github.com/zcsizmadia/hawser/spike/c/guest
+module github.com/hawserhq/hawser/spike/c/guest
 
 go 1.23
 

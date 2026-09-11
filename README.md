@@ -10,10 +10,10 @@
 <p align="center"><em><strong>hawser</strong> (n.) — the heavy line that moors a ship to the dock. It holds fast.</em></p>
 
 <p align="center">
-  <a href="https://github.com/zcsizmadia/hawser/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/zcsizmadia/hawser/actions/workflows/ci.yml/badge.svg?branch=main"></a>
-  <a href="https://github.com/zcsizmadia/hawser/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/zcsizmadia/hawser?include_prereleases&sort=semver&label=release&color=0a7d84"></a>
-  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/github/license/zcsizmadia/hawser?color=2F3B45"></a>
-  <img alt="Go" src="https://img.shields.io/github/go-mod/go-version/zcsizmadia/hawser?color=00ADD8">
+  <a href="https://github.com/hawserhq/hawser/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/hawserhq/hawser/actions/workflows/ci.yml/badge.svg?branch=main"></a>
+  <a href="https://github.com/hawserhq/hawser/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/hawserhq/hawser?include_prereleases&sort=semver&label=release&color=0a7d84"></a>
+  <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/github/license/hawserhq/hawser?color=2F3B45"></a>
+  <img alt="Go" src="https://img.shields.io/github/go-mod/go-version/hawserhq/hawser?color=00ADD8">
   <img alt="Platform: Windows 11 + WSL2" src="https://img.shields.io/badge/platform-Windows%2011%20%2B%20WSL2-2F3B45">
 </p>
 
@@ -27,7 +27,7 @@ Docker Desktop. v0.3 adds `hawser doctor`, validated engine settings, lifecycle 
 declarative installs, corporate-network/VPN support, and a bundled docker CLI so you can
 drop Docker Desktop entirely. Read
 [PLAN.md](PLAN.md) for the strategy and [ROADMAP.md](ROADMAP.md) for the schedule; the
-[issue tracker](https://github.com/zcsizmadia/hawser/issues) is the live state.
+[issue tracker](https://github.com/hawserhq/hawser/issues) is the live state.
 
 ## Install
 
@@ -36,7 +36,7 @@ coexists with it), or install Hawser's own bundled CLI with `hawser cli install`
 Docker Desktop entirely — see [docs/docker-cli.md](docs/docker-cli.md).
 
 1. Download the zip for your architecture from the
-   [latest release](https://github.com/zcsizmadia/hawser/releases) and verify it against
+   [latest release](https://github.com/hawserhq/hawser/releases) and verify it against
    `SHA256SUMS` (binaries are not yet signed; SmartScreen will warn)
 2. `hawser.exe install` — downloads the checksum-verified engine rootfs, imports it as the
    `hawser-engine` WSL2 distro, starts the engine, wires a `hawser` docker context, and
@@ -113,7 +113,7 @@ docker context. Nothing else on the system is touched.
   (backing off, with a crash budget) instead of leaving every `docker` command broken until
   the next `hawser start`
 - **CI runners**: GitHub Actions via
-  [setup-hawser](https://github.com/zcsizmadia/setup-hawser), GitLab shell or docker
+  [setup-hawser](https://github.com/hawserhq/setup-hawser), GitLab shell or docker
   executor, Testcontainers (Ryuk included) — [docs/ci-runners.md](docs/ci-runners.md)
 - **Debug pipelines locally, against the engine your runner uses**: `act`,
   `gitlab-ci-local`, Dagger, and a BuildKit cache a laptop and a runner share; commit
@@ -126,7 +126,7 @@ docker context. Nothing else on the system is touched.
 ## What's ahead
 
 Data-dir relocation and signed installers (winget/scoop/choco) — tracked in the
-[issue tracker](https://github.com/zcsizmadia/hawser/issues).
+[issue tracker](https://github.com/hawserhq/hawser/issues).
 
 ## What it will never be
 
@@ -208,7 +208,7 @@ then this is the index, and every page is reachable from here.
 [Bumping the engine and docker CLI](docs/bumping-upstream.md) ·
 [Design notes](docs/design/)
 
-[#197]: https://github.com/zcsizmadia/hawser/issues/197
+[#197]: https://github.com/hawserhq/hawser/issues/197
 
 ## License
 

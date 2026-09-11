@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/supervise"
 )
 
 // State is the engine state the dot reflects, mirroring `hawser status`.

@@ -28,7 +28,7 @@ hawser prune --all --until 168h
 ```
 
 A `prune.schedule` setting that lets the supervisor run this on a cadence is
-the follow-up on [#145](https://github.com/zcsizmadia/hawser/issues/145).
+the follow-up on [#145](https://github.com/hawserhq/hawser/issues/145).
 
 ## The free-space warning
 

@@ -11,7 +11,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/zcsizmadia/hawser/internal/release"
+	"github.com/hawserhq/hawser/internal/release"
 )
 
 // SchemaVersion is bumped only on an incompatible change to the file shape.

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zcsizmadia/hawser/internal/dockerctx"
-	"github.com/zcsizmadia/hawser/internal/prune"
+	"github.com/hawserhq/hawser/internal/dockerctx"
+	"github.com/hawserhq/hawser/internal/prune"
 )
 
 // runPrune is `hawser prune` (#145): reclaim disk on the engine — stopped

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/version"
+	"github.com/hawserhq/hawser/internal/version"
 )
 
 // fakeFS answers Stat from a set of paths, so PATH scanning needs no real files.

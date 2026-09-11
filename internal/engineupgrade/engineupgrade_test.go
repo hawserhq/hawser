@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/engineupgrade"
+	"github.com/hawserhq/hawser/internal/engineupgrade"
 )
 
 // fakeDistro records the shell commands an upgrade runs and answers the

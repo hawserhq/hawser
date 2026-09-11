@@ -6,12 +6,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/enginestats"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/supervise"
-	"github.com/zcsizmadia/hawser/internal/vhdx"
-	"github.com/zcsizmadia/hawser/internal/wsl"
-	"github.com/zcsizmadia/hawser/internal/wslconfig"
+	"github.com/hawserhq/hawser/internal/enginestats"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/vhdx"
+	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wslconfig"
 )
 
 // statsDisk adapts internal/vhdx to enginestats.Disk.

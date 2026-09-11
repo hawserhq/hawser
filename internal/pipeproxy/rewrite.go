@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/winpath"
+	"github.com/hawserhq/hawser/internal/winpath"
 )
 
 // AuditSink observes each proxied request for the audit log (#121). It is a

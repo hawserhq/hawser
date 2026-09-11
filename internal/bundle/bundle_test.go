@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/lockfile"
+	"github.com/hawserhq/hawser/internal/lockfile"
 )
 
 func writeFakeRootfs(t *testing.T, dir string) (path, sha string) {

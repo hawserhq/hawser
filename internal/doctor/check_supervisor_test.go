@@ -3,8 +3,8 @@ package doctor
 import (
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/supervise"
-	"github.com/zcsizmadia/hawser/internal/version"
+	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/version"
 )
 
 func TestCheckSupervisor(t *testing.T) {

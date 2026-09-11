@@ -11,7 +11,7 @@ against. Read them as documentation you can run, and expect to adapt the
 builder or connection plumbing to your environment.
 
 They both lean on the same install script as
-[setup-hawser](https://github.com/zcsizmadia/setup-hawser), pinned by tag, so an
+[setup-hawser](https://github.com/hawserhq/setup-hawser), pinned by tag, so an
 image, a GitHub Action and an Ansible run install Hawser identically — verified
 against the release's `SHA256SUMS`, never "curl | iex".
 

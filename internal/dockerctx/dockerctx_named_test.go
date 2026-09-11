@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/dockerctx"
+	"github.com/hawserhq/hawser/internal/dockerctx"
 )
 
 // The remote-engine contexts (#138) reuse fakeDocker from dockerctx_test.go.

@@ -3,7 +3,7 @@ package doctor
 import (
 	"fmt"
 
-	"github.com/zcsizmadia/hawser/internal/runner"
+	"github.com/hawserhq/hawser/internal/runner"
 )
 
 // checkRunner folds `hawser runner check` (#150) into doctor, gated on the

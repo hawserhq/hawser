@@ -12,7 +12,7 @@ import (
 
 	"github.com/Microsoft/go-winio"
 	"github.com/Microsoft/go-winio/pkg/guid"
-	"github.com/zcsizmadia/hawser/internal/vsockproto"
+	"github.com/hawserhq/hawser/internal/vsockproto"
 	"golang.org/x/sys/windows/registry"
 )
 

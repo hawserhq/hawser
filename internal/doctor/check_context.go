@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/remote"
+	"github.com/hawserhq/hawser/internal/remote"
 )
 
 // certWarnWindow is how far ahead an expiring remote client certificate is

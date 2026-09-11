@@ -3,8 +3,8 @@ package doctor
 import (
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/runner"
-	"github.com/zcsizmadia/hawser/internal/version"
+	"github.com/hawserhq/hawser/internal/runner"
+	"github.com/hawserhq/hawser/internal/version"
 )
 
 func TestCheckRunner(t *testing.T) {

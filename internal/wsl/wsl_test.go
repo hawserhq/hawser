@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // fake proves the interface is implementable by hand without wsl.exe — the

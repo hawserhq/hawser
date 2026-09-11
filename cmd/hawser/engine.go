@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/engineupgrade"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/release"
-	"github.com/zcsizmadia/hawser/internal/supervise"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/engineupgrade"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/release"
+	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // runEngine is `hawser engine`: what engine is installed, and moving between

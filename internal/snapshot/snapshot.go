@@ -23,7 +23,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // Meta is a snapshot's sidecar record.

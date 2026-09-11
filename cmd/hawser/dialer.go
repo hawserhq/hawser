@@ -5,8 +5,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 // engineDialer builds the transport to the engine socket: the vsock agent

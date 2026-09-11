@@ -18,7 +18,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/zcsizmadia/hawser/internal/hawserfile"
+	"github.com/hawserhq/hawser/internal/hawserfile"
 )
 
 // Manager stores profiles under the state directory.

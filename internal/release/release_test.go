@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/release"
+	"github.com/hawserhq/hawser/internal/release"
 )
 
 func TestEmbeddedManifestIsValid(t *testing.T) {
