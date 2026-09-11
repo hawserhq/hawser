@@ -25,6 +25,12 @@ jobs:
           $bad = gofmt -l .
           if ($bad) { Write-Host "gofmt needed:"; $bad; exit 1 }
 
+      # The README is the only docs index there is until #197, and an index is
+      # worth its worst link. Cheap to check, silently rots otherwise.
+      - name: markdown links
+        shell: pwsh
+        run: pwsh -File scripts/check-links.ps1
+
       - name: go vet
         run: go vet ./...
 

@@ -166,6 +166,49 @@ there is no `src/` — the module root *is* the source root, and `internal/` is 
 rule (nothing outside this module can import it), not a naming preference. `test/e2e/` exists
 only for suites that belong to no single package.
 
+## Documentation
+
+Grouped by the question you arrived with. A proper docs site is [#197]; until
+then this is the index, and every page is reachable from here.
+
+**Start**
+[Bundled docker CLI](docs/docker-cli.md) ·
+[Dev Containers](docs/devcontainers.md)
+
+**Keep it healthy**
+[Housekeeping: prune, compact, relocate](docs/housekeeping.md) ·
+[Snapshots](docs/snapshots.md) ·
+[Engine upgrade and rollback](docs/engine-upgrade.md) ·
+[VM sizing](docs/vm-sizing.md)
+
+**At work**
+[Corporate networks](docs/corporate-network.md) ·
+[VPNs](docs/vpn.md) ·
+[Air-gapped installs](docs/air-gap.md) ·
+[Security and trust boundaries](docs/security.md) ·
+[Audit log](docs/audit.md)
+
+**Fleet and CI**
+[CI runners](docs/ci-runners.md) ·
+[Unattended / auto-logon runners](docs/auto-logon-runner.md) ·
+[Declarative install](docs/declarative-install.md) ·
+[Profiles](docs/profiles.md) ·
+[Remote engine over mTLS](docs/remote-engine.md) ·
+[Local CI](docs/local-ci.md)
+
+**Advanced**
+[GPU (NVIDIA, and experimental AMD)](docs/gpu.md) ·
+[Kubernetes](docs/kubernetes.md) ·
+[Lifecycle hooks](docs/hooks.md) ·
+[JSON output contract](docs/cli-json.md)
+
+**Contributing**
+[Releasing](RELEASING.md) ·
+[Bumping the engine and docker CLI](docs/bumping-upstream.md) ·
+[Design notes](docs/design/)
+
+[#197]: https://github.com/zcsizmadia/hawser/issues/197
+
 ## License
 
 [Apache-2.0](LICENSE). Docker and the Docker logo are trademarks of Docker, Inc.
