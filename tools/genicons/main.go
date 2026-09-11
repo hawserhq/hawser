@@ -1,13 +1,19 @@
 package main
 
-// genicons rasterizes the coiled-rope mark (the same Archimedean spiral as
-// tools/genlogo) into the raster assets the SVG masters cannot be: a multi-size
-// Windows .ico for the executables, PNGs for the docs favicon and the GitHub
-// social preview, and the tray status icons (the mark tinted green/grey/red).
+// genicons rasterizes the body-plan mark (the same geometry as tools/genlogo,
+// shared via tools/internal/mark) into the raster assets the SVG masters cannot
+// be: a multi-size Windows .ico for the executables, PNGs for the docs favicon
+// and the GitHub social preview, and the tray status icons (the mark tinted
+// green/grey/red).
 //
 // Pure Go, no external rasterizer: each pixel's coverage is its anti-aliased
-// distance to the spiral stroke — the technique tools/genico used for the dot,
-// generalized to a path.
+// distance to the stroked outline.
+//
+// The mark is an outline, so its stroke weight is corrected per size rather
+// than scaled with it — see mark.StrokeWidth. That correction is the reason
+// this tool rasterizes every size separately instead of downsampling one large
+// render: a downsample would carry the large size's weight down with it and
+// vanish.
 //
 // Run: go run ./tools/genicons
 import (
@@ -19,100 +25,24 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
-	"math"
 	"os"
 	"path/filepath"
+
+	"github.com/wslkit/skrog/tools/internal/mark"
 )
 
-// brand is the slate rope color, matching the SVG masters.
+// brand is the slate mark color, matching the SVG masters.
 var brand = color.RGBA{0x2F, 0x3B, 0x45, 0xFF}
-
-// Geometry mirrors tools/genlogo, in a 256-unit design box.
-const (
-	box     = 256.0
-	cx      = box / 2
-	cy      = box / 2
-	rOuter  = 104.0
-	rInner  = 17.0
-	turns   = 3.0
-	ropeW   = 27.0
-	samples = 600
-)
-
-type pt struct{ x, y float64 }
-
-// spiral returns the coil polyline scaled to a size-by-size raster.
-func spiral(size float64) []pt {
-	s := size / box
-	tmax := turns * 2 * math.Pi
-	k := (rOuter - rInner) / tmax
-	pts := make([]pt, 0, samples+1)
-	for i := 0; i <= samples; i++ {
-		t := tmax * float64(i) / float64(samples)
-		r := rOuter - k*t
-		a := t - math.Pi/2
-		pts = append(pts, pt{(cx + r*math.Cos(a)) * s, (cy + r*math.Sin(a)) * s})
-	}
-	return pts
-}
-
-// distSeg is the distance from p to segment a-b.
-func distSeg(px, py float64, a, b pt) float64 {
-	dx, dy := b.x-a.x, b.y-a.y
-	l2 := dx*dx + dy*dy
-	if l2 == 0 {
-		return math.Hypot(px-a.x, py-a.y)
-	}
-	t := ((px-a.x)*dx + (py-a.y)*dy) / l2
-	t = math.Max(0, math.Min(1, t))
-	return math.Hypot(px-(a.x+t*dx), py-(a.y+t*dy))
-}
-
-// raster draws the coil at size px in c on a transparent ground, anti-aliased.
-func raster(size int, c color.RGBA) *image.RGBA {
-	img := image.NewRGBA(image.Rect(0, 0, size, size))
-	pts := spiral(float64(size))
-	half := ropeW / 2 * float64(size) / box
-	for y := 0; y < size; y++ {
-		for x := 0; x < size; x++ {
-			px, py := float64(x)+0.5, float64(y)+0.5
-			min := math.MaxFloat64
-			for i := 1; i < len(pts); i++ {
-				if d := distSeg(px, py, pts[i-1], pts[i]); d < min {
-					min = d
-					if min <= half-1 {
-						break // fully inside; no closer edge matters
-					}
-				}
-			}
-			cov := half - min + 0.5 // 1px anti-alias band
-			if cov <= 0 {
-				continue
-			}
-			if cov > 1 {
-				cov = 1
-			}
-			a := uint8(cov * 255)
-			img.SetRGBA(x, y, color.RGBA{
-				R: uint8(uint16(c.R) * uint16(a) / 255),
-				G: uint8(uint16(c.G) * uint16(a) / 255),
-				B: uint8(uint16(c.B) * uint16(a) / 255),
-				A: a,
-			})
-		}
-	}
-	return img
-}
 
 // writeSocial renders a 1280x640 GitHub social-preview card: the mark centered
 // on the off-white brand ground. Uploaded via the repo's settings, not embedded.
 func writeSocial(path string) {
-	const w, h, mark = 1280, 640, 440
+	const w, h, markPx = 1280, 640, 440
 	dst := image.NewRGBA(image.Rect(0, 0, w, h))
 	draw.Draw(dst, dst.Bounds(), &image.Uniform{color.RGBA{0xF7, 0xF6, 0xF3, 0xFF}}, image.Point{}, draw.Src)
-	m := raster(mark, brand)
-	ox, oy := (w-mark)/2, (h-mark)/2
-	draw.Draw(dst, image.Rect(ox, oy, ox+mark, oy+mark), m, image.Point{}, draw.Over)
+	m := mark.Raster(markPx, brand)
+	ox, oy := (w-markPx)/2, (h-markPx)/2
+	draw.Draw(dst, image.Rect(ox, oy, ox+markPx, oy+markPx), m, image.Point{}, draw.Over)
 	writePNG(path, dst)
 }
 
@@ -131,10 +61,10 @@ func main() {
 	// 128 is the VS Code Marketplace's icon size: the extension copies this
 	// file rather than keeping a second, hand-cut mark that can drift from the
 	// brand source.
-	writePNG("assets/icons/skrog-128.png", raster(128, brand))
-	writePNG("assets/icons/skrog-256.png", raster(256, brand))
-	writePNG("assets/icons/skrog-512.png", raster(512, brand))
-	writePNG("assets/icons/favicon-32.png", raster(32, brand))
+	writePNG("assets/icons/skrog-128.png", mark.Raster(128, brand))
+	writePNG("assets/icons/skrog-256.png", mark.Raster(256, brand))
+	writePNG("assets/icons/skrog-512.png", mark.Raster(512, brand))
+	writePNG("assets/icons/favicon-32.png", mark.Raster(32, brand))
 	writeSocial("assets/icons/social-preview.png")
 
 	// Windows .ico with the sizes Explorer, the taskbar and the tray use.
@@ -182,7 +112,7 @@ func dibICO(img *image.RGBA) []byte {
 	return out.Bytes()
 }
 
-// writeTrayIcons regenerates the tray's green/grey/red status icons as the coil
+// writeTrayIcons regenerates the tray's green/grey/red status icons as the
 // mark tinted to each state, emitted as a Go source file of byte slices.
 func writeTrayIcons(path string) {
 	icons := []struct {
@@ -195,10 +125,10 @@ func writeTrayIcons(path string) {
 	}
 	var b bytes.Buffer
 	fmt.Fprint(&b, "//go:build windows\n\npackage main\n\n"+
-		"// Generated 16x16 coil status icons (green/grey/red). The tray shows the\n"+
+		"// Generated 16x16 body-plan status icons (green/grey/red). The tray shows\n"+
 		"// Skrog mark in the engine's state color. Regenerate with `go run ./tools/genicons`.\n\n")
 	for _, e := range icons {
-		data := dibICO(raster(16, e.c))
+		data := dibICO(mark.Raster(16, e.c))
 		fmt.Fprintf(&b, "var %s = []byte{", e.name)
 		for i, by := range data {
 			if i%16 == 0 {
@@ -224,7 +154,7 @@ func writeICO(path string, sizes []int, c color.RGBA) {
 	var entries []entry
 	for _, s := range sizes {
 		var buf bytes.Buffer
-		must(png.Encode(&buf, raster(s, c)))
+		must(png.Encode(&buf, mark.Raster(s, c)))
 		entries = append(entries, entry{s, buf.Bytes()})
 	}
 

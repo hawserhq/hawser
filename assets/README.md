@@ -1,36 +1,61 @@
 # Skrog identity
 
-A coiled heavy rope. The mark predates the Skrog name (the project was called
-Hawser, after the mooring line) and is kept as an abstract mark: it reads as a
-near-solid disc at 16px, which is what makes the favicon and tray icon work. Skrog
-is the line that moors stock `docker.exe` to the engine.
+A hull's **body plan**: the section a naval architect draws at each frame, seen
+from ahead — a cambered sheer across the top, slab sides, the round of the
+bilge, a shallow V to the keel, and the centreline through it. *Skrog* is
+Norwegian for hull, so the mark is a picture of the name.
+
+It replaces a coiled rope, which was a picture of the project's *former* name
+(Hawser, the mooring line) and had become abstract under the new one.
 
 | file | use |
 |---|---|
-| `skrog-mark.svg` | the color mark (slate rope with twist grooves) |
-| `skrog-mark-mono.svg` | monochrome silhouette; inherits `currentColor`, for docs / badges / terminals |
+| `skrog-mark.svg` | the color mark (slate outline) |
+| `skrog-mark-ondark.svg` | the same, in light slate for dark grounds |
+| `skrog-mark-mono.svg` | inherits `currentColor`, for docs / badges / terminals |
 | `skrog-logo.svg` | horizontal lockup: mark + `skrog` wordmark |
 
 ## Design notes
 
-- One Archimedean-spiral path with a heavy round stroke — pure geometry, no
-  fonts and no rasterizer, so it scales exactly from a 16 px tray dot to a
-  512 px store tile and the small sizes stay legible (the coil reads as a dense
-  spiral-disc when tiny, showing its grooves only as it grows).
-- The color mark's twist grooves are a translucent-black overlay, so the rope
-  re-colors to any brand hue by changing one value — the grooves follow.
+- **A section, not a view.** It has no tapering end, so it cannot be misread the
+  way a pointed oval can; and at 200×172 in a 256 box it is near enough square
+  to fill an icon with no tilt and no surrounding disc.
+- **An outline, not a silhouette** — which is the one thing about it that needs
+  care. What has to stay legible is the stroke's *rendered* width, and no single
+  weight serves the whole range: the 15 design units that read correctly on a
+  512 px tile are 0.9 px in a 16 px tray icon, where they anti-alias to a grey
+  smudge. Small sizes therefore carry a heavier stroke, chosen so the rendered
+  weight never drops below 1.7 px:
+
+  | rendered at | 16 px | 24 px | 32 px | 48 px | 64 px+ |
+  |---|---|---|---|---|---|
+  | stroke, design units | 28 | 21 | 18 | 16 | 15 |
+  | stroke, pixels | 1.75 | 1.97 | 2.25 | 3.00 | 3.75+ |
+
+  This is why `tools/genicons` rasterizes every size from the geometry rather
+  than downsampling one large render: a downsample would carry the 512 px weight
+  down with it and fade out.
+- **One geometry.** `tools/internal/mark` holds the point list, and both
+  generators import it. The coil it replaced duplicated its constants across the
+  two tools, and they drifted.
+- **Half a hull.** Only the starboard side is written down; the port side is its
+  mirror, so the section cannot go lopsided. A test pins that, along with the
+  mark fitting its box at every stroke weight and the two chambers staying open
+  at 16 px.
 - Deliberately clear of Docker's whale / Moby and the other container-tool
-  marks: a rope, nothing else.
+  marks.
 
 ## Raster assets (`icons/`)
 
-The SVG is the master; the rasters below are generated from the same spiral in
-pure Go (`tools/genicons`), no external rasterizer:
+The SVG is the master; the rasters below are generated from the same geometry in
+pure Go (`tools/genicons`), no external rasterizer — each pixel's coverage is
+its anti-aliased distance to the stroked outline:
 
 | file | use |
 |---|---|
 | `icons/skrog.ico` | multi-size (16–256) Windows icon, embedded in the `.exe`s |
 | `icons/favicon-32.png` | docs-site favicon |
+| `icons/skrog-128.png` | VS Code Marketplace icon (the extension copies this file) |
 | `icons/skrog-256.png`, `-512.png` | general raster use |
 | `icons/social-preview.png` | 1280×640 GitHub social preview (upload in repo Settings) |
 
@@ -56,7 +81,8 @@ for d in cmd/skrog cmd/skrogw cmd/skrogtray; do
 done
 ```
 
-The rope color is the `brand` constant in `tools/genlogo` and `tools/genicons`.
+The mark color is the `brand` constant in `tools/genlogo` and `tools/genicons`;
+the shape and the stroke weights are in `tools/internal/mark`.
 
 ## License
 
