@@ -100,11 +100,18 @@ func (p *Provisioner) Preflight(ctx context.Context, opts Options) (Report, erro
 		if strings.EqualFold(distros[i].Name, opts.Distro) {
 			d := distros[i]
 			r.ExistingDistro = &d
+			// Naming `engine upgrade` first is deliberate: someone typing
+			// `install` on a machine that already has one is usually after a
+			// newer engine, and the other two answers throw their data away
+			// or leave them running two engines by accident.
 			r.Problems = append(r.Problems, Problem{
 				Summary: fmt.Sprintf("distro %q is already registered", opts.Distro),
-				Remedy: fmt.Sprintf("run `hawser uninstall` first, or install under "+
-					"another name with `--distro`. Its data lives in that distro, so "+
-					"%q is never overwritten implicitly.", opts.Distro),
+				Remedy: fmt.Sprintf("to move that engine to another version, run "+
+					"`hawser engine upgrade` -- it keeps your images, containers and "+
+					"volumes. To start over, `hawser uninstall` first; to run a second "+
+					"engine alongside it, install under another name with `--distro`. "+
+					"Its data lives in that distro, so %q is never overwritten "+
+					"implicitly.", opts.Distro),
 			})
 		}
 	}

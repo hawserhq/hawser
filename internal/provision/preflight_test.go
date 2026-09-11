@@ -175,3 +175,30 @@ func TestProblemStringIncludesRemedy(t *testing.T) {
 		t.Errorf("Problem.String() = %q", s)
 	}
 }
+
+func TestExistingDistroPointsAtEngineUpgrade(t *testing.T) {
+	// Someone typing `install` on a machine that already has an engine is
+	// usually after a newer one. The refusal has to name the command that does
+	// that, or the only answers on offer either destroy their data
+	// (`uninstall`) or quietly leave them running two engines (`--distro`).
+	p := &provision.Provisioner{WSL: bootedWSL(), Logger: quietLogger()}
+	r, err := p.Preflight(context.Background(), provision.Options{
+		StateDir: t.TempDir(),
+		Distro:   provision.DefaultDistro,
+	})
+	if err != nil {
+		t.Fatalf("Preflight: %v", err)
+	}
+	if r.ExistingDistro == nil {
+		t.Fatal("an already-registered distro should be reported")
+	}
+	var found bool
+	for _, pr := range r.Problems {
+		if strings.Contains(pr.Remedy, "hawser engine upgrade") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("the refusal should name `hawser engine upgrade`; problems: %+v", r.Problems)
+	}
+}
