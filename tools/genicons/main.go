@@ -128,6 +128,10 @@ func main() {
 	must(os.MkdirAll("assets/icons", 0o755))
 
 	// PNGs for docs / previews, plus a 32px favicon.
+	// 128 is the VS Code Marketplace's icon size: the extension copies this
+	// file rather than keeping a second, hand-cut mark that can drift from the
+	// brand source.
+	writePNG("assets/icons/hawser-128.png", raster(128, brand))
 	writePNG("assets/icons/hawser-256.png", raster(256, brand))
 	writePNG("assets/icons/hawser-512.png", raster(512, brand))
 	writePNG("assets/icons/favicon-32.png", raster(32, brand))
