@@ -15,8 +15,12 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 Push-Location $repo
 try {
+    # Everything under site\ except home.md is generated or built output:
+    # content\ is staged from docs\, so checking it would check the same links
+    # twice and report every page as an orphan of itself.
     $md = Get-ChildItem -Recurse -Filter *.md -File |
-        Where-Object { $_.FullName -notmatch '\\(node_modules|\.git)\\' }
+        Where-Object { $_.FullName -notmatch '\\(node_modules|\.git)\\' } |
+        Where-Object { $_.FullName -notmatch '\\site\\(content|public|resources)\\' }
 
     $broken = @()
     $linked = [System.Collections.Generic.HashSet[string]]::new()
@@ -61,6 +65,9 @@ try {
     $orphans = $md |
         Where-Object { -not $linked.Contains($_.FullName) } |
         Where-Object { $_.Name -notin @('README.md', 'PLAN.md', 'ROADMAP.md', 'RELEASING.md', 'CHANGELOG.md') } |
+        # site/home.md is the docs site's front page. Nothing links to it
+        # because it is what everything else hangs off.
+        Where-Object { $_.FullName -ne (Join-Path $repo 'site\home.md') } |
         ForEach-Object { [IO.Path]::GetRelativePath($repo, $_.FullName).Replace('\', '/') }
 
     Write-Host "links: all resolve ($($md.Count) files)" -ForegroundColor Green

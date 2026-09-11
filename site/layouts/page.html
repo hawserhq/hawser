@@ -1,0 +1,26 @@
+{{ define "main" }}
+<article class="prose">
+  <nav class="crumbs"><a href="{{ "" | relURL }}">Docs</a> <span>/</span> {{ with .Params.section }}<span>{{ . }}</span> <span>/</span> {{ end }}<span>{{ .LinkTitle | markdownify }}</span></nav>
+
+  {{- /* markdownify because a title like "The `--json` contract" is written
+         as markdown in the docs page it came from, and should render the same
+         way here as it does on GitHub. */}}
+  <h1>{{ .Title | markdownify }}</h1>
+
+  {{- /* A contents box earns its space on a long page and clutters a short
+         one; three headings is where it starts to pay. */}}
+  {{ if ge (len .Fragments.Identifiers) 3 }}
+  <details class="toc" open>
+    <summary>On this page</summary>
+    {{ .TableOfContents }}
+  </details>
+  {{ end }}
+
+  {{ .Content }}
+
+  <hr>
+  <p class="edit">
+    <a href="{{ site.Params.repo }}/blob/main/docs/{{ .Params.source }}">Edit this page on GitHub</a>
+  </p>
+</article>
+{{ end }}

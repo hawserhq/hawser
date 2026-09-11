@@ -1,0 +1,30 @@
+# The docs IA, grouped by the question a reader arrives with rather than by
+# feature name -- the same grouping as the README index, so the two agree.
+#
+# `pages` lists docs/ filenames without .md, in the order they should appear.
+# Titles are not repeated here: each page's own `# heading` is its title, so
+# there is nothing to keep in sync. A page missing from this file still builds
+# and is reachable by URL; build-docs.ps1 -Strict fails on it, because nothing
+# would link to it.
+sections:
+  - section: Start
+    pages: [docker-cli, devcontainers]
+  - section: Keep it healthy
+    pages: [housekeeping, snapshots, engine-upgrade, vm-sizing]
+  - section: At work
+    pages: [corporate-network, vpn, air-gap, security, audit, policy]
+  - section: Fleet and CI
+    pages: [ci-runners, auto-logon-runner, declarative-install, profiles, remote-engine, local-ci]
+  - section: Advanced
+    pages: [gpu, kubernetes, hooks, cli-json]
+  - section: Contributing
+    pages: [bumping-upstream]
+
+# Sidebar labels, for the few pages whose own heading is a full sentence and
+# does not fit a narrow column. Everything else uses its heading verbatim;
+# an entry here is an exception, not the pattern.
+short:
+  auto-logon-runner: Unattended runners
+  security: Security model
+  bumping-upstream: Bumping the engine
+  declarative-install: Declarative install
