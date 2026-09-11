@@ -472,6 +472,7 @@ func flushStats(ctx context.Context, stateDir string, sup *supervise.Supervisor,
 	write := func() {
 		snap := m.Snapshot()
 		st := supervise.Stats{
+			Engine:    sup.EngineStatus(),
 			Lifecycle: sup.LifecycleSnapshot(),
 			Bridge: supervise.Bridge{
 				Connections:   snap.Connections,

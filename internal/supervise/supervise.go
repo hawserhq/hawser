@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -81,6 +82,11 @@ type Supervisor struct {
 	// runs the user's script time-bounded and off the reconciler — so it never
 	// blocks a tick or the mutex. Nil disables hooks.
 	Hook func(event string)
+
+	// lastUp is the engine health the reconciler saw on its most recent tick.
+	// Atomic rather than guarded by mu on purpose: readers must never block on
+	// the reconciler, which holds mu across a slow engine start (#192).
+	lastUp atomic.Bool
 
 	// mu serializes tick and Demand: a cold start must not race the
 	// reconciler's own view of why the engine is down.
@@ -176,6 +182,7 @@ func (s *Supervisor) tick(ctx context.Context) {
 
 	desired := ReadDesired(s.Config.StateDir)
 	up := s.Engine.Running(ctx)
+	s.lastUp.Store(up)
 
 	switch {
 	case desired == DesiredRunning && !up:
@@ -385,4 +392,22 @@ func (s *Supervisor) backoff() time.Duration {
 		}
 	}
 	return d
+}
+
+// EngineStatus reports the engine state the reconciler last observed, in the
+// same vocabulary `hawser status --json` uses: running, idle or stopped.
+//
+// The point is that it costs nothing. The reconciler probes the engine every
+// tick regardless, so a reader -- the tray, through the published stats -- can
+// have that answer instead of spawning a process to ask the same question
+// again (#192). It reads an atomic and at most one small file, and never takes
+// the reconciler's mutex.
+func (s *Supervisor) EngineStatus() string {
+	if s.lastUp.Load() {
+		return "running"
+	}
+	if ReadEngineState(s.Config.StateDir) == EngineIdle {
+		return "idle"
+	}
+	return "stopped"
 }

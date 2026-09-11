@@ -86,20 +86,54 @@ func onReady() {
 		systray.Quit()
 	}()
 
-	// The status loop: poll now, then every few seconds, and repaint the dot.
+	// The status loop (#192). Refreshing the dot used to spawn
+	// `hawser status --json` every 4s: 285 ms of work every 4000 ms, about 7%
+	// of a core for as long as anyone is logged in, to recompute a state the
+	// supervisor already probes every tick and writes down.
+	//
+	// So: learn the state dir once from the CLI, then read the published
+	// reading. The expensive call stays as the fallback for when there is no
+	// supervisor to publish -- rate-limited, because that is the path that
+	// costs a process spawn.
 	go func() {
-		t := time.NewTicker(4 * time.Second)
-		defer t.Stop()
-		paint := func() {
+		const (
+			paintInterval    = 2 * time.Second
+			fallbackInterval = 30 * time.Second
+		)
+		var (
+			stateDir     string
+			lastFallback time.Time
+		)
+
+		// One CLI call at startup: the initial dot, and the state dir.
+		fallback := func() tray.State {
+			lastFallback = time.Now()
 			st := cli.Poll(context.Background())
-			s := st.State()
+			if st.StateDir != "" {
+				stateDir = st.StateDir
+			}
+			return st.State()
+		}
+
+		paint := func(s tray.State) {
 			header.SetTitle("Engine: " + label(s))
 			systray.SetTooltip(tray.Tooltip(s))
 			systray.SetIcon(iconFor(s))
 		}
-		paint()
+		paint(fallback())
+
+		t := time.NewTicker(paintInterval)
+		defer t.Stop()
 		for range t.C {
-			paint()
+			if s, ok := tray.PollPublished(stateDir); ok {
+				paint(s)
+				continue
+			}
+			// No fresh published reading: no supervisor, or one too old to
+			// trust. Ask the CLI, but not on every tick.
+			if time.Since(lastFallback) >= fallbackInterval {
+				paint(fallback())
+			}
 		}
 	}()
 }
