@@ -13,15 +13,24 @@
     "",
     "Older engines stay listed after a bump, with their checksums intact: they",
     "are what `skrog engine list` offers and what `skrog engine rollback`",
-    "goes back to. See docs/bumping-upstream.md."
+    "goes back to. See docs/bumping-upstream.md.",
+    "",
+    "A published asset's filename is a fact, not text to be renamed. Every",
+    "rootfs below was published as hawser-rootfs-*, before the Skrog rename",
+    "(#1); a rename pass rewrote those filenames to skrog-rootfs-* and pointed",
+    "the manifest at assets that do not exist, which would have 404'd every",
+    "install and every rollback. Releases cut from here on are named",
+    "skrog-rootfs-*; the ones already published stay exactly as they were.",
+    "Same rule as formerRootfsHomes in internal/provision/canonical.go, and the",
+    "same reason: these describe bytes that already exist somewhere."
   ],
   "engines": [
     {
       "version": "29.8.0",
       "default": true,
       "rootfs": {
-        "url": "https://github.com/wslkit/skrog/releases/download/rootfs-v29.8.0-1/skrog-rootfs-29.8.0-1.tar.gz",
-        "sha256": "76101881a8b56ce7fc25b947f2b31dca0aeda6ff3e76d8d7a5fbe3a3be782635"
+        "url": "https://github.com/wslkit/skrog/releases/download/rootfs-v29.8.0-2/skrog-rootfs-29.8.0-2.tar.gz",
+        "sha256": ""
       },
       "components": {
         "dockerd": "29.8.0",
@@ -36,7 +45,7 @@
       "version": "29.7.2",
       "default": false,
       "rootfs": {
-        "url": "https://github.com/wslkit/skrog/releases/download/rootfs-v29.7.2-4/skrog-rootfs-29.7.2-4.tar.gz",
+        "url": "https://github.com/wslkit/skrog/releases/download/rootfs-v29.7.2-4/hawser-rootfs-29.7.2-4.tar.gz",
         "sha256": "8a9cb099b6fa58e8633c7612cb9b16ce0284e257ec9bf8a4c594844131f370a1"
       },
       "components": {
