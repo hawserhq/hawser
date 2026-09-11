@@ -4,12 +4,17 @@ This page exists because the SignPath Foundation requires projects it sponsors
 to publish one, and because anyone installing a binary that claims to be Hawser
 deserves to know who can make one.
 
-> **Status: accepted, not yet in effect.** The roles and the CI-only signing
-> below are settled; Hawser's binaries are **not signed today**, because the
-> application to the SignPath Foundation is still open — tracked in
-> [#77](https://github.com/hawserhq/hawser/issues/77). Until a certificate is
-> issued, verify releases against `SHA256SUMS` and expect a SmartScreen
-> warning; see [verifying a release](#verifying-a-release-today) below.
+> **Status: accepted, Authenticode not yet in effect.** The roles and the
+> CI-only signing below are settled. Hawser's binaries are **not
+> Authenticode-signed**, because the application to the SignPath Foundation is
+> still open ([#77](https://github.com/hawserhq/hawser/issues/77)) — so
+> SmartScreen still warns.
+>
+> What *is* in effect, from **v0.3.1**: every release artifact carries SLSA
+> build provenance, and `SHA256SUMS` is signed with cosign keyless. Those
+> answer "was this built by that workflow, from that commit" — which an
+> Authenticode signature does not. See
+> [verifying a release](#verifying-a-release-today).
 
 ## Attribution
 
@@ -39,8 +44,7 @@ signature is produced without a deliberate act**. Signing is not automatic on a
 tag — every release waits for an approval that a person has to give.
 
 Every contribution from outside the Author list is reviewed before it is
-merged. Every release is signed only after a manual approval — signing is never
-automatic on a tag.
+merged.
 
 Accounts holding any of these roles use multi-factor authentication for both
 GitHub and SignPath.
@@ -110,30 +114,28 @@ immediately or retroactively, over a Code of Conduct violation.
 
 ## Verifying a release today
 
-Until signing is in effect:
+Until Authenticode signing is in effect, the checksum is the first check —
+and it works on every release, including the ones that predate provenance:
 
 ```powershell
 # Download the zip and SHA256SUMS from the release page, then:
-(Get-FileHash .\hawser-windows-amd64.zip -Algorithm SHA256).Hash.ToLower()
+(Get-FileHash .\hawser_0.3.1_windows_amd64.zip -Algorithm SHA256).Hash.ToLower()
 # compare against the matching line in SHA256SUMS
 ```
 
-Every release also carries SLSA provenance, which can be verified with the
+Releases from v0.3.1 also carry SLSA provenance, verifiable with the
 [GitHub CLI](https://cli.github.com):
 
 ```powershell
-gh attestation verify .\hawser_0.4.0_windows_amd64.zip --owner hawserhq
+gh attestation verify .\hawser_0.3.1_windows_amd64.zip --owner hawserhq
 ```
 
 That attestation is the stronger claim of the two: it says *this artifact was
 built by this workflow from this commit*, which a signature alone does not.
 
-**v0.3.0 does not have one.** Provenance and cosign signing landed two days
-after it was tagged, so that release carries `SHA256SUMS` only and the command
-above returns 404 against it. Until the next release, the checksum comparison
-is the verification that works — and a 404 there means "older than the
-feature", not "inauthentic"
-([#225](https://github.com/hawserhq/hawser/issues/225)).
+v0.3.0 and earlier do not have one: provenance and cosign signing landed two
+days after v0.3.0 was tagged, so the command above returns 404 against it. A
+404 there means "older than the feature", not "inauthentic".
 
 ## Reporting a problem
 
