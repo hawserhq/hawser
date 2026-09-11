@@ -58,6 +58,13 @@ Who may produce a binary that claims to be Hawser, and how, is written down
 separately in the [code signing policy](code-signing.md) — including the fact
 that the Windows binaries are **not signed yet**.
 
+Recorded download URLs are normalised to the project's current home rather
+than relying on a GitHub redirect: a redirect stops the moment the old path is
+occupied again, and anyone can occupy an abandoned repository name. The
+checksum pin means a substituted rootfs fails verification rather than being
+imported, so this is provenance, not integrity — but depending on a redirect
+for either is a choice worth not making.
+
 The engine (dockerd, containerd, runc, buildkit) is **built from source** at
 pinned upstream tags whose commit SHAs are verified during the build, and the
 Alpine base is pinned by digest (#88) — a moved tag or re-pushed image fails
