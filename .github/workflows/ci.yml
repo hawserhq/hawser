@@ -37,6 +37,15 @@ jobs:
         shell: pwsh
         run: pwsh -File scripts/build-reference.ps1 -Check
 
+      # internal/release/manifest.json names rootfs tarballs published on this
+      # repo's releases. Nothing offline can tell whether those URLs resolve --
+      # and a rename pass once rewrote the published filenames, pointing every
+      # install and rollback at a 404 while the offline tests stayed green.
+      # Behind a build tag so `go test ./...` stays offline; run explicitly here.
+      - name: manifest rootfs URLs resolve
+        shell: pwsh
+        run: go test -tags network -run TestPublishedRootfsURLsResolve ./internal/release/
+
       - name: go vet
         run: go vet ./...
 
