@@ -186,7 +186,8 @@ then this is the index, and every page is reachable from here.
 [VPNs](docs/vpn.md) ·
 [Air-gapped installs](docs/air-gap.md) ·
 [Security and trust boundaries](docs/security.md) ·
-[Audit log](docs/audit.md)
+[Audit log](docs/audit.md) ·
+[Admission control](docs/policy.md)
 
 **Fleet and CI**
 [CI runners](docs/ci-runners.md) ·

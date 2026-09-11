@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/zcsizmadia/hawser/internal/policy"
 	"github.com/zcsizmadia/hawser/internal/remote"
 	"github.com/zcsizmadia/hawser/internal/runner"
 )
@@ -213,6 +214,23 @@ type compactJSONShape struct {
 	DryRun         bool     `json:"dryRun"`
 	Steps          []string `json:"steps,omitempty"`
 	Held           []string `json:"held,omitempty"`
+}
+
+// policyShowJSON is `hawser policy show --json` (#120).
+type policyShowJSON struct {
+	Path     string       `json:"path"`
+	Exists   bool         `json:"exists"`
+	Active   bool         `json:"active"`
+	Enforced bool         `json:"enforced"`
+	Rules    policy.Rules `json:"rules"`
+}
+
+// policyTestJSON is `hawser policy test --json` (#120): the verdict on one
+// request, so a script can gate on it without parsing prose.
+type policyTestJSON struct {
+	Denied bool   `json:"denied"`
+	Rule   string `json:"rule,omitempty"`
+	Reason string `json:"reason,omitempty"`
 }
 
 // relocateJSONShape is `hawser relocate --json` (#64). needBytes/freeBytes are

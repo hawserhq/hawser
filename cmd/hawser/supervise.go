@@ -17,6 +17,7 @@ import (
 	"github.com/zcsizmadia/hawser/internal/hostca"
 	"github.com/zcsizmadia/hawser/internal/logging"
 	"github.com/zcsizmadia/hawser/internal/pipeproxy"
+	"github.com/zcsizmadia/hawser/internal/policy"
 	"github.com/zcsizmadia/hawser/internal/profile"
 	"github.com/zcsizmadia/hawser/internal/provision"
 	"github.com/zcsizmadia/hawser/internal/supervise"
@@ -162,18 +163,39 @@ flags:
 		opts.GPUVendor = c.GPUVendor
 	}
 
-	// Bind-path rewriting is always on; the audit log (#121) wraps it when
-	// enabled. Read once at start — toggling it needs `hawser restart`.
-	handler := pipeproxy.RewriteBinds
+	// Bind-path rewriting is always on; the audit log (#121) and the policy
+	// gate (#120) wrap it when configured. Both are read once at start, so
+	// changing either needs `hawser restart` — the same contract the audit
+	// log already had.
+	var sink pipeproxy.AuditSink
 	if c, err := config.Load(opts.StateDir); err == nil && c.Audit {
 		auditPath := filepath.Join(opts.StateDir, "audit.log")
 		if w, err := logging.NewRotatingWriter(auditPath, 0, 0); err != nil {
 			log.Warn("audit log disabled", "error", err)
 		} else {
 			defer w.Close()
-			handler = pipeproxy.RewriteBindsAudited(audit.New(w))
+			sink = audit.New(w)
 			log.Info("audit log enabled", "path", auditPath)
 		}
+	}
+
+	// A policy file that will not parse is refused loudly and the supervisor
+	// runs without it, rather than silently enforcing nothing: a guardrail
+	// that quietly fails open is worse than no guardrail, because it is
+	// believed. `hawser policy check` is how a user finds out before this.
+	var gate pipeproxy.Gate
+	switch rules, err := policy.Load(opts.StateDir); {
+	case err != nil:
+		log.Error("policy file is not valid; admission control is OFF", "error", err,
+			"path", policy.Path(opts.StateDir))
+	case !rules.Empty():
+		gate = rules
+		log.Info("admission control enabled", "path", policy.Path(opts.StateDir))
+	}
+
+	handler := pipeproxy.RewriteBinds
+	if sink != nil || gate != nil {
+		handler = pipeproxy.RewriteBindsGuarded(sink, gate)
 	}
 
 	metrics := &pipeproxy.Metrics{}

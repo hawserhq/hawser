@@ -24,6 +24,24 @@ type AuditSink interface {
 	Observe(start time.Time, method, path, rawQuery string, status int, err error)
 }
 
+// Gate judges a container-create request before it reaches the engine (#120).
+// Structural, like AuditSink, so pipeproxy stays decoupled from the policy
+// package; a nil gate disables admission control entirely (the default).
+//
+// It sees the body as the client sent it, before bind paths are translated,
+// because a rule about where mounts may come from is written in the Windows
+// terms the user typed.
+//
+// The map is the LIVE request body, passed without copying so that judging a
+// request costs nothing on the hot path. Two consequences for an
+// implementation: do not mutate it — this interface decides, it does not
+// edit — and do not retain it past the call, because bind-path translation
+// rewrites the same map immediately afterwards, so a reference kept for a log
+// would later read as translated.
+type Gate interface {
+	DenyCreate(body map[string]any) (reason string, denied bool)
+}
+
 // RewriteBinds is a Server.Handler that translates Windows bind paths on their
 // way to the engine, then gets out of the way.
 //
@@ -36,16 +54,22 @@ type AuditSink interface {
 // The handler therefore proxies HTTP only until the engine signals a hijack,
 // then reverts to a raw byte relay for the life of the connection.
 func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
-	return rewriteBinds(client, engine, nil)
+	return rewriteBinds(client, engine, nil, nil)
 }
 
 // RewriteBindsAudited is RewriteBinds with an audit sink wired in, for use as a
 // Server.Handler when the audit log is enabled.
 func RewriteBindsAudited(sink AuditSink) func(net.Conn, io.ReadWriteCloser) error {
-	return func(c net.Conn, e io.ReadWriteCloser) error { return rewriteBinds(c, e, sink) }
+	return func(c net.Conn, e io.ReadWriteCloser) error { return rewriteBinds(c, e, sink, nil) }
 }
 
-func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink) error {
+// RewriteBindsGuarded is RewriteBinds with an audit sink and an admission gate
+// (#120). Either may be nil.
+func RewriteBindsGuarded(sink AuditSink, gate Gate) func(net.Conn, io.ReadWriteCloser) error {
+	return func(c net.Conn, e io.ReadWriteCloser) error { return rewriteBinds(c, e, sink, gate) }
+}
+
+func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink, gate Gate) error {
 	clientR := bufio.NewReader(client)
 	engineR := bufio.NewReader(engine)
 
@@ -62,7 +86,16 @@ func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink) e
 		reqStart := time.Now()
 
 		if isContainerCreate(req) {
-			if err := rewriteCreateBody(req); err != nil {
+			denied, err := rewriteCreateBody(req, gate)
+			switch {
+			case denied != nil:
+				// Admission control refused it (#120). 403 rather than 400:
+				// the request is well-formed, this machine will not run it.
+				// The reason reaches the user verbatim through the CLI.
+				observe(audit, reqStart, req, http.StatusForbidden, denied)
+				trace("DENY %s %s: %v", req.Method, req.URL.Path, denied)
+				return writeError(client, http.StatusForbidden, denied)
+			case err != nil:
 				// Refusing is better than forwarding a mount the user did not
 				// ask for; report it as the API would.
 				observe(audit, reqStart, req, http.StatusBadRequest, err)
@@ -295,18 +328,18 @@ func isHijack(resp *http.Response) bool {
 // every release, and silently dropping a caller's option would be far worse
 // than not translating a path. json.Number likewise preserves numeric literals
 // exactly instead of round-tripping them through float64.
-func rewriteCreateBody(req *http.Request) error {
+func rewriteCreateBody(req *http.Request, gate Gate) (denied, err error) {
 	if req.Body == nil {
-		return nil
+		return nil, nil
 	}
 	raw, err := io.ReadAll(req.Body)
 	req.Body.Close()
 	if err != nil {
-		return fmt.Errorf("read create body: %w", err)
+		return nil, fmt.Errorf("read create body: %w", err)
 	}
 	if len(raw) == 0 {
 		req.Body = io.NopCloser(bytes.NewReader(raw))
-		return nil
+		return nil, nil
 	}
 
 	dec := json.NewDecoder(bytes.NewReader(raw))
@@ -315,21 +348,30 @@ func rewriteCreateBody(req *http.Request) error {
 	if err := dec.Decode(&body); err != nil {
 		// Not JSON we understand: pass it through and let the engine judge it.
 		req.Body = io.NopCloser(bytes.NewReader(raw))
-		return nil
+		return nil, nil
+	}
+
+	// Admission control runs BEFORE translation (#120), so a rule about where
+	// bind mounts may come from sees the Windows path the user typed rather
+	// than the /mnt/c form the engine will get.
+	if gate != nil {
+		if reason, no := gate.DenyCreate(body); no {
+			return errors.New(reason), nil
+		}
 	}
 
 	changed, err := translateHostConfig(body)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if !changed {
 		req.Body = io.NopCloser(bytes.NewReader(raw))
-		return nil
+		return nil, nil
 	}
 
 	out, err := json.Marshal(body)
 	if err != nil {
-		return fmt.Errorf("re-encode create body: %w", err)
+		return nil, fmt.Errorf("re-encode create body: %w", err)
 	}
 	req.Body = io.NopCloser(bytes.NewReader(out))
 	req.ContentLength = int64(len(out))
@@ -337,7 +379,7 @@ func rewriteCreateBody(req *http.Request) error {
 	// desynchronize the stream. Drop any chunked framing for the same reason.
 	req.Header.Del("Content-Length")
 	req.TransferEncoding = nil
-	return nil
+	return nil, nil
 }
 
 // translateHostConfig rewrites HostConfig.Binds and the source of any bind-type

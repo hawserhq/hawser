@@ -366,6 +366,38 @@ Moves the engine's data directory to another drive:
 - Exit codes: `0` ok, `1` error, `2` usage, `3` not installed, `12` not enough
   space.
 
+## `hawser policy show --json` / `hawser policy test --json`
+
+Admission control (#120). `show` reports the rules in effect:
+
+```json
+{
+  "path": "C:\Users\me\AppData\Local\Hawser\policy.yaml",
+  "exists": true,
+  "active": true,
+  "enforced": true,
+  "rules": { "denyPrivileged": true, "allowBindSources": ["C:\work"] }
+}
+```
+
+`test` is the verdict on one container-create body, for gating a script:
+
+```json
+{
+  "denied": true,
+  "rule": "allow-bind-sources",
+  "reason": "policy does not allow bind mounts from C:/secrets (allowed: C:\work)"
+}
+```
+
+- `rule` names the key that refused, so a script can branch on it without
+  parsing prose; `reason` is the same sentence the user would see.
+- `active`/`enforced` are false when the file is absent or sets no rules —
+  both mean every request is allowed.
+- Exit codes: `0` allowed, `1` error, `2` usage, `3` not installed, **`13`**
+  the rules deny it. 13 is separate so "refused" is distinguishable from
+  "the command went wrong".
+
 ## `hawser engine list --json`
 
 What this build can install, what is installed, and where a rollback goes:
