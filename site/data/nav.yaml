@@ -10,7 +10,7 @@ sections:
   - section: Start
     pages: [docker-cli, devcontainers]
   - section: Keep it healthy
-    pages: [housekeeping, snapshots, engine-upgrade, vm-sizing]
+    pages: [housekeeping, snapshots, upgrading, engine-upgrade, vm-sizing]
   - section: At work
     pages: [corporate-network, vpn, air-gap, security, audit, policy]
   - section: Fleet and CI
