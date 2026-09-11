@@ -58,7 +58,7 @@ func onReady() {
 	openLogs := systray.AddMenuItem("Open logs", "Open the supervisor log")
 	doctor := systray.AddMenuItem("Run doctor (v0.3)", "Diagnostics arrive in v0.3")
 	doctor.Disable() // honest stub: `hawser doctor` is not built yet
-	updates := systray.AddMenuItem("Check for updates", "Open the releases page")
+	updates := systray.AddMenuItem("Check for updates", "Check hawser, the engine and the docker CLI")
 	systray.AddSeparator()
 	quit := systray.AddMenuItem("Quit Hawser tray", "Close this tray (the engine keeps running)")
 
@@ -78,7 +78,7 @@ func onReady() {
 	}()
 	go func() {
 		for range updates.ClickedCh {
-			go browse("https://github.com/hawserhq/hawser/releases")
+			go checkUpdates(cli, updates)
 		}
 	}()
 	go func() {
@@ -176,4 +176,33 @@ func openLog(cli tray.CLI) {
 func browse(target string) {
 	// rundll32 avoids a shell and handles both URLs and file paths.
 	exec.Command("rundll32", "url.dll,FileProtocolHandler", target).Start()
+}
+
+// releasesPage is where an upgrade is actually obtained. The tray only ever
+// sends people here; it never replaces a binary (#191).
+const releasesPage = "https://github.com/hawserhq/hawser/releases"
+
+// checkUpdates makes the "Check for updates" item do what it says.
+//
+// It used to open the releases page and check nothing — a menu item named for
+// an action it did not perform. Now it asks the CLI, puts the answer in the
+// item's tooltip, and opens the page only when there is something to get.
+// Being told "everything is up to date" without a browser window is the
+// common case, and the better one.
+func checkUpdates(cli tray.CLI, item *systray.MenuItem) {
+	item.SetTooltip("Checking…")
+
+	up, err := cli.CheckUpgrades(context.Background())
+	if err != nil {
+		// The check failed, not the product. Fall back to what the item did
+		// before rather than leaving the click with no effect at all.
+		item.SetTooltip("Could not check — opening the releases page")
+		browse(releasesPage)
+		return
+	}
+
+	item.SetTooltip(up.Summary)
+	if up.Available {
+		browse(releasesPage)
+	}
 }

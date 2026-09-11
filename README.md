@@ -182,6 +182,7 @@ page is reachable from here.
 **Keep it healthy**
 [Housekeeping: prune, compact, relocate](docs/housekeeping.md) ·
 [Snapshots](docs/snapshots.md) ·
+[Staying current](docs/upgrading.md) ·
 [Engine upgrade and rollback](docs/engine-upgrade.md) ·
 [VM sizing](docs/vm-sizing.md)
 
