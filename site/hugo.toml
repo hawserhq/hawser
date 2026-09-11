@@ -49,6 +49,13 @@ disableKinds = ["taxonomy", "term", "rss"]
   source = "static"
   target = "static"
 [[module.mounts]]
+  # The one-line installer (#77) is served from the docs site:
+  #   irm https://hawserhq.github.io/hawser/install.ps1 | iex
+  # Mounted from scripts/ rather than copied into static/, so the file people
+  # pipe into their shell is the same one that is reviewed in the repository.
+  source = "../scripts/install.ps1"
+  target = "static/install.ps1"
+[[module.mounts]]
   source = "../assets/hawser-mark.svg"
   target = "static/hawser-mark.svg"
 [[module.mounts]]
