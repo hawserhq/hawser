@@ -16,7 +16,7 @@ sections:
   - section: Fleet and CI
     pages: [ci-runners, auto-logon-runner, declarative-install, profiles, remote-engine, local-ci]
   - section: Advanced
-    pages: [gpu, kubernetes, hooks, cli-json]
+    pages: [gpu, kubernetes, hooks, cli-json, reference]
   - section: Contributing
     pages: [bumping-upstream]
 

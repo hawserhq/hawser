@@ -49,6 +49,13 @@ try {
         if ($LASTEXITCODE -ne 0) { $failed += 'shellcheck' } else { Write-Host "  ok" -ForegroundColor Green }
     }
 
+    # --- command reference ------------------------------------------------
+    # Generated from the binary's own --help, so editing a flag's help text
+    # without regenerating would ship a reference describing the last release.
+    Write-Host "== command reference" -ForegroundColor Cyan
+    & pwsh -File (Join-Path $PSScriptRoot 'build-reference.ps1') -Check
+    if ($LASTEXITCODE -ne 0) { $failed += 'reference' }
+
     # --- markdown links ---------------------------------------------------
     Write-Host "== links" -ForegroundColor Cyan
     & pwsh -File (Join-Path $PSScriptRoot 'check-links.ps1')
