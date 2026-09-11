@@ -53,6 +53,10 @@ type state struct {
 	// baselines captured before anything runs, compared after teardown.
 	wslProcsBefore int
 	ddWorkedBefore bool
+	// hawserCtxBefore is the machine's own `hawser` docker context endpoint,
+	// empty when it has none. The suite installs beside a real install and
+	// shares that one global context with it (#217).
+	hawserCtxBefore string
 }
 
 // TestAcceptance is one ordered scenario, not independent tests: install must
@@ -231,6 +235,18 @@ func stageBaselines(t *testing.T, s *state) {
 	}
 	s.wslProcsBefore = wslProcCount(t)
 	t.Logf("wsl.exe baseline: %d", s.wslProcsBefore)
+
+	// The `hawser` docker context is a single global object, and this suite
+	// installs beside whatever is already on the machine. Recording where it
+	// points is how the teardown can prove the suite handed it back (#217) —
+	// before that fix, running the acceptance suite silently left the
+	// developer's own `docker --context hawser` broken.
+	s.hawserCtxBefore = hawserContextEndpoint(t, s)
+	if s.hawserCtxBefore == "" {
+		t.Log("no `hawser` docker context on this machine before the suite")
+	} else {
+		t.Logf("`hawser` docker context before: %s", s.hawserCtxBefore)
+	}
 
 	// Whether Docker Desktop worked BEFORE decides whether the intact-after
 	// stage can claim anything. Recorded, not required.
@@ -1940,6 +1956,19 @@ func stageClean(t *testing.T, s *state) {
 		t.Error("install manifest still present after uninstall")
 	}
 
+	// The machine's own docker context must be exactly where the suite found
+	// it. This is not tidiness: the `hawser` context is one global object
+	// shared with any real install, so a suite that took it and did not hand
+	// it back left the developer with a broken `docker --context hawser` and
+	// no clue why (#217). An empty baseline is just as much of an assertion —
+	// a suite that installs and uninstalls must leave no context behind
+	// either.
+	if after := hawserContextEndpoint(t, s); after != s.hawserCtxBefore {
+		t.Errorf("the machine's `hawser` docker context changed: before=%q after=%q\n"+
+			"the suite must hand back a context it took from another install",
+			s.hawserCtxBefore, after)
+	}
+
 	// The bounded #35 leak means "returns to baseline" cannot be asserted yet;
 	// what can be is that the suite did not permanently double the population.
 	after := wslProcCount(t)
@@ -2240,4 +2269,20 @@ func stageUpgradeCheck(t *testing.T, s *state) {
 	if strings.Contains(out, "would run:") {
 		t.Errorf("a dry run proposed work on a current install:\n%s", out)
 	}
+}
+
+// hawserContextEndpoint reports where the machine's shared `hawser` docker
+// context points, or "" when there is no such context.
+//
+// Deliberately tolerant: a missing context, a docker CLI that cannot run, and
+// an empty answer are all "", because the assertion this feeds is "unchanged",
+// and every one of those states compares correctly against itself.
+func hawserContextEndpoint(t *testing.T, s *state) string {
+	t.Helper()
+	out, err := s.runDocker(t, 30*time.Second, "context", "inspect", "hawser",
+		"--format", "{{.Endpoints.docker.Host}}")
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(out)
 }
