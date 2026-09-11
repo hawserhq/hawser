@@ -15,7 +15,7 @@
     HAWSER_VERSION      release to install (required)
     HAWSER_BUNDLE       path to a `hawser bundle` zip, or empty
     HAWSER_LOCKFILE     path to a hawser.lock, or empty
-    SETUP_HAWSER_REF    tag of zcsizmadia/setup-hawser to take the script from
+    SETUP_HAWSER_REF    tag of hawserhq/setup-hawser to take the script from
     HAWSER_RUNNER_USER  documentation only: the account this image logs on as
 #>
 $ErrorActionPreference = 'Stop'
@@ -29,7 +29,7 @@ $ref = if ($env:SETUP_HAWSER_REF) { $env:SETUP_HAWSER_REF } else { 'v1' }
 #    place (the runner account and the provisioning account may differ).
 $dest = 'C:\Hawser'
 $script = Join-Path $env:TEMP 'install-hawser.ps1'
-Invoke-WebRequest "https://raw.githubusercontent.com/zcsizmadia/setup-hawser/$ref/scripts/install-hawser.ps1" -OutFile $script
+Invoke-WebRequest "https://raw.githubusercontent.com/hawserhq/setup-hawser/$ref/scripts/install-hawser.ps1" -OutFile $script
 pwsh -NoProfile -File $script -Version $version -Install:$false -Dest $dest
 if ($LASTEXITCODE -ne 0) { throw "staging hawser $version failed ($LASTEXITCODE)" }
 $hawser = Join-Path $dest 'bin\hawser.exe'

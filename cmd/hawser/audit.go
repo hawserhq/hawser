@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/config"
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 func runAudit(args []string) int {

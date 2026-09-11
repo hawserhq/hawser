@@ -52,7 +52,7 @@ func checkHooks() Check {
 			"         hawserw.exe — that is the actual fix, and it is a policy change, not a\n" +
 			"         code change.\n" +
 			"      4. HAWSER_NO_VSOCK=1 narrows the window at the cost of the slower transport.\n" +
-			"      See https://github.com/zcsizmadia/hawser/issues/166."
+			"      See https://github.com/hawserhq/hawser/issues/166."
 		return r
 	}
 	return c

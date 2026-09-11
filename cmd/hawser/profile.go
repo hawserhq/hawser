@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zcsizmadia/hawser/internal/config"
-	"github.com/zcsizmadia/hawser/internal/engineconfig"
-	"github.com/zcsizmadia/hawser/internal/hawserfile"
-	"github.com/zcsizmadia/hawser/internal/profile"
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/engineconfig"
+	"github.com/hawserhq/hawser/internal/hawserfile"
+	"github.com/hawserhq/hawser/internal/profile"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 func runProfile(args []string) int {

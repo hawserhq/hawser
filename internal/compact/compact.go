@@ -25,8 +25,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/vhdx"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/vhdx"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // ErrHeldByOthers reports that other distros are running, so WSL will not

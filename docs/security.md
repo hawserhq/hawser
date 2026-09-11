@@ -69,12 +69,12 @@ exists to be stolen). Two independent checks, answering different questions:
 
 ```
 # 1. Did GitHub Actions build this, from this repository, at a known commit?
-gh attestation verify hawser_0.4.0_windows_amd64.zip --owner zcsizmadia
+gh attestation verify hawser_0.4.0_windows_amd64.zip --owner hawserhq
 
 # 2. Is the checksum list itself authentic? (offline against the Sigstore log)
 cosign verify-blob \
   --bundle SHA256SUMS.cosign.bundle \
-  --certificate-identity-regexp '^https://github.com/zcsizmadia/hawser/' \
+  --certificate-identity-regexp '^https://github.com/hawserhq/hawser/' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   SHA256SUMS
 
@@ -134,7 +134,7 @@ named the original bytes.
 
 Release binaries are **not yet Authenticode code-signed** — that needs a
 purchased certificate and is tracked by
-[#77](https://github.com/zcsizmadia/hawser/issues/77) — so SmartScreen will
+[#77](https://github.com/hawserhq/hawser/issues/77) — so SmartScreen will
 still warn. Provenance and Authenticode are different things and neither
 substitutes for the other.
 

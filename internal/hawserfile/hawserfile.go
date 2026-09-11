@@ -12,8 +12,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/zcsizmadia/hawser/internal/config"
-	"github.com/zcsizmadia/hawser/internal/engineconfig"
+	"github.com/hawserhq/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/engineconfig"
 	"gopkg.in/yaml.v3"
 )
 

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/remotecert"
+	"github.com/hawserhq/hawser/internal/remotecert"
 )
 
 // mintInto writes a CA, server, and client bundle into dir the way

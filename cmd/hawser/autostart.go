@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zcsizmadia/hawser/internal/autostart"
+	"github.com/hawserhq/hawser/internal/autostart"
 )
 
 func runAutostart(args []string) int {

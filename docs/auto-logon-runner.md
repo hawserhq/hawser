@@ -99,7 +99,7 @@ Doctor names the module because the dump cannot. The actual fix is an
 **exclusion for `hawser.exe` and `hawserw.exe`** from whoever manages the
 agent — a policy change, not a code change. `HAWSER_NO_VSOCK=1` narrows the
 window in the meantime, at the cost of the slower transport. See
-[#166](https://github.com/zcsizmadia/hawser/issues/166).
+[#166](https://github.com/hawserhq/hawser/issues/166).
 
 ### 3. Enable auto-logon
 

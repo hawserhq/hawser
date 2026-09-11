@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os/exec"
 
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 // checkWSL diagnoses the WSL2 platform Hawser stands on: present, a supported

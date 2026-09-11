@@ -78,5 +78,5 @@ query field) but not the image or mounts (body fields).
   after toggling it.
 - Records are best-effort: a write failure never blocks or fails the docker
   command being proxied.
-- It pairs with the coming policy engine ([#120](https://github.com/zcsizmadia/hawser/issues/120)):
+- It pairs with the coming policy engine ([#120](https://github.com/hawserhq/hawser/issues/120)):
   every allow/deny decision there becomes one audit record here.

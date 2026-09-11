@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/zcsizmadia/hawser/internal/policy"
-	"github.com/zcsizmadia/hawser/internal/remote"
-	"github.com/zcsizmadia/hawser/internal/runner"
+	"github.com/hawserhq/hawser/internal/policy"
+	"github.com/hawserhq/hawser/internal/remote"
+	"github.com/hawserhq/hawser/internal/runner"
 )
 
 // The --json shapes: the CLI contract that machine consumers — the VS Code

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/remote"
-	"github.com/zcsizmadia/hawser/internal/version"
+	"github.com/hawserhq/hawser/internal/remote"
+	"github.com/hawserhq/hawser/internal/version"
 )
 
 // Remote-engine contexts (#138): hawser-<name> is OK when the remote is known

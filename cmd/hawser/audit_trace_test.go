@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/audit"
+	"github.com/hawserhq/hawser/internal/audit"
 )
 
 func TestSummarizeTraceGroupsAndDeduplicates(t *testing.T) {

@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"fyne.io/systray"
-	"github.com/zcsizmadia/hawser/internal/tray"
+	"github.com/hawserhq/hawser/internal/tray"
 )
 
 func main() {
@@ -78,7 +78,7 @@ func onReady() {
 	}()
 	go func() {
 		for range updates.ClickedCh {
-			go browse("https://github.com/zcsizmadia/hawser/releases")
+			go browse("https://github.com/hawserhq/hawser/releases")
 		}
 	}()
 	go func() {

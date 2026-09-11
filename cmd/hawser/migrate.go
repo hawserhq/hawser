@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zcsizmadia/hawser/internal/migrate"
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/migrate"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 func runMigrate(args []string) int {

@@ -9,9 +9,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/remotecert"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/remotecert"
 )
 
 func runServe(args []string) int {

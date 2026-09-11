@@ -2,7 +2,7 @@
 
 Every Hawser command that reports state can emit machine-readable JSON with
 `--json`. This is **the contract** that tools build on — the
-[VS Code extension](https://github.com/zcsizmadia/hawser-vscode), CI scripts,
+[VS Code extension](https://github.com/hawserhq/hawser-vscode), CI scripts,
 fleet health checks — so it is governed by three rules:
 
 1. **Additive only.** Fields are added, never renamed or removed. A consumer

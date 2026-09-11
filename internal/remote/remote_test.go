@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/remotecert"
+	"github.com/hawserhq/hawser/internal/remotecert"
 )
 
 // mintCerts writes a CA and a client cert/key into dir under the given

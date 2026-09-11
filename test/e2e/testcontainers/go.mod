@@ -1,7 +1,7 @@
 // A separate module so testcontainers-go's dependency tree never enters the
 // hawser module. The acceptance suite runs `go test` here with DOCKER_HOST set
 // to its engine (#144).
-module github.com/zcsizmadia/hawser/test/e2e/testcontainers
+module github.com/hawserhq/hawser/test/e2e/testcontainers
 
 go 1.25.0
 

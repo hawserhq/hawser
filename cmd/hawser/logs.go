@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 // runLogs is `hawser logs` (#146): the supervisor, dockerd, or audit log, with

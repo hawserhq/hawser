@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/version"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/version"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 func runVersion(args []string) int {

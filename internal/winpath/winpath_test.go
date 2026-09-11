@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/winpath"
+	"github.com/hawserhq/hawser/internal/winpath"
 )
 
 func TestToWSL(t *testing.T) {

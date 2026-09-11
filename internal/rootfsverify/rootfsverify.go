@@ -75,7 +75,7 @@ type Verifier struct {
 	// Fetch retrieves the .sha256 and .cosign.bundle files.
 	Fetch Fetcher
 	// Repo is the GitHub repository whose workflow must have signed it, e.g.
-	// "zcsizmadia/hawser". The certificate identity is required to start with
+	// "hawserhq/hawser". The certificate identity is required to start with
 	// https://github.com/<repo>/, so a signature made by any other repository's
 	// workflow -- including a fork's -- is rejected.
 	Repo string

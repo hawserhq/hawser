@@ -3,8 +3,8 @@ package version
 import (
 	"context"
 
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // Collector assembles a Report from the machine. Every source is injectable so

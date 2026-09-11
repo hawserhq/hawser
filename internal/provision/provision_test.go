@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // fakeWSL is a scriptable stand-in for wsl.exe.

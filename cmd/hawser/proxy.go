@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zcsizmadia/hawser/internal/dockerctx"
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/dockerctx"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 func runProxy(args []string) int {

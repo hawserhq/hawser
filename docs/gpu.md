@@ -148,4 +148,4 @@ NVIDIA machine.
 Switching vendors removes the other spec, so you never end up with two kinds
 installed. `hawser enable-gpu --off` removes both.
 
-[#185]: https://github.com/zcsizmadia/hawser/issues/185
+[#185]: https://github.com/hawserhq/hawser/issues/185

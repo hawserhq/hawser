@@ -20,7 +20,7 @@
       "version": "29.8.0",
       "default": true,
       "rootfs": {
-        "url": "https://github.com/zcsizmadia/hawser/releases/download/rootfs-v29.8.0-1/hawser-rootfs-29.8.0-1.tar.gz",
+        "url": "https://github.com/hawserhq/hawser/releases/download/rootfs-v29.8.0-1/hawser-rootfs-29.8.0-1.tar.gz",
         "sha256": "76101881a8b56ce7fc25b947f2b31dca0aeda6ff3e76d8d7a5fbe3a3be782635"
       },
       "components": {
@@ -36,7 +36,7 @@
       "version": "29.7.2",
       "default": false,
       "rootfs": {
-        "url": "https://github.com/zcsizmadia/hawser/releases/download/rootfs-v29.7.2-4/hawser-rootfs-29.7.2-4.tar.gz",
+        "url": "https://github.com/hawserhq/hawser/releases/download/rootfs-v29.7.2-4/hawser-rootfs-29.7.2-4.tar.gz",
         "sha256": "8a9cb099b6fa58e8633c7612cb9b16ce0284e257ec9bf8a4c594844131f370a1"
       },
       "components": {

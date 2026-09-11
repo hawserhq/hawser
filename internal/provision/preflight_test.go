@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // quietLogger keeps expected-failure tests from filling the test output.

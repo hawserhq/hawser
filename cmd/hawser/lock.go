@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zcsizmadia/hawser/internal/lockfile"
-	"github.com/zcsizmadia/hawser/internal/release"
+	"github.com/hawserhq/hawser/internal/lockfile"
+	"github.com/hawserhq/hawser/internal/release"
 )
 
 func runLock(args []string) int {

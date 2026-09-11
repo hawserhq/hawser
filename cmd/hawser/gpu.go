@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/zcsizmadia/hawser/internal/config"
-	"github.com/zcsizmadia/hawser/internal/gpu"
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/gpu"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 // runEnableGPU is `hawser enable-gpu`: install the NVIDIA CDI spec so containers

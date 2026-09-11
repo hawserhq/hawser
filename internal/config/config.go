@@ -17,8 +17,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/gpu"
-	"github.com/zcsizmadia/hawser/internal/wslconfig"
+	"github.com/hawserhq/hawser/internal/gpu"
+	"github.com/hawserhq/hawser/internal/wslconfig"
 )
 
 // KeyIdleTimeout is how long the bridge must be quiet (no open connections,

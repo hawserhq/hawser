@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // fakeWSL implements wsl.WSL; Export writes a stand-in tarball so the checksum

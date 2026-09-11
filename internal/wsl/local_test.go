@@ -7,7 +7,7 @@ import (
 	"testing"
 	"unicode/utf16"
 
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // fakeRunner records invocations and replays canned output, so every wsl.exe

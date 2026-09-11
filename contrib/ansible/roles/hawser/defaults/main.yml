@@ -10,7 +10,7 @@ hawser_version: "0.3.0"
 # provisioning account both see it.
 hawser_home: 'C:\Hawser'
 
-# Tag of zcsizmadia/setup-hawser whose install script is used, so a host, a
+# Tag of hawserhq/setup-hawser whose install script is used, so a host, a
 # GitHub Action and a baked image all install Hawser the same way.
 hawser_setup_ref: "v1"
 

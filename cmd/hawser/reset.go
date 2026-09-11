@@ -6,9 +6,9 @@ import (
 	"os"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/snapshot"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/snapshot"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // runReset is `hawser reset --to <snapshot>` (#142): the runner's clean slate.

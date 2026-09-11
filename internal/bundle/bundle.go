@@ -13,7 +13,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/zcsizmadia/hawser/internal/lockfile"
+	"github.com/hawserhq/hawser/internal/lockfile"
 )
 
 // lockEntry is the fixed name of the lock inside a bundle.

@@ -8,8 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/zcsizmadia/hawser/internal/dockercli"
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/dockercli"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 // runCLI is `hawser cli`: install the bundled docker CLI + compose + buildx +

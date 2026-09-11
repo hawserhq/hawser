@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/supervise"
 )
 
 // fakeEngine is a scriptable engine with call counting.

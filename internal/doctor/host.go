@@ -9,17 +9,17 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/zcsizmadia/hawser/internal/config"
-	"github.com/zcsizmadia/hawser/internal/dockercli"
-	"github.com/zcsizmadia/hawser/internal/hooks"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/remote"
-	"github.com/zcsizmadia/hawser/internal/runner"
-	"github.com/zcsizmadia/hawser/internal/supervise"
-	"github.com/zcsizmadia/hawser/internal/version"
-	"github.com/zcsizmadia/hawser/internal/vpnfingerprint"
-	"github.com/zcsizmadia/hawser/internal/wsl"
-	"github.com/zcsizmadia/hawser/internal/wslconfig"
+	"github.com/hawserhq/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/dockercli"
+	"github.com/hawserhq/hawser/internal/hooks"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/remote"
+	"github.com/hawserhq/hawser/internal/runner"
+	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/version"
+	"github.com/hawserhq/hawser/internal/vpnfingerprint"
+	"github.com/hawserhq/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wslconfig"
 )
 
 // Facts is everything the checks read, gathered once from the machine. Checks

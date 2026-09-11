@@ -9,7 +9,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // fakeWSL records Execs and serves a fixed distro list.

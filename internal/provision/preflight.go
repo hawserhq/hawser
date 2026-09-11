@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // MinWSLVersion is the oldest WSL release Hawser is tested against. Older

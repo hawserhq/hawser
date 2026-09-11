@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
 )
 
 // echoServer stands in for dockerd: a local TCP listener whose connections

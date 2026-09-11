@@ -6,10 +6,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/zcsizmadia/hawser/internal/bundle"
-	"github.com/zcsizmadia/hawser/internal/lockfile"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/release"
+	"github.com/hawserhq/hawser/internal/bundle"
+	"github.com/hawserhq/hawser/internal/lockfile"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/release"
 )
 
 func runBundle(args []string) int {

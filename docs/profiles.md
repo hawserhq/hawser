@@ -39,6 +39,6 @@ per switch (and not at all if the config already matches).
 
 Switching on a network/VPN change — detect the adapter, apply the mapped profile
 automatically, with consent configured up front and a log line every time — is
-tracked in [#63](https://github.com/zcsizmadia/hawser/issues/63) and builds on
+tracked in [#63](https://github.com/hawserhq/hawser/issues/63) and builds on
 the VPN fingerprinting there. For now, `hawser profile switch` is manual (a
 one-liner for a login script or a shortcut).

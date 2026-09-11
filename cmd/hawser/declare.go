@@ -7,16 +7,16 @@ import (
 	"log/slog"
 	"os"
 
-	"github.com/zcsizmadia/hawser/internal/autostart"
-	"github.com/zcsizmadia/hawser/internal/config"
-	"github.com/zcsizmadia/hawser/internal/dockerctx"
-	"github.com/zcsizmadia/hawser/internal/engineconfig"
-	"github.com/zcsizmadia/hawser/internal/hawserfile"
-	"github.com/zcsizmadia/hawser/internal/integrate"
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/release"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/autostart"
+	"github.com/hawserhq/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/dockerctx"
+	"github.com/hawserhq/hawser/internal/engineconfig"
+	"github.com/hawserhq/hawser/internal/hawserfile"
+	"github.com/hawserhq/hawser/internal/integrate"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/release"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // runInstallFromConfig provisions and converges an install from a hawser.yaml.

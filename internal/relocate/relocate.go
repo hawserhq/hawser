@@ -26,8 +26,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/snapshot"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/snapshot"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // DiskName is the file WSL creates for a distro's filesystem.

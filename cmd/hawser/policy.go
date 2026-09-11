@@ -6,8 +6,8 @@ import (
 	"io"
 	"os"
 
-	"github.com/zcsizmadia/hawser/internal/policy"
-	"github.com/zcsizmadia/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/policy"
+	"github.com/hawserhq/hawser/internal/provision"
 )
 
 // exitDenied is its own code so a script can tell "the rules refused this"

@@ -1,4 +1,4 @@
-module github.com/zcsizmadia/hawser
+module github.com/hawserhq/hawser
 
 go 1.23
 

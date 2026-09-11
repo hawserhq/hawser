@@ -12,11 +12,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/engineconfig"
-	"github.com/zcsizmadia/hawser/internal/gpu"
-	"github.com/zcsizmadia/hawser/internal/rootfsverify"
-	"github.com/zcsizmadia/hawser/internal/winpath"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/engineconfig"
+	"github.com/hawserhq/hawser/internal/gpu"
+	"github.com/hawserhq/hawser/internal/rootfsverify"
+	"github.com/hawserhq/hawser/internal/winpath"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // DefaultDistro is the WSL distribution Hawser imports. Deliberately distinct
@@ -896,4 +896,4 @@ func (p *Provisioner) verifyRootfsSignature(ctx context.Context, opts Options, t
 // signingRepo is the repository whose release workflow signs the rootfs. A
 // signature made by any other repository's workflow -- a fork's included -- is
 // rejected, so this is a trust anchor and not a convenience.
-const signingRepo = "zcsizmadia/hawser"
+const signingRepo = "hawserhq/hawser"

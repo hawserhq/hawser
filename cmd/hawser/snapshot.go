@@ -8,10 +8,10 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/snapshot"
-	"github.com/zcsizmadia/hawser/internal/supervise"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/snapshot"
+	"github.com/hawserhq/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 func runSnapshot(args []string) int {

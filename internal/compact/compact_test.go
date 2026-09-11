@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/compact"
-	"github.com/zcsizmadia/hawser/internal/vhdx"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/compact"
+	"github.com/hawserhq/hawser/internal/vhdx"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // fakeWSL records what was asked of it and answers from canned state.

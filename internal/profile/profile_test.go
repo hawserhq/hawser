@@ -3,7 +3,7 @@ package profile
 import (
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/hawserfile"
+	"github.com/hawserhq/hawser/internal/hawserfile"
 )
 
 func TestValidName(t *testing.T) {

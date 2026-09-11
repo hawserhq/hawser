@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // capWSL records the shell commands applyNetwork runs in the distro.

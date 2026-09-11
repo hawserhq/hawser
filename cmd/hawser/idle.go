@@ -11,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/integrate"
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/supervise"
+	"github.com/hawserhq/hawser/internal/integrate"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/supervise"
 )
 
 // demandDialer wakes an idle-stopped engine before dialing it: the first

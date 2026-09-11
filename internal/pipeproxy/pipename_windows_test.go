@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Microsoft/go-winio"
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
 )
 
 func TestDockerHostFor(t *testing.T) {

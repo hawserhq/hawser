@@ -18,7 +18,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // ProfilePath is the script written inside a target distro. profile.d keeps

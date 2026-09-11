@@ -8,8 +8,8 @@ import (
 	"text/tabwriter"
 	"time"
 
-	"github.com/zcsizmadia/hawser/internal/dockerctx"
-	"github.com/zcsizmadia/hawser/internal/prewarm"
+	"github.com/hawserhq/hawser/internal/dockerctx"
+	"github.com/hawserhq/hawser/internal/prewarm"
 )
 
 // runPrewarm is `hawser prewarm <images.txt>` (#149): pull a pinned image list

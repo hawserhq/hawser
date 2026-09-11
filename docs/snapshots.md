@@ -38,7 +38,7 @@ tens of seconds, not the single digits the ideal wants. The fast path to get
 there is exporting the golden as a VHDX (`wsl --export --vhd`) and using
 `wsl --import-in-place`, which turns the restore into a file copy — tracked as
 the follow-up on
-[#142](https://github.com/zcsizmadia/hawser/issues/142) with real timings from
+[#142](https://github.com/hawserhq/hawser/issues/142) with real timings from
 the acceptance suite, which resets to a fresh snapshot on every run.
 
 ## How it works

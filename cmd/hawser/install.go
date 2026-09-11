@@ -10,17 +10,17 @@ import (
 	"os/signal"
 	"path/filepath"
 
-	"github.com/zcsizmadia/hawser/internal/autostart"
-	"github.com/zcsizmadia/hawser/internal/bundle"
-	"github.com/zcsizmadia/hawser/internal/config"
-	"github.com/zcsizmadia/hawser/internal/dockerctx"
-	"github.com/zcsizmadia/hawser/internal/integrate"
-	"github.com/zcsizmadia/hawser/internal/lockfile"
-	"github.com/zcsizmadia/hawser/internal/logging"
-	"github.com/zcsizmadia/hawser/internal/pipeproxy"
-	"github.com/zcsizmadia/hawser/internal/provision"
-	"github.com/zcsizmadia/hawser/internal/release"
-	"github.com/zcsizmadia/hawser/internal/wsl"
+	"github.com/hawserhq/hawser/internal/autostart"
+	"github.com/hawserhq/hawser/internal/bundle"
+	"github.com/hawserhq/hawser/internal/config"
+	"github.com/hawserhq/hawser/internal/dockerctx"
+	"github.com/hawserhq/hawser/internal/integrate"
+	"github.com/hawserhq/hawser/internal/lockfile"
+	"github.com/hawserhq/hawser/internal/logging"
+	"github.com/hawserhq/hawser/internal/pipeproxy"
+	"github.com/hawserhq/hawser/internal/provision"
+	"github.com/hawserhq/hawser/internal/release"
+	"github.com/hawserhq/hawser/internal/wsl"
 )
 
 // cliLogger prints progress as plain lines rather than structured logfmt: this
