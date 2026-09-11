@@ -33,6 +33,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -398,4 +400,87 @@ func isHostPath(s string) bool {
 	}
 	// "C:" on its own, i.e. a bare drive root.
 	return len(s) == 2 && s[1] == ':'
+}
+
+// Watcher is the Gate the supervisor installs: it re-reads the rules file when
+// it changes, so editing policy.yaml takes effect without restarting anything.
+//
+// The first cut read the file once at supervisor start, and documented that a
+// change needed `hawser restart`. That was wrong twice over. `restart` bounces
+// the ENGINE; the supervisor process — which holds the rules — keeps running,
+// so the advice did not work even when followed. And a policy file created
+// after the supervisor started installed no gate at all, silently. Both were
+// caught by running a real `docker run --privileged` against a machine that
+// had just been told to deny it, and watching it succeed.
+//
+// So: stat on each judged request, re-read when it changed. A container create
+// is a human-scale event and a stat is microseconds, which buys the behaviour
+// `hawser config` already promises — settings apply live.
+type Watcher struct {
+	stateDir string
+
+	mu      sync.Mutex
+	rules   Rules
+	modTime time.Time
+	size    int64
+	loaded  bool
+	// lastErr is remembered so a file that breaks mid-edit is reported once
+	// rather than on every request.
+	lastErr string
+
+	// OnError reports a rule file that stopped parsing. Optional.
+	OnError func(err error)
+}
+
+// NewWatcher returns a Gate over the install's rule file. It reads nothing
+// yet: the first judged request loads it, so constructing one is free even on
+// a machine with no policy.
+func NewWatcher(stateDir string) *Watcher { return &Watcher{stateDir: stateDir} }
+
+// Rules returns the current rule set, re-reading if the file changed.
+func (w *Watcher) Rules() Rules {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.refreshLocked()
+	return w.rules
+}
+
+// refreshLocked re-reads the file when its mtime or size has moved.
+func (w *Watcher) refreshLocked() {
+	fi, err := os.Stat(Path(w.stateDir))
+	switch {
+	case os.IsNotExist(err):
+		// Deleting the file removes the rules, which is the obvious meaning
+		// and the only way to turn policy off without editing YAML.
+		w.rules, w.loaded, w.modTime, w.size = Rules{}, true, time.Time{}, 0
+		return
+	case err != nil:
+		return // unreadable right now; keep what we have
+	}
+	if w.loaded && fi.ModTime().Equal(w.modTime) && fi.Size() == w.size {
+		return
+	}
+
+	rules, err := Load(w.stateDir)
+	if err != nil {
+		// Keep the rules that were working. A typo saved mid-edit must not
+		// silently drop the guardrail — that is the failure direction this
+		// package exists to avoid.
+		if w.OnError != nil && err.Error() != w.lastErr {
+			w.OnError(err)
+		}
+		w.lastErr = err.Error()
+		// Record the stamp anyway so a broken file is not re-read and
+		// re-reported on every single request.
+		w.modTime, w.size = fi.ModTime(), fi.Size()
+		return
+	}
+	w.rules, w.loaded = rules, true
+	w.modTime, w.size = fi.ModTime(), fi.Size()
+	w.lastErr = ""
+}
+
+// DenyCreate implements the bridge's Gate.
+func (w *Watcher) DenyCreate(body map[string]any) (string, bool) {
+	return w.Rules().DenyCreate(body)
 }

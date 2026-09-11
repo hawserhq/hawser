@@ -1,8 +1,10 @@
 package policy
 
 import (
+	"os"
 	"strings"
 	"testing"
+	"time"
 )
 
 // create builds a container-create body the way the bridge decodes one.
@@ -258,5 +260,92 @@ func TestDenyCreateAdaptsToTheBridgeInterface(t *testing.T) {
 	}
 	if _, denied := r.DenyCreate(create(t, `{"Image":"ubuntu"}`)); denied {
 		t.Error("a plain request should not be denied")
+	}
+}
+
+func writePolicy(t *testing.T, dir, body string) {
+	t.Helper()
+	if err := os.WriteFile(Path(dir), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	// The watcher notices a change by mtime and size. Filesystem timestamp
+	// resolution is coarse enough that two writes in the same tick can look
+	// identical, so move the stamp deliberately rather than sleeping.
+	future := time.Now().Add(time.Duration(writeSeq) * time.Second)
+	writeSeq++
+	if err := os.Chtimes(Path(dir), future, future); err != nil {
+		t.Fatal(err)
+	}
+}
+
+var writeSeq = 1
+
+func TestWatcherPicksUpEditsWithNoRestart(t *testing.T) {
+	// The bug this exists for: the first cut read the file once at supervisor
+	// start and told users to run `hawser restart`, which bounces the engine
+	// and not the supervisor — so the advice did not work even when followed.
+	dir := t.TempDir()
+	w := NewWatcher(dir)
+
+	priv := map[string]any{"HostConfig": map[string]any{"Privileged": true}}
+
+	if _, denied := w.DenyCreate(priv); denied {
+		t.Fatal("no policy file yet: nothing should be denied")
+	}
+
+	writePolicy(t, dir, "deny-privileged: true\n")
+	if _, denied := w.DenyCreate(priv); !denied {
+		t.Error("a policy file created after the watcher should take effect")
+	}
+
+	writePolicy(t, dir, "deny-host-namespaces: true\n")
+	if _, denied := w.DenyCreate(priv); denied {
+		t.Error("removing a rule should take effect")
+	}
+
+	if err := os.Remove(Path(dir)); err != nil {
+		t.Fatal(err)
+	}
+	host := map[string]any{"HostConfig": map[string]any{"NetworkMode": "host"}}
+	if _, denied := w.DenyCreate(host); denied {
+		t.Error("deleting the file should remove every rule")
+	}
+}
+
+func TestWatcherKeepsLastGoodRulesWhenTheFileBreaks(t *testing.T) {
+	// A typo saved mid-edit must not silently drop the guardrail: that is the
+	// failure direction this package exists to avoid.
+	dir := t.TempDir()
+	var reported int
+	w := NewWatcher(dir)
+	w.OnError = func(error) { reported++ }
+
+	writePolicy(t, dir, "deny-privileged: true\n")
+	priv := map[string]any{"HostConfig": map[string]any{"Privileged": true}}
+	if _, denied := w.DenyCreate(priv); !denied {
+		t.Fatal("the good rules should be in force")
+	}
+
+	writePolicy(t, dir, "deny-priviliged: true\n") // typo
+	if _, denied := w.DenyCreate(priv); !denied {
+		t.Error("a broken file must keep the previous rules, not fail open")
+	}
+	if reported == 0 {
+		t.Error("a broken file should be reported")
+	}
+
+	// ...and reported once, not on every request.
+	before := reported
+	for i := 0; i < 5; i++ {
+		w.DenyCreate(priv)
+	}
+	if reported != before {
+		t.Errorf("the same error was reported %d extra times", reported-before)
+	}
+
+	// Fixing it takes effect immediately.
+	writePolicy(t, dir, "deny-host-namespaces: true\n")
+	if _, denied := w.DenyCreate(priv); denied {
+		t.Error("a fixed file should take effect")
 	}
 }

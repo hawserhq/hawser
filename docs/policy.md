@@ -41,8 +41,17 @@ allow-registries:                     # images may only come from here
 require-digest: true                  # images must be pinned by digest
 ```
 
-Changing the file takes effect on `hawser restart`, the same contract the
-audit log has — the supervisor reads it once at start.
+Changing the file takes effect on the **next container create** — no
+restart, nothing to reload. Creating the file for the first time works the
+same way, and deleting it removes every rule.
+
+> An earlier draft read the file once when the supervisor started and told you
+> to run `hawser restart`. That was wrong twice: `restart` bounces the engine,
+> not the supervisor that holds the rules, so the advice did not work even
+> when followed — and a policy file written after the supervisor started
+> installed no rules at all. Both were found by running a real
+> `docker run --privileged` against a machine that had just been told to deny
+> it, and watching it succeed.
 
 ### Notes that matter in practice
 

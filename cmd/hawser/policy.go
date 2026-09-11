@@ -47,8 +47,8 @@ elevation, no engine change, no daemon plugin.
   check   validate the rules file without applying it
   test    judge a container-create body against the rules, and say why
 
-Rules live in %s inside the state dir. A missing file means no
-rules. Changing them takes effect on `+"`hawser restart`"+`, like the audit log.
+Rules live in %s inside the state dir. A missing file means no rules.
+Edits take effect on the next container create -- nothing to restart.
 
   deny-privileged:          true        # refuse --privileged
   deny-added-capabilities:  true        # refuse any --cap-add
@@ -105,7 +105,7 @@ func runPolicyShow(args []string) int {
 	for _, line := range describe(rules) {
 		fmt.Printf("  %s\n", line)
 	}
-	fmt.Println("\nchanges take effect on `hawser restart`")
+	fmt.Println("\nedits take effect on the next container create")
 	return exitOK
 }
 

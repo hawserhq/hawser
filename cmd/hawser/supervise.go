@@ -179,24 +179,24 @@ flags:
 		}
 	}
 
-	// A policy file that will not parse is refused loudly and the supervisor
-	// runs without it, rather than silently enforcing nothing: a guardrail
-	// that quietly fails open is worse than no guardrail, because it is
-	// believed. `hawser policy check` is how a user finds out before this.
-	var gate pipeproxy.Gate
-	switch rules, err := policy.Load(opts.StateDir); {
-	case err != nil:
-		log.Error("policy file is not valid; admission control is OFF", "error", err,
-			"path", policy.Path(opts.StateDir))
-	case !rules.Empty():
-		gate = rules
+	// The gate is always installed and re-reads policy.yaml when it changes,
+	// so editing the rules -- or creating the file for the first time --
+	// takes effect on the next container create, with nothing to restart.
+	//
+	// Reading once at start was the first cut and it was wrong: `hawser
+	// restart` bounces the engine, not this process, so the documented advice
+	// did not work; and a policy written after the supervisor started
+	// installed no gate at all.
+	watcher := policy.NewWatcher(opts.StateDir)
+	watcher.OnError = func(err error) {
+		log.Error("policy file is not valid; the previous rules stay in force",
+			"error", err, "path", policy.Path(opts.StateDir))
+	}
+	if rules := watcher.Rules(); !rules.Empty() {
 		log.Info("admission control enabled", "path", policy.Path(opts.StateDir))
 	}
 
-	handler := pipeproxy.RewriteBinds
-	if sink != nil || gate != nil {
-		handler = pipeproxy.RewriteBindsGuarded(sink, gate)
-	}
+	handler := pipeproxy.RewriteBindsGuarded(sink, watcher)
 
 	metrics := &pipeproxy.Metrics{}
 	srv := &pipeproxy.Server{
