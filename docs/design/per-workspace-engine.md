@@ -1,7 +1,8 @@
 # Design: per-workspace engines
 
-Status: **proposal** for [#140](https://github.com/hawserhq/hawser/issues/140)
-— the CLI shape and the trade-offs, before code. Owner review decides.
+Status: **accepted design, not scheduled**. The shape and trade-offs for
+[#140](https://github.com/hawserhq/hawser/issues/140); every open question
+is settled below. Deliberately not built yet — see Sequencing.
 
 ## The capability
 
@@ -165,24 +166,58 @@ per-engine state dirs mean reading the current target's.
 3. **Per-engine autostart policy**, `target list` disk accounting, and
    doctor's free-space floor across every engine.
 
-## Open questions for review
+## Settled decisions
 
-Still the owner's to settle; each carries a recommendation and the reasoning
-behind it.
+The three questions this doc opened with are decided. Kept here with their
+reasoning, because a decision without its argument gets re-litigated.
 
-- **Version for a new target: the default engine's, or the build's?**
-  *Recommend the build's default, like `install`.* Inheriting the shared
-  engine's version makes the result depend on invisible local history — the
-  same `target create` on two machines, or before and after an upgrade, would
-  produce different engines. `hawser.yaml` already has `engine-version:` for
-  anyone who wants to pin deliberately.
-- **Should `hawser use` export `DOCKER_HOST`?**
-  *Recommend no, firmly.* A process cannot set a variable in its parent shell,
-  so this would have to become something you `eval` — a different and worse
-  UX. It would also bypass the context that Dev Containers and the extension
-  read, leaving the two disagreeing about which engine you are on, which is the
-  confusion this feature exists to remove. `DOCKER_CONTEXT` covers scripts.
-- **Cap the number of engines?**
-  *Recommend visibility, not a cap* — provided visibility includes the total
-  disk and doctor's floor accounts for every engine (see Cost above). A cap
-  would be an arbitrary number that a fleet eventually needs to exceed.
+**A new target gets the build's default engine version**, exactly as `install`
+does — not the shared engine's current version. Inheriting would make the
+result depend on invisible local history: the same `target create` on two
+machines, or on one machine before and after an engine upgrade, would produce
+different engines. Determinism is the brand. Anyone who wants a specific
+version pins it, with `--engine-version` or `engine-version:` in
+`hawser.yaml`.
+
+**`hawser use` does not export `DOCKER_HOST`.** Two reasons, and the second is
+the decisive one. A process cannot set a variable in its parent shell, so this
+would have to become something you `eval` — a different and worse UX than a
+command that just works. And `DOCKER_HOST` overrides the docker context, which
+is what VS Code Dev Containers and the hawser-vscode extension read: setting
+it would leave the CLI and the editor disagreeing about which engine you are
+on, which is the exact confusion per-workspace engines exist to remove.
+Contexts are the contract; `DOCKER_CONTEXT` covers scripts that need to be
+explicit.
+
+**No cap on the number of engines — visibility instead**, on the condition
+that visibility is real: `target list` shows per-engine *and total* disk, and
+doctor's free-space floor (`disk.warn-below`, #145) accounts for every engine
+rather than one. A cap would be an arbitrary number a fleet eventually needs
+to exceed; sprawl you can see is a problem you can act on. Both conditions are
+in the phasing below.
+
+## Sequencing: why this is designed, not built
+
+The design is ready. Building it should wait, for two reasons that are about
+the rest of the project rather than this feature.
+
+**The CLI surface is not settled yet.** This adds a second top-level noun
+(`target`, plus `use`). The naming collisions found in a single day of work —
+`install` versus `engine upgrade`, `update` versus `upgrade`, `engine list`
+meaning two different things in the first draft of this very document — say
+that the vocabulary needs to stop moving before another noun joins it. #77
+(package IDs) and #1 (naming) are what settle it. Introducing `target` before
+then is how the next collision happens.
+
+**Per-engine supervisors multiply an existing hole.** Decision 1 means one
+supervisor per engine, and #202 records that today *nothing restarts even
+one*: `hawser restart` bounces the engine, not the supervisor. Whatever is
+decided there — a supervisor-restart command, live-reloading settings, or
+both — should land first, or this feature turns one awkward gap into N of
+them.
+
+**The piece worth building early**, if movement is wanted before either
+clears, is `target list` on its own: read-only, showing remotes, local engines
+and `local` with disk and the current target marked. It makes Decision 2
+visible, breaks nothing, and would show whether the `target` vocabulary reads
+well before anything depends on it.
