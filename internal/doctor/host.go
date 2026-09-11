@@ -105,6 +105,8 @@ type GPUStatus struct {
 	EngineInstalled bool `json:"engineInstalled"`
 	// ConfigEnabled is the `gpu` setting (`hawser enable-gpu`).
 	ConfigEnabled bool `json:"configEnabled"`
+	// Vendor is which vendor spec is configured (#185); empty means nvidia.
+	Vendor string `json:"vendor,omitempty"`
 	// Probed is true when the running engine was queried for the two below;
 	// false means the engine was down, so they are not authoritative.
 	Probed bool `json:"probed"`
@@ -214,6 +216,8 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 		f.Proxy = c.Proxy
 		f.ImportHostCAs = c.ImportHostCAs
 		f.GPU.ConfigEnabled = c.GPU
+		f.GPU.Vendor = c.GPUVendor
+		pOpts.GPUVendor = c.GPUVendor
 		f.DiskWarnBelow = c.DiskWarnBelow
 	}
 

@@ -39,6 +39,7 @@ func (e engineAdapter) Start(ctx context.Context) error {
 	opts := e.opts
 	if c, err := config.Load(opts.StateDir); err == nil {
 		opts.GPUEnabled = c.GPU
+		opts.GPUVendor = c.GPUVendor
 	}
 	return e.p.StartEngine(ctx, opts)
 }
@@ -158,6 +159,7 @@ flags:
 		}
 		// GPU CDI spec (#83), re-applied on every start like the network config.
 		opts.GPUEnabled = c.GPU
+		opts.GPUVendor = c.GPUVendor
 	}
 
 	// Bind-path rewriting is always on; the audit log (#121) wraps it when
@@ -371,6 +373,9 @@ func runStatus(args []string) int {
 	}
 	if c, err := config.Load(opts.StateDir); err == nil {
 		st.GPU.Enabled = c.GPU
+		st.GPU.Vendor = c.GPUVendor
+		// The probes below read the vendor spec path, so it has to travel too.
+		opts.GPUVendor = c.GPUVendor
 	}
 
 	if distro, ok := resolveDistro(p, opts); ok {

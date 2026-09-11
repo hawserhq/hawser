@@ -32,10 +32,13 @@ type statusJSON struct {
 // stopped distro, which status must never do (#82) — and probed says whether
 // they are authoritative.
 type gpuJSON struct {
-	Enabled       bool `json:"enabled"`
-	Probed        bool `json:"probed"`
-	Visible       bool `json:"visible"`
-	SpecInstalled bool `json:"specInstalled"`
+	Enabled bool `json:"enabled"`
+	// Vendor is which vendor spec is configured (#185); omitted for the
+	// nvidia default, so the shape is unchanged for every existing install.
+	Vendor        string `json:"vendor,omitempty"`
+	Probed        bool   `json:"probed"`
+	Visible       bool   `json:"visible"`
+	SpecInstalled bool   `json:"specInstalled"`
 }
 
 // cliStatusJSON is `hawser cli status --json` (#66).

@@ -71,6 +71,10 @@ type Options struct {
 	// the GPU (#83). Like Network, applied on every engine start so a rootfs
 	// re-import keeps it.
 	GPUEnabled bool
+	// GPUVendor picks which vendor's CDI spec applyGPU writes (#185).
+	// Empty means gpu.DefaultVendor, so an install that predates this stays
+	// NVIDIA.
+	GPUVendor string
 	// VerifySignature checks the rootfs Sigstore signature before importing, in
 	// addition to the always-enforced checksum (#147). Opt-in, because it needs
 	// cosign on PATH and an air-gapped install has no transparency log to reach.
@@ -384,15 +388,33 @@ func (p *Provisioner) applyEngineDefaults(ctx context.Context, opts Options) {
 // Best-effort, like applyNetwork: a spec-write failure logs but never blocks the
 // engine from coming up.
 func (p *Provisioner) applyGPU(ctx context.Context, opts Options) {
+	v := opts.gpuVendor()
 	if opts.GPUEnabled {
-		if err := p.writeDistroFile(ctx, opts, gpu.CDISpecPath, gpu.CDISpec()); err != nil {
-			p.logger().Warn("could not install the GPU CDI spec", "error", err)
+		if err := p.writeDistroFile(ctx, opts, v.SpecPath(), v.Spec()); err != nil {
+			p.logger().Warn("could not install the GPU CDI spec", "error", err, "vendor", v)
 		} else {
-			p.logger().Info("GPU CDI spec installed", "path", gpu.CDISpecPath)
+			p.logger().Info("GPU CDI spec installed", "path", v.SpecPath(), "vendor", v)
 		}
-	} else {
-		p.wsl().Exec(ctx, opts.Distro, "root", "rm", "-f", gpu.CDISpecPath)
 	}
+	// Remove every spec this vendor is not using, so switching vendors (or
+	// turning GPU off) never leaves a stale kind behind that a container could
+	// still select.
+	for _, other := range gpu.Vendors() {
+		if opts.GPUEnabled && other == v {
+			continue
+		}
+		p.wsl().Exec(ctx, opts.Distro, "root", "rm", "-f", other.SpecPath())
+	}
+}
+
+// gpuVendor resolves the configured vendor, defaulting rather than failing: a
+// bad value is refused by `config set`, and the engine must still start.
+func (o Options) gpuVendor() gpu.Vendor {
+	v, err := gpu.ParseVendor(o.GPUVendor)
+	if err != nil {
+		return gpu.DefaultVendor
+	}
+	return v
 }
 
 // GPUAvailable reports whether the engine distro can see the GPU: WSL's driver
@@ -401,7 +423,7 @@ func (p *Provisioner) applyGPU(ctx context.Context, opts Options) {
 func (p *Provisioner) GPUAvailable(ctx context.Context, opts Options) bool {
 	opts = opts.withDefaults()
 	out, err := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c",
-		"[ -e "+gpu.DxgDevice+" ] && [ -e "+gpu.ProbeLib+" ] && echo ok")
+		"[ -e "+gpu.DxgDevice+" ] && [ -e "+opts.gpuVendor().ProbeLib()+" ] && echo ok")
 	return err == nil && strings.Contains(out, "ok")
 }
 
@@ -412,9 +434,12 @@ func (p *Provisioner) ConfigureGPU(ctx context.Context, opts Options, enabled bo
 	opts = opts.withDefaults()
 	opts.GPUEnabled = enabled
 	if enabled {
-		return p.writeDistroFile(ctx, opts, gpu.CDISpecPath, gpu.CDISpec())
+		return p.writeDistroFile(ctx, opts, opts.gpuVendor().SpecPath(), opts.gpuVendor().Spec())
 	}
-	_, err := p.wsl().Exec(ctx, opts.Distro, "root", "rm", "-f", gpu.CDISpecPath)
+	var err error
+	for _, v := range gpu.Vendors() {
+		_, err = p.wsl().Exec(ctx, opts.Distro, "root", "rm", "-f", v.SpecPath())
+	}
 	return err
 }
 
@@ -422,7 +447,7 @@ func (p *Provisioner) ConfigureGPU(ctx context.Context, opts Options, enabled bo
 func (p *Provisioner) GPUSpecInstalled(ctx context.Context, opts Options) bool {
 	opts = opts.withDefaults()
 	out, err := p.wsl().Exec(ctx, opts.Distro, "root", "sh", "-c",
-		"[ -f "+gpu.CDISpecPath+" ] && echo yes")
+		"[ -f "+opts.gpuVendor().SpecPath()+" ] && echo yes")
 	return err == nil && strings.Contains(out, "yes")
 }
 

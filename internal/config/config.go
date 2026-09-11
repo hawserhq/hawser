@@ -17,6 +17,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/zcsizmadia/hawser/internal/gpu"
 	"github.com/zcsizmadia/hawser/internal/wslconfig"
 )
 
@@ -69,6 +70,12 @@ func NetworkKeys() []string { return []string{KeyProxy, KeyNoProxy, KeyImportHos
 // visible and restarts the engine.
 const KeyGPU = "gpu"
 
+// KeyGPUVendor selects which vendor's CDI spec `gpu` installs (#185). Separate
+// from KeyGPU rather than folded into it ("gpu = nvidia|amd|off") so every
+// install that already says `gpu on` keeps working and keeps meaning NVIDIA.
+// Empty is nvidia. "amd" is experimental -- see `hawser enable-gpu --help`.
+const KeyGPUVendor = "gpu.vendor"
+
 // KeyVerifySignature, when on, checks the rootfs Sigstore signature before it
 // is imported, in addition to the always-enforced SHA-256 pin (#147). Opt-in:
 // it needs cosign on PATH, and an air-gapped install has no transparency log
@@ -116,8 +123,10 @@ type Config struct {
 	Proxy         string
 	NoProxy       string
 	ImportHostCAs bool
-	// GPU installs the NVIDIA CDI spec so containers can use the GPU (#83).
+	// GPU installs the CDI spec so containers can use the GPU (#83).
 	GPU bool
+	// GPUVendor is which vendor's spec that is (#185). Empty means nvidia.
+	GPUVendor string
 	// VerifySignature checks the rootfs signature before import (#147).
 	VerifySignature bool
 	// DiskWarnBelow is the doctor free-space floor in bytes; 0 means default.
@@ -145,6 +154,7 @@ func Load(stateDir string) (Config, error) {
 	c.NoProxy = raw[KeyNoProxy]
 	c.ImportHostCAs = raw[KeyImportHostCAs] == "on"
 	c.GPU = raw[KeyGPU] == "on"
+	c.GPUVendor = raw[KeyGPUVendor]
 	c.VerifySignature = raw[KeyVerifySignature] == "on"
 	if v := strings.TrimSpace(raw[KeyDiskWarnBelow]); v != "" {
 		n, err := parseSize(v)
@@ -193,6 +203,7 @@ var validators = map[string]func(string) (string, error){
 	KeyNoProxy:         func(v string) (string, error) { return strings.TrimSpace(v), nil },
 	KeyImportHostCAs:   validateOnOff,
 	KeyGPU:             validateOnOff,
+	KeyGPUVendor:       validateGPUVendor,
 	KeyDiskWarnBelow:   validateSize,
 	KeyVerifySignature: validateOnOff,
 
@@ -288,6 +299,9 @@ func defaultFor(key string) string {
 	switch key {
 	case KeyIdleTimeout, KeyAudit, KeyImportHostCAs, KeyGPU, KeyVerifySignature:
 		return "off"
+	case KeyGPUVendor:
+		// Not an on/off key: unset means the default vendor, not disabled.
+		return string(gpu.DefaultVendor)
 	case KeyDiskWarnBelow:
 		return "5GiB"
 	}
@@ -397,4 +411,14 @@ func parseSize(s string) (uint64, error) {
 		return 0, fmt.Errorf("%q has an unknown unit %q (B, kB, MB, GB, TB, KiB, MiB, GiB, TiB)", s, unit)
 	}
 	return uint64(f * mult), nil
+}
+
+// validateGPUVendor accepts the vendors internal/gpu knows, so a typo is
+// refused here rather than producing a CDI spec no container can select.
+func validateGPUVendor(v string) (string, error) {
+	parsed, err := gpu.ParseVendor(strings.TrimSpace(strings.ToLower(v)))
+	if err != nil {
+		return "", err
+	}
+	return string(parsed), nil
 }
