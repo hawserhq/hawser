@@ -56,8 +56,13 @@ if (-not $Version) {
 }
 
 $arch = if ([Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq 'Arm64') { 'arm64' } else { 'amd64' }
-$zip = "skrog_${Version}_windows_$arch.zip"
 $base = "https://github.com/$repo/releases/download/v$Version"
+
+# Asset names, newest first. The project was called Hawser through v0.3.1 (#1)
+# and a published release's assets are immutable, so installing any version at
+# or before that has to ask for the name it actually shipped with. Trying the
+# current name first means the fallback costs nothing once it is unreachable.
+$candidates = @("skrog_${Version}_windows_$arch.zip", "hawser_${Version}_windows_$arch.zip")
 
 Say ""
 Say "Skrog $Version ($arch)"
@@ -66,16 +71,30 @@ Say "Skrog $Version ($arch)"
 
 $work = Join-Path ([IO.Path]::GetTempPath()) "skrog-install-$Version"
 New-Item -ItemType Directory -Force $work | Out-Null
-$zipPath = Join-Path $work $zip
 $sumsPath = Join-Path $work 'SHA256SUMS'
 
 try {
+    # SHA256SUMS names whichever asset the release actually published, so it
+    # decides which candidate to fetch — no guessing, and no request for a
+    # name that cannot exist.
+    Invoke-WebRequest "$base/SHA256SUMS" -OutFile $sumsPath
+    $sums = Get-Content $sumsPath
+
+    $zip = $null
+    foreach ($c in $candidates) {
+        if ($sums | Where-Object { $_ -match "\s+\*?$([regex]::Escape($c))\s*$" }) { $zip = $c; break }
+    }
+    if (-not $zip) {
+        throw ("release v$Version publishes none of: " + ($candidates -join ', ') +
+            "`nSHA256SUMS lists: " + (($sums | ForEach-Object { ($_ -split '\s+')[-1] }) -join ', '))
+    }
+    $zipPath = Join-Path $work $zip
+
     Step "downloading $zip"
     Invoke-WebRequest "$base/$zip" -OutFile $zipPath
-    Invoke-WebRequest "$base/SHA256SUMS" -OutFile $sumsPath
 
     # `<hash>  <file>` per line; a leading * (binary mode) is allowed.
-    $entry = Get-Content $sumsPath |
+    $entry = $sums |
         Where-Object { $_ -match "\s+\*?$([regex]::Escape($zip))\s*$" } |
         Select-Object -First 1
     if (-not $entry) { throw "SHA256SUMS has no entry for $zip" }
@@ -89,20 +108,34 @@ try {
     # --- 3. unpack -----------------------------------------------------------
 
     if (-not $Dir) { $Dir = Join-Path $env:LOCALAPPDATA 'Programs\skrog' }
-    # Extracting over a running skrog.exe fails with a file lock, which is a
-    # better error than a half-replaced install, but a useless one on its own.
-    $running = Get-Process -Name skrog, skrogw, skrogtray -ErrorAction SilentlyContinue |
+    # An already-running install holds a file lock, which fails the extract
+    # with a better error than a half-replaced install but a useless one on
+    # its own. Either process name: a pre-rename install is called hawser.
+    $running = Get-Process -Name skrog, skrogw, skrogtray, hawser, hawserw, hawsertray -ErrorAction SilentlyContinue |
         Where-Object { $_.Path -and $_.Path.StartsWith($Dir, [StringComparison]::OrdinalIgnoreCase) }
     if ($running) {
-        throw ("Skrog is running from $Dir (" + (($running.Name | Sort-Object -Unique) -join ', ') + "). " +
+        $names = ($running.Name | Sort-Object -Unique) -join ', '
+        throw ("Skrog is running from $Dir ($names). " +
             "Stop it first: skrog stop; then quit the tray if it is open.")
     }
 
     New-Item -ItemType Directory -Force $Dir | Out-Null
     Expand-Archive $zipPath -DestinationPath $Dir -Force
+
+    # v0.3.1 and earlier shipped hawser.exe (#1). Installing one of those is a
+    # legitimate thing to ask for, so it is supported and named honestly
+    # rather than silently producing a binary the docs never mention.
     $exe = Join-Path $Dir 'skrog.exe'
-    if (-not (Test-Path $exe)) { throw "skrog.exe not found after extracting $zip" }
+    $legacy = $false
+    if (-not (Test-Path $exe)) {
+        $old = Join-Path $Dir 'hawser.exe'
+        if (Test-Path $old) { $exe = $old; $legacy = $true }
+    }
+    if (-not (Test-Path $exe)) { throw "no skrog.exe or hawser.exe after extracting $zip" }
     Step "unpacked to $Dir"
+    if ($legacy) {
+        Step "note: v$Version predates the Skrog rename - the command is 'hawser', not 'skrog'"
+    }
 } finally {
     Remove-Item -Recurse -Force $work -ErrorAction SilentlyContinue
 }
@@ -152,8 +185,11 @@ if ($added) {
 
 Say ""
 Say "Next:"
-Say "  skrog install      provision the engine (downloads a verified rootfs, ~2 min)"
-Say "  skrog doctor       check this machine is ready first"
+# The command is whatever actually landed - `skrog` normally, `hawser` when
+# a pre-rename version was asked for.
+$cmd = [IO.Path]::GetFileNameWithoutExtension($exe)
+Say "  $cmd install      provision the engine (downloads a verified rootfs, ~2 min)"
+Say "  $cmd doctor       check this machine is ready first"
 Say ""
 Say "Binaries are not signed yet, so Windows SmartScreen may warn on first run."
 Say "Docs: https://wslkit.github.io/skrog/"
