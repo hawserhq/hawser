@@ -31,6 +31,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -277,7 +278,24 @@ func bindSources(hc map[string]any) []string {
 			if !ok {
 				continue
 			}
-			if t, _ := mm["Type"].(string); !strings.EqualFold(t, "bind") {
+			// npipe counts as a bind here, because the bridge makes it one.
+			//
+			// Immediately after this gate returns, pipeproxy's rewriter turns
+			// Type "npipe" into "bind" and maps the source through ToWSL,
+			// where a pipe path resolves to the engine's own socket (#164,
+			// deliberate). Skipping it meant the legacy spelling of that mount
+			// (HostConfig.Binds) was correctly denied while
+			// `--mount type=npipe,...` was never examined at all — the same
+			// request, two spellings, opposite verdicts, and the permissive one
+			// a first-class docker CLI flag (#256).
+			//
+			// Only these two types are admitted, so volume and tmpfs mounts —
+			// whose Source is a name, not a path — are still not judged as
+			// bind sources. Deliberately no isHostPath filter on this branch:
+			// under an allowlist a source that is skipped is a source that is
+			// allowed, so dropping anything here could only loosen the rule.
+			t, _ := mm["Type"].(string)
+			if !strings.EqualFold(t, "bind") && !strings.EqualFold(t, "npipe") {
 				continue
 			}
 			if s, _ := mm["Source"].(string); s != "" {
@@ -321,8 +339,33 @@ func underAny(path string, roots []string) bool {
 	return false
 }
 
+// normPath lowercases, unifies separators and — the part that matters —
+// resolves . and .. before anything is compared.
+//
+// Without that, a source spelled as an allowed root followed by
+// parent-directory segments satisfied the prefix test and then mounted
+// somewhere else entirely: winpath.ToWSL passes the remainder through
+// verbatim, so the traversal survived into the mount the kernel resolved.
+// docs/policy.md describes this rule as a boundary-respecting prefix match,
+// which was true only of already-normalised input (#256).
+//
+// path.Clean rather than filepath.Clean: separators are unified to forward
+// slashes first, and this must behave identically wherever the tests run
+// rather than following the host's rules.
 func normPath(p string) string {
-	return strings.ToLower(strings.ReplaceAll(strings.TrimSpace(p), `\`, "/"))
+	s := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(p), `\`, "/"))
+	if s == "" {
+		return ""
+	}
+	// Keep a drive letter attached to its root: path.Clean("c:/a/../..") would
+	// otherwise walk above "c:" and produce "..", which no root can match —
+	// failing closed, but confusingly.
+	cleaned := path.Clean(s)
+	if strings.HasPrefix(cleaned, "..") {
+		// Escaped its own root: cannot be under any allowed root.
+		return "\x00escaped"
+	}
+	return cleaned
 }
 
 // registryOf extracts the registry host from an image reference, applying
