@@ -152,10 +152,28 @@ jobs:
             Remove-Item -Recurse -Force $dir.Name
           }
           # One checksum file covering every artifact, in the usual format.
-          Get-ChildItem -Filter *.zip | ForEach-Object {
+          #
+          # Written with explicit LF endings, not Set-Content, which emits CRLF
+          # on PowerShell (#248). The trailing \r becomes part of the filename
+          # `sha256sum -c` looks for, so the verification command this project
+          # documents fails on every line with "no file was verified" — while
+          # the hashes themselves are perfectly correct. Windows is the entire
+          # audience here and they run sha256sum from Git Bash or WSL, so this
+          # is the first step of the first check a careful user performs.
+          $lines = Get-ChildItem -Filter *.zip | ForEach-Object {
             $h = (Get-FileHash $_.Name -Algorithm SHA256).Hash.ToLower()
             "$h  $($_.Name)"
-          } | Set-Content SHA256SUMS -Encoding ascii
+          }
+          [IO.File]::WriteAllText(
+            (Join-Path $PWD 'SHA256SUMS'),
+            (($lines -join "`n") + "`n"),
+            (New-Object Text.UTF8Encoding $false))
+
+          # Assert it, rather than trusting that the line above stayed correct:
+          # the cosign bundle signs these exact bytes, so a reformat is not
+          # something a later release can quietly repair.
+          $raw = [IO.File]::ReadAllBytes((Join-Path $PWD 'SHA256SUMS'))
+          if ($raw -contains 13) { throw "SHA256SUMS contains CR; sha256sum -c would fail" }
           Get-Content SHA256SUMS
           Pop-Location
 

@@ -105,6 +105,19 @@ cosign verify-blob \
 sha256sum -c SHA256SUMS --ignore-missing
 ```
 
+> **Releases up to and including v0.4.0 shipped `SHA256SUMS` with CRLF line
+> endings** ([#248](https://github.com/wslkit/skrog/issues/248)), which makes
+> step 3 above print `no file was verified` — the trailing `\r` becomes part of
+> the filename it looks for. The hashes are correct; only the format is wrong.
+> For those releases, strip it first:
+>
+> ```
+> tr -d '\r' < SHA256SUMS | sha256sum -c --ignore-missing
+> ```
+>
+> The file is signed as published, so past releases cannot be corrected without
+> invalidating their signature. Later ones are written with LF.
+
 ### Licences of what the rootfs ships
 
 The engine components are Apache-2.0 and the Alpine userland is a mix
