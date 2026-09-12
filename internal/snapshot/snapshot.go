@@ -150,7 +150,17 @@ func (m *Manager) Save(ctx context.Context, name, engineVersion string) (Meta, e
 		SizeBytes:     size,
 	}
 	if err := m.writeMeta(meta); err != nil {
-		return Meta{}, err
+		// Take the tarball with it. Exists() keys on the sidecar, so without
+		// this the archive is invisible to List and undeletable by Delete,
+		// which refuses with "no such snapshot" before it ever reaches the
+		// tar — leaving a file the size of the whole engine that the CLI
+		// cannot remove (#246).
+		//
+		// The common way to get here is the volume filling up during the
+		// export, which is a common reason to be snapshotting a nearly-full
+		// disk in the first place, so this is not a corner.
+		os.Remove(m.tar(name))
+		return Meta{}, fmt.Errorf("recording the snapshot failed, so its archive was discarded: %w", err)
 	}
 	return meta, nil
 }
@@ -277,6 +287,15 @@ func (m *Manager) Delete(name string) error {
 		return err
 	}
 	if !m.Exists(name) {
+		// An archive with no sidecar is not "no such snapshot": it is a
+		// snapshot whose record never got written. Versions up to v0.4.0 left
+		// those behind, and because Exists keys on the sidecar they were
+		// invisible to List and undeletable here — a multi-gigabyte file with
+		// no CLI way to remove it (#246). Save no longer creates them; this
+		// clears the ones already on disk.
+		if _, err := os.Stat(m.tar(name)); err == nil {
+			return os.Remove(m.tar(name))
+		}
 		return fmt.Errorf("no such snapshot %q", name)
 	}
 	os.Remove(m.tar(name))
