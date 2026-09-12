@@ -283,6 +283,9 @@ reboot (see [auto-logon-runner.md](auto-logon-runner.md)):
     { "name": "autostart", "status": "fail", "summary": "no logon autostart; the session will start but the supervisor will not",
       "remedy": "run `skrog autostart enable` as the auto-logon account (needs skrogw.exe beside skrog.exe)." },
     { "name": "supervisor", "status": "ok", "summary": "supervisor is running" },
+    { "name": "power", "status": "warn",
+      "summary": "the machine sleeps on mains power (sleeps after 1h0m0s), which suspends a job mid-run",
+      "remedy": "powercfg /change standby-timeout-ac 0 && powercfg /change hibernate-timeout-ac 0" },
     { "name": "engine", "status": "ok", "summary": "engine is running" }
   ]
 }
@@ -291,6 +294,11 @@ reboot (see [auto-logon-runner.md](auto-logon-runner.md)):
 - `ready` is the exit code's verdict: **`0` ready (warnings allowed), `1` not
   ready, `3` not installed**. `findings` is always an array; `status` is `ok` |
   `warn` | `fail`; `remedy` is omitted when `ok`.
+- `power` reads the active scheme's **AC** timeouts only: a laptop on battery
+  having short DC timeouts is correct, not a misconfiguration. It **warns and
+  never fails** — many runners are desktops that will never sleep, and a check
+  that fails a healthy host is one people learn to ignore. A reading that could
+  not be taken warns as unknown rather than passing.
 - Read-only and unelevated. The auto-logon account is **compared, never
   printed**, and the password value is probed for existence only.
 

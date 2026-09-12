@@ -800,13 +800,14 @@ supervisor itself is misbehaving, or after replacing skrog.exe on disk.
 runner check: verify auto-logon, autostart, supervisor and engine on an unattended host
 
 ```
-usage: skrog runner [--json] check
+usage: skrog runner check [--json]
 
 Verifies the pieces an unattended runner depends on, and names the missing one:
 
   auto-logon configured (Winlogon), for this account, without a clear-text
   password in the registry; the logon autostart registered; the supervisor
-  running; the engine running or idle.
+  running; the engine running or idle; and whether the machine sleeps on mains
+  power, which would suspend a job mid-run.
 
 Nothing is changed. The auto-logon account name is compared, never printed, and
 the password value is only probed for existence.

@@ -11,7 +11,10 @@
 // password value is probed for existence only — its contents are never read.
 package runner
 
-import "strings"
+import (
+	"strings"
+	"time"
+)
 
 // Facts is what Evaluate reads, gathered by the caller (registry, autostart,
 // supervisor, engine). Pure input, so the rules are unit-tested exhaustively.
@@ -35,6 +38,32 @@ type Facts struct {
 	SupervisorRunning bool
 	// Engine is running | idle | stopped | not-installed.
 	Engine string
+
+	// Power describes the machine's sleep behaviour on mains power. A runner
+	// that suspends mid-job fails it in a way that looks like a Skrog fault,
+	// and `runner check` is the command an operator runs to satisfy themselves
+	// the host is set up — so its silence on this read as approval (#268).
+	Power PowerFacts
+}
+
+// PowerFacts is the sleep-related state, read from the active power scheme.
+//
+// Only the AC (plugged-in) values are checked. A runner on battery has bigger
+// problems than Skrog can advise on, and a laptop's DC timeouts being short is
+// correct behaviour rather than a misconfiguration.
+type PowerFacts struct {
+	// Known is false when the settings could not be read at all — a probe that
+	// did not happen must never read as a probe that passed.
+	Known bool
+	// Reason explains an unknown reading, for the summary line.
+	Reason string
+	// StandbyAfter and HibernateAfter are the AC idle timeouts. Zero means
+	// never, which is what a runner wants.
+	StandbyAfter   time.Duration
+	HibernateAfter time.Duration
+	// OnBattery is true when the machine is not on mains power. Not a failure,
+	// but it changes which timeouts actually apply.
+	OnBattery bool
 }
 
 // Status is a finding's verdict.
@@ -105,6 +134,34 @@ func Evaluate(f Facts) []Finding {
 			"run `skrog start`, or sign out and back in so the autostart launches it.")
 	}
 
+	// Warn, never fail. Plenty of runners are desktops that will never sleep,
+	// and a check that fails on a healthy host is a check people learn to
+	// ignore — which would cost more than this finding is worth.
+	//
+	// A caller that supplied nothing at all gets no finding, rather than a
+	// fabricated "unknown": ReadPower never returns the zero value (it sets
+	// either Known or Reason), so the empty case means "this caller did not
+	// probe", which is not the same claim as "the probe failed". Both callers
+	// do probe, so in practice the finding is always present.
+	switch {
+	case f.Power == (PowerFacts{}):
+		// Not probed by this caller.
+	case !f.Power.Known:
+		add("power", Warn,
+			"could not read the power settings, so whether this machine sleeps is unknown: "+f.Power.Reason,
+			"check it by hand with `powercfg /q`, or set the timeouts as below.")
+	case f.Power.StandbyAfter == 0 && f.Power.HibernateAfter == 0:
+		summary := "the machine does not sleep or hibernate on mains power"
+		if f.Power.OnBattery {
+			summary += " (currently on battery, where its own timeouts apply)"
+		}
+		add("power", OK, summary, "")
+	default:
+		add("power", Warn,
+			"the machine sleeps on mains power ("+sleepSummary(f.Power)+"), which suspends a job mid-run",
+			"powercfg /change standby-timeout-ac 0 && powercfg /change hibernate-timeout-ac 0")
+	}
+
 	switch f.Engine {
 	case "running":
 		add("engine", OK, "engine is running", "")
@@ -140,4 +197,17 @@ func sameAccount(f Facts) bool {
 		return true
 	}
 	return strings.EqualFold(ad, cd)
+}
+
+// sleepSummary names the timeouts that are actually set, so the warning says
+// which one to change rather than making the operator look both up.
+func sleepSummary(p PowerFacts) string {
+	var parts []string
+	if p.StandbyAfter > 0 {
+		parts = append(parts, "sleeps after "+p.StandbyAfter.String())
+	}
+	if p.HibernateAfter > 0 {
+		parts = append(parts, "hibernates after "+p.HibernateAfter.String())
+	}
+	return strings.Join(parts, ", ")
 }
