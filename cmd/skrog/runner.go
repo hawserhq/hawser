@@ -24,13 +24,14 @@ func runRunner(args []string) int {
 		asJSON   = fs.Bool("json", false, "emit machine-readable JSON")
 	)
 	fs.Usage = func() {
-		fmt.Fprintf(os.Stderr, `usage: skrog runner [--json] check
+		fmt.Fprintf(os.Stderr, `usage: skrog runner check [--json]
 
 Verifies the pieces an unattended runner depends on, and names the missing one:
 
   auto-logon configured (Winlogon), for this account, without a clear-text
   password in the registry; the logon autostart registered; the supervisor
-  running; the engine running or idle.
+  running; the engine running or idle; and whether the machine sleeps on mains
+  power, which would suspend a job mid-run.
 
 Nothing is changed. The auto-logon account name is compared, never printed, and
 the password value is only probed for existence.
@@ -41,10 +42,14 @@ flags:
 `, exitError, exitUsage, exitNotFound)
 		fs.PrintDefaults()
 	}
-	if err := fs.Parse(args); err != nil {
+	// Flags on either side of the verb. `skrog runner check --json` is how
+	// people type it and it printed usage instead — the same defect as
+	// snapshot (#244), found by running this command while adding the power
+	// check to it.
+	rest, err := parseInterleaved(fs, args)
+	if err != nil {
 		return exitUsage
 	}
-	rest := fs.Args()
 	if len(rest) != 1 || rest[0] != "check" {
 		fs.Usage()
 		return exitUsage
@@ -61,6 +66,7 @@ flags:
 		facts.PlaintextPassword = w.HasDefaultPassword
 	}
 	facts.CurrentUser, facts.CurrentDomain = runner.CurrentAccount()
+	facts.Power = runner.ReadPower()
 	facts.AutostartRegistered, _, _ = autostart.Status()
 	facts.SupervisorRunning = supervise.Held(opts.StateDir)
 	if distro, ok := resolveDistro(p, opts); ok {

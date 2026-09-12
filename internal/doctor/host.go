@@ -247,6 +247,9 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 		f.Runner.PlaintextPassword = w.HasDefaultPassword
 	}
 	f.Runner.CurrentUser, f.Runner.CurrentDomain = runner.CurrentAccount()
+	// Probed here too, so `skrog doctor` on a runner covers sleep as well —
+	// otherwise Evaluate would see no power facts and stay silent about it.
+	f.Runner.Power = runner.ReadPower()
 
 	// Third-party DLLs in this very process (#166): read from our own module
 	// list, so it costs a snapshot call and no privileges.
