@@ -226,12 +226,35 @@ func (r *Runner) Run(ctx context.Context, opts Options) (Report, error) {
 	}
 
 	// 4. Confirm the swap took, rather than trusting it.
-	if v, err := r.engineVersion(ctx, opts); err == nil {
+	//
+	// The previous version of this step did not confirm anything: it dropped
+	// the probe's error and compared the result against nothing, so a failed
+	// probe produced the step string "engine is running " with a trailing
+	// space, an upgrade that reported success, and a manifest left describing
+	// the old engine under the new ref (#241). An error swallowed under a
+	// comment claiming verification is the same shape as the agent-start bug.
+	v, verr := r.engineVersion(ctx, opts)
+	switch {
+	case verr != nil:
+		// Not fatal: the binaries are in place and the engine answered the
+		// readiness check above, so the upgrade did happen. What is unknown is
+		// whether it is the version we asked for — say that, rather than
+		// printing a blank.
+		rep.Steps = append(rep.Steps, "engine is running, but its version could not be read: "+verr.Error())
+	case opts.Target.Ref != "" && !strings.Contains(v, versionOf(opts.Target.Ref)):
 		rep.EngineVersion = v
+		rep.Steps = append(rep.Steps,
+			"engine reports "+v+", which does not look like the requested "+opts.Target.Ref)
+	default:
+		rep.EngineVersion = v
+		rep.Steps = append(rep.Steps, "engine is running "+v)
 	}
-	rep.Steps = append(rep.Steps, "engine is running "+rep.EngineVersion)
 	return rep, nil
 }
+
+// versionOf strips a ref down to the version it names, so a reported
+// "29.8.0" can be recognised in a ref spelled "29.8.0" or "v29.8.0".
+func versionOf(ref string) string { return strings.TrimPrefix(ref, "v") }
 
 // selfHeal restores the previous engine after a failed upgrade and returns the
 // error to report -- the original failure, with the outcome of the restore

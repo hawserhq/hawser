@@ -295,18 +295,38 @@ flags:
 
 	// Record what is installed now, even on a rollback-after-failure: the
 	// manifest must describe the engine that is actually in the distro.
-	if !*dryRun && err == nil {
+	//
+	// `err == nil` used to guard this, which excluded the one case the sentence
+	// above names. When the new engine failed to start AND the self-heal also
+	// failed, the distro carried the target's binaries while the manifest still
+	// said the old ref with the *pre-upgrade* previous — so the
+	// `skrog engine rollback` that the failure message tells the user to run
+	// went two versions down, or reported "no previous engine is recorded" to
+	// someone who had just been told to run it (#241).
+	//
+	// rep.Replaced is what distinguishes "the swap happened" from "we failed
+	// before touching anything": a download or staging failure leaves the old
+	// engine in place, and recording the target then would be a different lie.
+	swapped := !*dryRun && len(rep.Replaced) > 0
+	switch {
+	case *dryRun:
+		// Nothing is installed by a dry run.
+	case err == nil, swapped && !rep.RolledBack:
 		im.EngineRef = target.Ref
 		im.PreviousEngineRef = current
 		im.RootfsURL, im.RootfsSHA256 = target.URL, target.SHA256
 		im.UpgradedAt = time.Now().UTC()
-		if rep.EngineVersion != "" {
-			im.EngineVersion = rep.EngineVersion
-		}
+		// Only when it was confirmed. On the failure path the engine did not
+		// answer, so the old value would describe an engine that is no longer
+		// in the distro — a manifest naming two different engines at once.
+		im.EngineVersion = rep.EngineVersion
 		if serr := p.SaveManifest(opts, im); serr != nil {
 			fmt.Fprintf(os.Stderr, "skrog: the engine was upgraded but recording it failed: %v\n", serr)
 			return exitError
 		}
+	default:
+		// Either nothing was swapped, or the rollback put the previous engine
+		// back — both leave the manifest already describing what is installed.
 	}
 
 	if *asJSON {
