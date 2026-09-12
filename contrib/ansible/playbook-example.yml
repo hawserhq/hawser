@@ -13,7 +13,7 @@
   roles:
     - role: ../roles/skrog
       vars:
-        skrog_version: "0.3.0"
+        skrog_version: "0.4.0"
         # Same lock the developers commit, so laptop and runner run the same
         # dockerd, containerd, runc and BuildKit -- to the commit.
         skrog_lockfile_path: 'C:\ci\skrog.lock'

@@ -4,7 +4,7 @@
 # Hyper-V, vSphere, or QEMU; the provisioner steps are what matter.
 #
 #   packer init  .
-#   packer build -var skrog_version=0.3.0 -var bundle_path=./skrog-29.7.2.zip .
+#   packer build -var skrog_version=0.4.0 -var bundle_path=./skrog-29.7.2.zip .
 #
 # Auto-logon (the runner needs an interactive session — WSL2 cannot start from
 # a service) is deliberately NOT configured here: it writes a credential into
@@ -22,7 +22,7 @@ packer {
 
 variable "skrog_version" {
   type        = string
-  description = "Skrog release to install, e.g. 0.3.0 (pinned: never 'latest' in an image)."
+  description = "Skrog release to install, e.g. 0.4.0 (pinned: never 'latest' in an image)."
 }
 
 variable "bundle_path" {
@@ -39,8 +39,8 @@ variable "lockfile_path" {
 
 variable "setup_skrog_ref" {
   type        = string
-  default     = "v1"
-  description = "Tag of zcsizmadia/setup-skrog whose install script is used (one source of truth with the GitHub Action)."
+  default     = "v2"
+  description = "Tag of wslkit/setup-skrog whose install script is used (one source of truth with the GitHub Action)."
 }
 
 variable "runner_user" {

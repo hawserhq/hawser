@@ -23,7 +23,7 @@ $PSNativeCommandUseErrorActionPreference = $false
 
 $version = $env:SKROG_VERSION
 if (-not $version) { throw 'SKROG_VERSION is required (never bake "latest" into an image)' }
-$ref = if ($env:SETUP_SKROG_REF) { $env:SETUP_SKROG_REF } else { 'v1' }
+$ref = if ($env:SETUP_SKROG_REF) { $env:SETUP_SKROG_REF } else { 'v2' }
 
 # 1. Stage skrog.exe, verified against SHA256SUMS, into a machine-wide-readable
 #    place (the runner account and the provisioning account may differ).

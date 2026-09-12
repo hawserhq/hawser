@@ -20,8 +20,8 @@ against the release's `SHA256SUMS`, never "curl | iex".
 ```
 cd contrib/packer
 packer init .
-packer build -var skrog_version=0.3.0 .
-packer build -var skrog_version=0.3.0 -var bundle_path=./skrog-29.7.2.zip .   # air-gapped
+packer build -var skrog_version=0.4.0 .
+packer build -var skrog_version=0.4.0 -var bundle_path=./skrog-29.7.2.zip .   # air-gapped
 ```
 
 The template installs WSL2 (with the reboot it needs), stages `skrog.exe`,
