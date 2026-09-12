@@ -2,7 +2,7 @@
      leaves the sitemap undiscoverable: it exists, but nothing announces it.
      This is the one line that points a crawler at it without a Search Console
      submission. Everything here is public documentation, so nothing is
-     disallowed. */}}
+     disallowed. */ -}}
 User-agent: *
 Allow: /
 
