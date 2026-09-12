@@ -266,6 +266,28 @@ func (r *Runner) Run(ctx context.Context, opts Options) (Report, error) {
 		}
 	}
 
+	// Start before the archive is deleted, not after.
+	//
+	// This package promises the archive is "deleted once the new location is
+	// proven", and what proved it was an os.Stat for the imported disk's
+	// existence. Starting the engine is the only step that actually exercises
+	// the relocated disk — a dockerd that will not come up on the new drive, a
+	// permissions problem there, an import that produced a subtly bad disk —
+	// and it used to run after the last copy of the data was already gone,
+	// with the old VHDX destroyed by the unregister before that. So the one
+	// check worth having happened when nothing could be done about the answer
+	// (#242).
+	//
+	// Ordering it here costs nothing: on success the archive is deleted a few
+	// lines later exactly as before, and on failure the user still has it.
+	if opts.Restart {
+		if err := r.Start(ctx); err != nil {
+			return rep, &ErrOrphaned{Distro: opts.Distro, Archive: mgr.ArchivePath(name), Dir: rep.To,
+				Err: fmt.Errorf("the engine moved to %s, but starting it there failed: %w", rep.To, err)}
+		}
+		rep.Restarted = true
+	}
+
 	if opts.KeepArchive {
 		rep.ArchiveKept = mgr.ArchivePath(name)
 	} else {
@@ -285,12 +307,6 @@ func (r *Runner) Run(ctx context.Context, opts Options) (Report, error) {
 		os.Remove(rep.From)
 	}
 
-	if opts.Restart {
-		if err := r.Start(ctx); err != nil {
-			return rep, fmt.Errorf("the engine moved to %s, but starting it failed: %w", rep.To, err)
-		}
-		rep.Restarted = true
-	}
 	return rep, nil
 }
 

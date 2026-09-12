@@ -350,3 +350,39 @@ func TestHumanBytes(t *testing.T) {
 		}
 	}
 }
+
+// The archive must survive a failed --restart.
+//
+// Starting the engine is the only step that exercises the relocated disk. It
+// used to run after the archive had already been deleted and the old VHDX
+// destroyed by the unregister, so the one check worth having happened when
+// nothing could be done about the answer (#242).
+func TestRunKeepsTheArchiveWhenTheRestartFails(t *testing.T) {
+	h := newHarness(t, roomy)
+	h.r.Start = func(context.Context) error { return errors.New("dockerd: cannot start on this volume") }
+	o := h.opts()
+	o.Restart = true
+
+	rep, err := h.r.Run(context.Background(), o)
+	if err == nil {
+		t.Fatal("Run succeeded despite the engine failing to start at the new location")
+	}
+
+	var orph *ErrOrphaned
+	if !errors.As(err, &orph) {
+		t.Fatalf("error is %T, want *ErrOrphaned so the user is told where the data is: %v", err, err)
+	}
+	archive := orph.Archive
+	if archive == "" {
+		archive = rep.ArchiveKept
+	}
+	if archive == "" {
+		t.Fatal("the failure names no archive")
+	}
+	if _, statErr := os.Stat(archive); statErr != nil {
+		t.Errorf("the archive was deleted before the engine was proven to start: %v", statErr)
+	}
+	if !strings.Contains(err.Error(), "wsl --import") {
+		t.Errorf("the message is not a recovery procedure:\n%s", err)
+	}
+}
