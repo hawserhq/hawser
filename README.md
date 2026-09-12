@@ -21,13 +21,18 @@ A minimal, invisible way to run the upstream open source **Docker Engine on Wind
 No license fees, no Electron, no Kubernetes — install once, `docker ps` works forever, on
 laptops and CI runners alike.
 
-**Status: v0.3 pre-release.** Installable and working as a daily driver: install once and
+And the engine is **pinned by checksum**: `skrog lock` writes a `skrog.lock` naming dockerd,
+containerd, runc and BuildKit to the commit, which your CI runner then installs too. Docker
+Desktop cannot pin an engine version, so *"works on my machine, fails in CI"* caused by engine
+drift stops being a category of bug.
+
+**Status: v0.4 pre-release.** Installable and working as a daily driver: install once and
 the engine starts at every logon, heals itself, and answers `docker` at the same speed as
-Docker Desktop. v0.3 adds `skrog doctor`, validated engine settings, lifecycle hooks, and
-declarative installs, corporate-network/VPN support, and a bundled docker CLI so you can
-drop Docker Desktop entirely. Read
-[PLAN.md](PLAN.md) for the strategy and [ROADMAP.md](ROADMAP.md) for the schedule; the
-[issue tracker](https://github.com/wslkit/skrog/issues) is the live state.
+Docker Desktop. Read [PLAN.md](PLAN.md) for the strategy and [ROADMAP.md](ROADMAP.md) for
+the schedule; the [issue tracker](https://github.com/wslkit/skrog/issues) is the live state.
+
+One maintainer, young, and not yet code-signed — so SmartScreen warns on first run. If that
+matters more to you than the licence does, come back in a few months.
 
 ## Install
 
@@ -54,7 +59,8 @@ If Docker Desktop is not running, Skrog serves `\\.\pipe\docker_engine` — the 
 `docker` already talks to — so nothing else is needed. The `skrog` docker context
 install wires up is for the other case: when Desktop owns that pipe, Skrog serves its
 own, and `docker --context skrog ...` (or `docker context use skrog`) is how you reach
-it. `skrog status` prints which pipe you got.
+it. The install output names the pipe it took, and `docker context inspect skrog` shows
+it at any time.
 
 Binaries are not Authenticode-signed yet, so SmartScreen will warn on first run. Code
 signing is applied for through the [SignPath Foundation](https://signpath.org), with
@@ -77,7 +83,7 @@ On a CI runner, use [setup-skrog](https://github.com/wslkit/setup-skrog) instead
 volumes in it, the autostart entry, any distro integrations — and restores your previous
 docker context. Nothing else on the system is touched.
 
-## What it does today (v0.3)
+## What it does today
 
 - Upstream Docker Engine (Linux containers) in a dedicated WSL2 distro — the real API, byte
   for byte: compose, buildx, Testcontainers, `run -it`, bind mounts with Windows paths
@@ -158,6 +164,33 @@ docker context. Nothing else on the system is touched.
 Signed installers (winget/scoop/choco) — tracked in the
 [issue tracker](https://github.com/wslkit/skrog/issues). Data-dir relocation
 shipped: see [`skrog relocate`](docs/housekeeping.md).
+
+## How it compares
+
+The honest version, including where the alternatives win.
+
+**Docker Desktop** is why most people arrive: since 2021 it needs a paid subscription for
+larger companies, and a lot of developers are told to stop using it. Skrog is the engine
+underneath it — the same upstream dockerd — without the desktop application, the licence,
+or the auto-update that changes your engine mid-sprint. Desktop gives you a GUI, Windows
+containers, Kubernetes and macOS support; Skrog gives you none of those, deliberately.
+
+**Rancher Desktop** also runs a real container engine on WSL2, free and open source, with a
+GUI and k3s in the box. If you want a cluster or a graphical UI, take Rancher — Skrog has
+neither and will not grow them. It is also cross-platform, where Skrog is Windows-only.
+
+**Podman Desktop** fronts podman, whose API is Docker-*compatible* rather than Docker. That
+distinction is usually invisible and occasionally expensive: rootless defaults, compose
+handled by a shim, and the corners where tooling reaches for dockerd's actual behaviour.
+Skrog runs dockerd itself, so there is no compatibility surface to fall off.
+
+**What none of them do** is let you pin the engine. `skrog lock` writes the exact dockerd,
+containerd, runc and BuildKit commits; `setup-skrog` installs that same file on the runner.
+Docker Desktop ships whatever version it ships, and updates it on its own schedule.
+
+Reasons to pick something else, stated plainly: you need a GUI, Windows containers, macOS
+or Linux, a bundled Kubernetes, or a vendor with a support contract. Skrog is one
+maintainer and a young project.
 
 ## What it will never be
 
