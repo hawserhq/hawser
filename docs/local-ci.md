@@ -36,12 +36,13 @@ so say which engine you mean:
 $env:DOCKER_CONTEXT = "skrog"
 
 # or, for a tool that does not read docker contexts:
-$env:DOCKER_HOST = (docker context inspect skrog --format '{{.Endpoints.docker.Host}}')
+$env:DOCKER_HOST = (skrog status --json | ConvertFrom-Json).endpoint.dockerHost
 ```
 
-Set that once in the shell and the commands below are unchanged. Deriving the
-host from the context rather than writing a pipe name keeps it correct either
-way — the context points at whichever pipe Skrog actually took.
+Set that once in the shell and the commands below are unchanged. Asking Skrog
+rather than writing a pipe name keeps it correct either way — `status` reports
+the endpoint the running supervisor actually bound, and prints it without
+`--json` too.
 
 ## GitHub Actions with act
 

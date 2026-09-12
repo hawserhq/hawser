@@ -914,8 +914,13 @@ report supervisor, engine and desired state
 ```
 usage: skrog status [--json] [--stats]
 
-Reports the distro, whether the supervisor and engine are running, and the
-desired state the user last asked for.
+Reports the distro, whether the supervisor and engine are running, the desired
+state the user last asked for, and — while a supervisor is running — the pipe
+it actually bound, with the DOCKER_HOST spelling of it.
+
+The endpoint is what the running supervisor recorded when it bound, not a
+fresh guess: Docker Desktop can start or stop after Skrog chose, so recomputing
+the answer could name a pipe nothing is serving. No supervisor, no endpoint.
 
 Reads host-side files only — it never starts the engine to answer, and never
 wakes an idle-stopped one. Safe to poll.

@@ -23,6 +23,10 @@ type statusJSON struct {
 	Desired    string  `json:"desired"`    // running | stopped
 	Profile    string  `json:"profile,omitempty"`
 	GPU        gpuJSON `json:"gpu"`
+	// Endpoint is where the engine is answering (#273). Absent when no
+	// supervisor is running: nothing is being served then, and naming a pipe
+	// would be a guess rather than a report.
+	Endpoint *endpointJSON `json:"endpoint,omitempty"`
 	// Stats is present only with --stats (#179); the default shape is a pinned
 	// readiness-probe contract and does not change.
 	Stats *statsJSON `json:"stats,omitempty"`
@@ -40,6 +44,20 @@ type gpuJSON struct {
 	Probed        bool   `json:"probed"`
 	Visible       bool   `json:"visible"`
 	SpecInstalled bool   `json:"specInstalled"`
+}
+
+// endpointJSON is what the running supervisor bound — read back from its own
+// record, never recomputed, because the selector's answer depends on what else
+// held the default pipe at the time (see supervise.Endpoint).
+type endpointJSON struct {
+	// Pipe is the named pipe, `\\.\pipe\docker_engine` form; DockerHost is the
+	// same thing as the docker CLI wants it, so a consumer setting DOCKER_HOST
+	// does not have to know the npipe:// spelling.
+	Pipe       string `json:"pipe"`
+	DockerHost string `json:"dockerHost"`
+	// Reason explains the choice — the default pipe was free, or something
+	// else already had it.
+	Reason string `json:"reason,omitempty"`
 }
 
 // cliStatusJSON is `skrog cli status --json` (#66).

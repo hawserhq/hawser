@@ -86,6 +86,7 @@ func TestAcceptance(t *testing.T) {
 		{"EnableAuditLog", stageEnableAudit},
 		{"EnableHostCAImport", stageEnableHostCAs},
 		{"StartProxy", stageProxy},
+		{"StatusNamesTheServedEndpoint", stageStatusEndpoint},
 		{"DoctorReportsHealthy", stageDoctor},
 		{"RunnerCheckReports", stageRunnerCheck},
 		{"DeclarativeExportAndConverge", stageDeclarative},
@@ -320,6 +321,60 @@ func stageProxy(t *testing.T, s *state) {
 	}
 	log, _ := os.ReadFile(logPath)
 	t.Fatalf("engine never answered through the pipe. Proxy log:\n%s", log)
+}
+
+// stageStatusEndpoint asserts that `skrog status` names the pipe the running
+// supervisor actually bound (#273).
+//
+// This stage is the negative control for the whole feature, for free. The suite
+// runs the supervisor on `--pipe \\.\pipe\skrog-e2e-suite`, which is a name
+// pipeproxy.SelectPipeName can never return on its own: asked fresh it answers
+// docker_engine or skrog_engine. So an implementation that recomputed the
+// endpoint instead of reading the supervisor's record would report one of those
+// two here and fail — which is exactly the bug #273 warned about, since Docker
+// Desktop can start or stop after Skrog chose.
+func stageStatusEndpoint(t *testing.T, s *state) {
+	out, err := run(t, 30*time.Second, s.skrog, "status", "--state-dir", s.stateDir, "--json")
+	must(t, out, err, "skrog status --json")
+
+	var st struct {
+		Supervisor string `json:"supervisor"`
+		Endpoint   *struct {
+			Pipe       string `json:"pipe"`
+			DockerHost string `json:"dockerHost"`
+			Reason     string `json:"reason"`
+		} `json:"endpoint"`
+	}
+	if jerr := json.Unmarshal([]byte(out), &st); jerr != nil {
+		t.Fatalf("status --json unparseable: %v\n%s", jerr, out)
+	}
+	if st.Supervisor != "running" {
+		t.Fatalf("supervisor = %q, want running — the stage before this one started it", st.Supervisor)
+	}
+	if st.Endpoint == nil {
+		t.Fatalf("status reports no endpoint while the supervisor is running:\n%s", out)
+	}
+	if st.Endpoint.Pipe != pipeName {
+		t.Errorf("endpoint.pipe = %q, want %q (the pipe the supervisor was told to bind)",
+			st.Endpoint.Pipe, pipeName)
+	}
+	if st.Endpoint.DockerHost != dockerHost {
+		t.Errorf("endpoint.dockerHost = %q, want %q", st.Endpoint.DockerHost, dockerHost)
+	}
+	if st.Endpoint.Reason == "" {
+		t.Error("endpoint.reason is empty; it should say why this pipe was chosen")
+	}
+
+	// The human output carries it too: the point of #273 is that the answer
+	// must be available without --json and without asking docker.
+	text, err := run(t, 30*time.Second, s.skrog, "status", "--state-dir", s.stateDir)
+	must(t, text, err, "skrog status")
+	for _, want := range []string{pipeName, dockerHost} {
+		if !strings.Contains(text, want) {
+			t.Errorf("`skrog status` does not mention %q:\n%s", want, text)
+		}
+	}
+
 }
 
 // stageDoctor runs `skrog doctor --json` against the live install and asserts
@@ -2180,11 +2235,38 @@ func stageSupervisorRestart(t *testing.T, s *state) {
 		t.Fatal("no supervisor running before the restart test")
 	}
 
+	// Delete the endpoint record first, so that finding one afterwards proves
+	// the *replacement* supervisor wrote its own (#273) rather than the old
+	// one's happening to survive. The record has to follow the live process:
+	// that is the whole reason status reports what was bound instead of asking
+	// the selector again.
+	endpointFile := filepath.Join(s.stateDir, "endpoint.json")
+	if err := os.Remove(endpointFile); err != nil && !os.IsNotExist(err) {
+		t.Fatalf("removing the endpoint record before the restart: %v", err)
+	}
+
 	out, err := run(t, 5*time.Minute, s.skrog, "restart", "--state-dir", s.stateDir, "--supervisor")
 	must(t, out, err, "skrog restart --supervisor")
 
 	if !supervisorRunning() {
 		t.Fatal("no supervisor running after `skrog restart --supervisor`")
+	}
+
+	status, err := run(t, 30*time.Second, s.skrog, "status", "--state-dir", s.stateDir, "--json")
+	must(t, status, err, "skrog status --json after the restart")
+	var after struct {
+		Endpoint *struct {
+			Pipe string `json:"pipe"`
+		} `json:"endpoint"`
+	}
+	if jerr := json.Unmarshal([]byte(status), &after); jerr != nil {
+		t.Fatalf("status --json unparseable: %v\n%s", jerr, status)
+	}
+	switch {
+	case after.Endpoint == nil:
+		t.Errorf("the replacement supervisor recorded no endpoint:\n%s", status)
+	case after.Endpoint.Pipe != pipeName:
+		t.Errorf("endpoint.pipe = %q after the restart, want %q", after.Endpoint.Pipe, pipeName)
 	}
 	// The point of recycling it is that the bridge comes back with it: a
 	// supervisor that exited and left no replacement would fail every docker
