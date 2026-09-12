@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/wslkit/skrog/internal/wsl"
@@ -47,6 +48,35 @@ type Manager struct {
 	DataDir string
 	Logger  *slog.Logger
 }
+
+// ErrOrphaned is the one restore failure worth its own type: the old distro
+// has already been unregistered and the import did not complete, so the
+// archive is the only copy of the engine's data.
+//
+// The type exists so the message can be the recovery procedure. Without it the
+// caller printed "importing the snapshot: <wsl error>" over a machine with no
+// engine, no images and no instruction — while a perfectly good archive sat on
+// disk a directory away. `skrog reset --to golden` is documented for use
+// before every CI job, so this is a hot path, not a corner (#235).
+//
+// relocate has carried the same type for its own move for some time; this is
+// the same hazard reached through a different command.
+type ErrOrphaned struct {
+	Distro  string
+	Archive string
+	Dir     string
+	Err     error
+}
+
+func (e *ErrOrphaned) Error() string {
+	return fmt.Sprintf("the engine distro was removed but the restore into %s failed: %v\n"+
+		"  Your data is intact in %s.\n"+
+		"  Recover with:  wsl --import %s %s %s\n"+
+		"  Or re-run the restore, which now retries cleanly from this state.",
+		e.Dir, e.Err, e.Archive, e.Distro, e.Dir, e.Archive)
+}
+
+func (e *ErrOrphaned) Unwrap() error { return e.Err }
 
 var nameRe = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]*$`)
 
@@ -189,16 +219,56 @@ func (m *Manager) Restore(ctx context.Context, name string) error {
 	// Terminate first (ignore if already stopped), then replace.
 	_ = m.WSL.Terminate(ctx, m.Distro)
 	m.log().Info("replacing engine distro from snapshot", "name", name, "distro", m.Distro)
+
+	// This is what makes the restore retryable. A previous attempt that got
+	// past the unregister and failed at the import leaves no distro, and
+	// `wsl --unregister` on a name that is not there is an error — so the
+	// retry died here, before reaching the import that would have recovered
+	// the data.
+	//
+	// The unregister is still attempted first and the list consulted only to
+	// explain a failure. Leading with the list would make the normal path
+	// depend on it: an environment where the distro is registered but does not
+	// appear (a list that fails, or a name WSL spells differently) would then
+	// skip the unregister and fail the import instead — trading a rare retry
+	// for a common breakage.
 	if err := m.WSL.Unregister(ctx, m.Distro); err != nil {
-		return fmt.Errorf("unregistering the current engine: %w", err)
+		registered, lerr := m.isRegistered(ctx)
+		if lerr != nil || registered {
+			return fmt.Errorf("unregistering the current engine: %w", err)
+		}
+		// Not registered: the unregister had nothing to do, which is the
+		// state a failed restore leaves behind. Carry on into the import.
+		m.log().Info("no engine distro to unregister; continuing the restore",
+			"distro", m.Distro)
 	}
+
+	// Past this line the old engine is gone and the archive is the only copy
+	// of the data — which is why every failure below is an *ErrOrphaned
+	// carrying the command that recovers it.
 	if err := os.MkdirAll(m.DataDir, 0o755); err != nil {
-		return fmt.Errorf("creating data dir: %w", err)
+		return &ErrOrphaned{Distro: m.Distro, Archive: m.tar(name), Dir: m.DataDir,
+			Err: fmt.Errorf("creating data dir: %w", err)}
 	}
 	if err := m.WSL.Import(ctx, m.Distro, m.DataDir, m.tar(name)); err != nil {
-		return fmt.Errorf("importing the snapshot: %w", err)
+		return &ErrOrphaned{Distro: m.Distro, Archive: m.tar(name), Dir: m.DataDir,
+			Err: fmt.Errorf("importing the snapshot: %w", err)}
 	}
 	return nil
+}
+
+// isRegistered reports whether this manager's distro currently exists.
+func (m *Manager) isRegistered(ctx context.Context) (bool, error) {
+	ds, err := m.WSL.List(ctx)
+	if err != nil {
+		return false, err
+	}
+	for _, d := range ds {
+		if strings.EqualFold(d.Name, m.Distro) {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // Delete removes a saved snapshot.
