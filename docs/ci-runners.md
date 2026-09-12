@@ -30,12 +30,18 @@ The install also wires a docker context named `skrog`, and `setup-skrog` exports
 machine**, because the context points at whichever pipe Skrog actually took — which
 is why it is what the action exports rather than a hardcoded host.
 
-For a tool that does not read docker contexts, derive the host from the context
-instead of hardcoding a pipe name:
+For a tool that does not read docker contexts, ask Skrog what it is serving
+rather than hardcoding a pipe name:
 
 ```powershell
-$env:DOCKER_HOST = (docker context inspect skrog --format '{{.Endpoints.docker.Host}}')
+$env:DOCKER_HOST = (skrog status --json | ConvertFrom-Json).endpoint.dockerHost
 ```
+
+`skrog status` reports the endpoint the **running supervisor actually bound**,
+so it is right on either machine; plain `skrog status` prints it too. The
+equivalent via docker is `docker context inspect skrog --format
+'{{.Endpoints.docker.Host}}'`, which asks docker what Skrog told it — the same
+answer, one step further away.
 
 ## GitHub Actions (self-hosted Windows runner)
 
@@ -94,15 +100,15 @@ Point the executor at the engine's pipe in the runner's `config.toml`:
   executor = "docker"
   [runners.docker]
     # The pipe Skrog took. On a runner without Docker Desktop that is
-    # //./pipe/docker_engine; confirm with
-    #   docker context inspect skrog --format "{{.Endpoints.docker.Host}}"
+    # //./pipe/docker_engine; confirm with `skrog status`, which names the
+    # endpoint the running supervisor bound.
     host = "npipe:////./pipe/docker_engine"
     image = "alpine:3.20"
     privileged = false
     volumes = ["/cache"]
 ```
 
-Confirm the host with `docker context inspect skrog`, and note that the runner
+Confirm the host with `skrog status`, and note that the runner
 service still needs the interactive session that keeps WSL2 alive — the
 executor talks to the engine, but the engine is per-user.
 

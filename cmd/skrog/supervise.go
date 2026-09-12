@@ -167,6 +167,24 @@ flags:
 	defer listener.Close()
 	log.Info("serving pipe", "pipe", selected, "reason", reason)
 
+	// Record what was actually bound, so `skrog status` can answer "where is
+	// the engine listening" without asking the selector a second time (#273).
+	// Recomputing would be wrong: Docker Desktop can start or stop after this
+	// point, and the answer would then name a pipe nothing is serving.
+	//
+	// Best-effort in both directions. A status field must never be able to
+	// stop the bridge from running, or to keep it from shutting down.
+	if err := supervise.WriteEndpoint(opts.StateDir,
+		supervise.Endpoint{Pipe: selected, Reason: reason}); err != nil {
+		log.Warn("could not record the served endpoint; `skrog status` will not name it",
+			"error", err)
+	}
+	defer func() {
+		if err := supervise.ClearEndpoint(opts.StateDir); err != nil {
+			log.Warn("could not clear the endpoint record", "error", err)
+		}
+	}()
+
 	if !*noContext {
 		if err := (&dockerctx.Manager{}).Ensure(context.Background(),
 			pipeproxy.DockerHostFor(selected)); err != nil {
@@ -564,8 +582,13 @@ func runStatus(args []string) int {
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: skrog status [--json] [--stats]
 
-Reports the distro, whether the supervisor and engine are running, and the
-desired state the user last asked for.
+Reports the distro, whether the supervisor and engine are running, the desired
+state the user last asked for, and — while a supervisor is running — the pipe
+it actually bound, with the DOCKER_HOST spelling of it.
+
+The endpoint is what the running supervisor recorded when it bound, not a
+fresh guess: Docker Desktop can start or stop after Skrog chose, so recomputing
+the answer could name a pipe nothing is serving. No supervisor, no endpoint.
 
 Reads host-side files only — it never starts the engine to answer, and never
 wakes an idle-stopped one. Safe to poll.
@@ -612,6 +635,16 @@ Exit codes: 0 engine running or idle, %d engine down, %d usage, %d not installed
 		opts.Distro = distro
 		if supervise.Held(opts.StateDir) {
 			st.Supervisor = "running"
+			// Only under the lock: the record outlives a supervisor that was
+			// killed hard, and naming a pipe nothing is listening on is worse
+			// than saying nothing (#273).
+			if e, ok := supervise.ReadEndpoint(opts.StateDir); ok {
+				st.Endpoint = &endpointJSON{
+					Pipe:       e.Pipe,
+					DockerHost: pipeproxy.DockerHostFor(e.Pipe),
+					Reason:     e.Reason,
+				}
+			}
 		}
 		switch {
 		case p.EngineRunning(context.Background(), opts):
@@ -649,6 +682,16 @@ Exit codes: 0 engine running or idle, %d engine down, %d usage, %d not installed
 		st.Distro, st.Supervisor, st.Engine, st.Desired)
 	if st.Profile != "" {
 		fmt.Printf("profile     %s\n", st.Profile)
+	}
+	// Both forms, because both are asked for: the pipe is what the install
+	// output named, and the npipe spelling is what goes in DOCKER_HOST for a
+	// tool that does not read docker contexts. Same layout as `skrog install`.
+	if st.Endpoint != nil {
+		fmt.Printf("endpoint    %s", st.Endpoint.Pipe)
+		if st.Endpoint.Reason != "" {
+			fmt.Printf("  (%s)", st.Endpoint.Reason)
+		}
+		fmt.Printf("\ndocker host %s\n", st.Endpoint.DockerHost)
 	}
 	if st.Stats != nil {
 		printStats(*st.Stats)

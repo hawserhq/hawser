@@ -324,3 +324,33 @@ func TestStatsGroupShapes(t *testing.T) {
 	requireKeys(t, s, "fresh", "readingAgeSeconds", "uptimeSeconds",
 		"engineUptimeSeconds", "engineStarts", "idleStops")
 }
+
+func TestStatusEndpointShape(t *testing.T) {
+	// Absent is the answer when no supervisor is running (#273): there is
+	// nothing being served, and a pipe name would be a guess.
+	m := roundTrip(t, statusJSON{})
+	if _, ok := m["endpoint"]; ok {
+		t.Error("endpoint appears with no supervisor running")
+	}
+
+	m = roundTrip(t, statusJSON{Endpoint: &endpointJSON{
+		Pipe:       `\.\pipe\docker_engine`,
+		DockerHost: "npipe:////./pipe/docker_engine",
+	}})
+	ep, ok := m["endpoint"].(map[string]any)
+	if !ok {
+		t.Fatalf("endpoint should be an object: %v", m["endpoint"])
+	}
+	requireKeys(t, ep, "pipe", "dockerHost")
+	// Both spellings travel: a consumer setting DOCKER_HOST must not have to
+	// know how to convert one into the other.
+	if ep["pipe"] != `\.\pipe\docker_engine` {
+		t.Errorf("pipe = %v", ep["pipe"])
+	}
+	if ep["dockerHost"] != "npipe:////./pipe/docker_engine" {
+		t.Errorf("dockerHost = %v", ep["dockerHost"])
+	}
+	if _, ok := ep["reason"]; ok {
+		t.Error("reason should be omitted when there is none")
+	}
+}

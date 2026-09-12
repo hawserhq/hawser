@@ -22,10 +22,9 @@ say which engine you mean:
 
 - **Docker context** (simplest): `docker context use skrog` makes it the
   default for every tool, the CLI and Dev Containers included.
-- **`DOCKER_HOST`**: for one shell, taken from the context so it is right
-  whichever pipe Skrog took —
-  `docker context inspect skrog --format '{{.Endpoints.docker.Host}}'`. The
-  install output also names the pipe it chose.
+- **`DOCKER_HOST`**: for one shell, asked of Skrog so it is right whichever pipe
+  it took — `(skrog status --json | ConvertFrom-Json).endpoint.dockerHost`.
+  Plain `skrog status` prints the same endpoint, and so does the install output.
 
 ### Dev Containers CLI
 
@@ -43,8 +42,7 @@ against the Skrog engine with nothing configured.
 
 Alongside Docker Desktop, select the `skrog` context — or pin it per-workspace
 with `"docker.environment": { "DOCKER_HOST": "…" }` in your VS Code settings,
-using the host that `docker context inspect skrog` reports rather than a pipe
-name typed by hand.
+using the host `skrog status` reports rather than a pipe name typed by hand.
 
 ## Notes
 

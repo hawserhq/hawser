@@ -27,7 +27,12 @@ Shapes are pinned by `cmd/skrog/jsonshapes_test.go`.
   "engine": "running",
   "desired": "running",
   "profile": "work",
-  "gpu": { "enabled": true, "probed": true, "visible": true, "specInstalled": true }
+  "gpu": { "enabled": true, "probed": true, "visible": true, "specInstalled": true },
+  "endpoint": {
+    "pipe": "\\\\.\\pipe\\docker_engine",
+    "dockerHost": "npipe:////./pipe/docker_engine",
+    "reason": "default pipe is free"
+  }
 }
 ```
 
@@ -40,6 +45,17 @@ Shapes are pinned by `cmd/skrog/jsonshapes_test.go`.
 - `gpu`: `visible` and `specInstalled` are **only probed while the engine is
   running and `enabled` is true** — status never boots a stopped distro (#82).
   `probed: false` means they are not authoritative.
+- `endpoint`: where the engine is answering, and **absent unless a supervisor is
+  running** — nothing is being served then, so there is no endpoint to name.
+  - `pipe` is the named pipe; `dockerHost` is the same thing spelled the way the
+    docker CLI wants it, so a consumer setting `DOCKER_HOST` does not have to
+    convert between the two.
+  - `reason` says why that pipe: the default one was free, or something else
+    (usually Docker Desktop) already had it.
+  - It reports **what the running supervisor bound**, read back from its own
+    record — never recomputed. Docker Desktop can start or stop after Skrog
+    chose, so asking the selector again could name a pipe nothing is serving
+    (#273).
 
 Exit `0` always (an uninstalled machine is `installed: false`, not an error).
 
