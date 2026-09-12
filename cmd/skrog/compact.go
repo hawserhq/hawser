@@ -92,15 +92,27 @@ flags:
 		return exitNotFound
 	}
 
+	// Set by Stop, read after Run: whether this command pinned the engine down
+	// and what the machine wanted before it did.
+	var (
+		pinned       bool
+		priorDesired = supervise.DesiredRunning
+	)
+
 	r := &compact.Runner{
 		WSL:  wsl.NewLocal(),
 		Disk: compact.RealDisk{},
 		Stop: func(ctx context.Context) error {
+			// Remember what the machine wanted before we pinned it down, so a
+			// failure can put it back. Restoring "running" unconditionally
+			// would start an engine the user had deliberately stopped.
+			priorDesired = supervise.ReadDesired(opts.StateDir)
 			// Record the desired state too, so a running supervisor does not
 			// restart the engine we just stopped and re-attach the disk.
 			if err := supervise.WriteDesired(opts.StateDir, supervise.DesiredStopped); err != nil {
 				return err
 			}
+			pinned = true
 			supervise.WriteEngineState(opts.StateDir, supervise.EngineActive)
 			return p.StopEngine(ctx, opts)
 		},
@@ -121,12 +133,26 @@ flags:
 		Wait:     *wait,
 	})
 
+	// Stop pinned the engine down so the supervisor would not re-attach the
+	// disk mid-compaction, and only Start put that back — on the success path.
+	// Every failure after the stop therefore left the engine down AND pinned:
+	// `docker` met a dead pipe until the user found `skrog start`, and nothing
+	// said so. The two refusals that are documented as "just re-run" (the disk
+	// still held, or held by others) are exactly the ones that reach here
+	// (#243).
+	if pinned && !rep.Restarted {
+		if werr := supervise.WriteDesired(opts.StateDir, priorDesired); werr != nil {
+			fmt.Fprintf(os.Stderr, "skrog: the engine is stopped and its desired state could not be restored: %v\n", werr)
+			fmt.Fprintln(os.Stderr, "  Run `skrog start` to bring it back.")
+		}
+	}
+
 	if *asJSON {
 		emitJSON(compactJSON(rep))
 	}
 
 	if err != nil {
-		return reportCompactError(err, rep, *asJSON, *restart)
+		return reportCompactError(err, rep, *asJSON, priorDesired == supervise.DesiredRunning && !rep.Restarted)
 	}
 	if !*asJSON {
 		printCompactReport(rep)
@@ -136,7 +162,20 @@ flags:
 
 // reportCompactError prints the failure in the shape the user can act on and
 // returns the exit code.
-func reportCompactError(err error, rep compact.Report, asJSON, restart bool) int {
+// leftDown says the engine was stopped for this run and is still down, so the
+// advice has to mention it whatever else went wrong.
+//
+// It used to be gated on `rep.Trimmed && rep.ReclaimedBytes == 0 && !restart`,
+// which got it backwards in two ways: the two refusals documented as "just
+// re-run" never reached that branch at all, and the one user guaranteed not to
+// be told was the one who passed --restart — i.e. the one who explicitly asked
+// for the engine back (#243).
+func reportCompactError(err error, rep compact.Report, asJSON, leftDown bool) int {
+	engineIsDown := func() {
+		if leftDown {
+			fmt.Fprintln(os.Stderr, "  The engine is stopped; `skrog start` brings it back.")
+		}
+	}
 	var held *compact.ErrHeldByOthers
 	var still *compact.ErrStillHeld
 	switch {
@@ -146,6 +185,7 @@ func reportCompactError(err error, rep compact.Report, asJSON, restart bool) int
 			fmt.Fprintln(os.Stderr, "  The WSL utility VM keeps every disk open while any distro runs, so the")
 			fmt.Fprintln(os.Stderr, "  disk cannot be released while those are up. Stop them and re-run;")
 			fmt.Fprintln(os.Stderr, "  Skrog will not stop distros it does not own.")
+			engineIsDown()
 		}
 		return exitHeld
 	case errors.As(err, &still):
@@ -153,14 +193,13 @@ func reportCompactError(err error, rep compact.Report, asJSON, restart bool) int
 			fmt.Fprintf(os.Stderr, "skrog: %v\n", still)
 			fmt.Fprintln(os.Stderr, "  Nothing else is running, so it is still winding down. Re-run, or raise")
 			fmt.Fprintln(os.Stderr, "  the wait with `--wait 3m`.")
+			engineIsDown()
 		}
 		return exitHeld
 	}
 	if !asJSON {
 		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
-		if rep.Trimmed && rep.ReclaimedBytes == 0 && !restart {
-			fmt.Fprintln(os.Stderr, "  The engine is stopped; `skrog start` brings it back.")
-		}
+		engineIsDown()
 	}
 	return exitError
 }

@@ -222,6 +222,12 @@ func (r *Runner) Run(ctx context.Context, opts Options) (Report, error) {
 	if !ok {
 		// Re-check who is running: something may have started while we waited,
 		// which is a different (and fixable) situation from a slow wind-down.
+		// Cancellation is not a diagnosis. Ctrl-C during the wait used to
+		// produce the "still winding down, re-run or raise --wait" advice,
+		// which describes a timeout that never occurred (#243).
+		if ctx.Err() != nil {
+			return rep, fmt.Errorf("compact: interrupted after %s, before the disk was compacted: %w", waited.Round(time.Second), ctx.Err())
+		}
 		if holders, err := otherRunning(ctx, r.WSL, opts.Distro); err == nil && len(holders) > 0 {
 			return rep, &ErrHeldByOthers{Holders: holders}
 		}
@@ -266,6 +272,9 @@ func (r *Runner) waitForRelease(ctx context.Context, opts Options) (time.Duratio
 		}
 		select {
 		case <-ctx.Done():
+			// Distinguished from the deadline by the caller: reporting "the
+			// utility VM still had the disk after 11s" to someone who pressed
+			// Ctrl-C diagnoses a problem that did not happen (#243).
 			return time.Since(start), false
 		case <-time.After(opts.poll()):
 		}
