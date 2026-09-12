@@ -48,7 +48,13 @@ on purpose — it does not provision anything. Then:
    registers the supervisor to start at logon (`--no-autostart` opts out)
 2. `skrog start` — brings up the always-on bridge now (from your next logon it starts
    itself)
-3. `docker --context skrog run --rm hello-world`
+3. `docker run --rm hello-world`
+
+If Docker Desktop is not running, Skrog serves `\\.\pipe\docker_engine` — the pipe
+`docker` already talks to — so nothing else is needed. The `skrog` docker context
+install wires up is for the other case: when Desktop owns that pipe, Skrog serves its
+own, and `docker --context skrog ...` (or `docker context use skrog`) is how you reach
+it. `skrog status` prints which pipe you got.
 
 Binaries are not Authenticode-signed yet, so SmartScreen will warn on first run. Code
 signing is applied for through the [SignPath Foundation](https://signpath.org), with

@@ -278,7 +278,30 @@ Engine installed and running.
 
 `)
 	if contextReady {
-		fmt.Printf(`Then use docker normally:
+		// Which command to show depends on which pipe we took, and the old
+		// message ignored that: it said "use docker normally" and then handed
+		// the user `--context skrog`, a flag most of them never need (#272).
+		//
+		// When the default pipe was free we are serving the endpoint
+		// `docker.exe` already talks to, so plain `docker run` works and the
+		// context is only there for switching between engines. Showing the
+		// flag as the happy path made the product look like it needs ceremony
+		// it does not, on exactly the machine it is built for — one without
+		// Docker Desktop.
+		if pipe == pipeproxy.DefaultPipeName {
+			fmt.Printf(`Then use docker normally:
+
+  docker run --rm hello-world
+
+Skrog is serving the pipe docker already talks to, so no flag is needed. The
+%q context points here explicitly, for switching between engines:
+
+  docker --context %s run --rm hello-world
+
+`, dockerctx.Name, dockerctx.Name)
+		} else {
+			fmt.Printf(`Docker Desktop is serving the default pipe, so Skrog took its own. Reach it
+with the %q context:
 
   docker --context %s run --rm hello-world
 
@@ -286,7 +309,8 @@ Or make it the default for every shell:
 
   docker context use %s
 
-`, dockerctx.Name, dockerctx.Name)
+`, dockerctx.Name, dockerctx.Name, dockerctx.Name)
+		}
 	} else {
 		fmt.Printf(`Then point a docker client at it:
 

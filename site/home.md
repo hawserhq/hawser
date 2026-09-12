@@ -7,8 +7,9 @@ No licence fees, no Electron, no Kubernetes: install once and `docker ps` works
 forever, on laptops and CI runners alike.
 
 ```
-skrog install                                  # engine, context, autostart
-docker --context skrog run --rm hello-world
+skrog install     # engine, docker context, autostart at logon
+skrog start       # the always-on bridge, now (later logons start it for you)
+docker run --rm hello-world
 ```
 
 New here? The [README](https://github.com/wslkit/skrog#install) has the

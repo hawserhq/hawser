@@ -15,17 +15,27 @@ There are two halves to this, and they are independent:
 
 ## Point a runner at the engine
 
-The install wires a docker context named `skrog`, and `setup-skrog` exports
-`DOCKER_CONTEXT=skrog` for the rest of the job. For tools that do not read
-docker contexts, set the host explicitly:
+Which endpoint Skrog serves depends on whether Docker Desktop is in the way:
 
-```
-DOCKER_HOST=npipe:////./pipe/skrog_engine
-```
+| Docker Desktop | pipe Skrog serves | what plain `docker` does |
+|---|---|---|
+| **not installed** — the usual runner | `\\.\pipe\docker_engine` | works, no flag and no context |
+| running, holding the default pipe | `\\.\pipe\skrog_engine` | reaches **Desktop**; use the `skrog` context |
 
-`skrog status --json` prints the pipe actually in use — Skrog takes
-`\\.\pipe\docker_engine` when it is free, and its own
-`\\.\pipe\skrog_engine` when Docker Desktop already holds it.
+So on a runner you normally need nothing at all: Skrog serves the pipe `docker`
+already talks to.
+
+The install also wires a docker context named `skrog`, and `setup-skrog` exports
+`DOCKER_CONTEXT=skrog` for the rest of the job. **That form is correct on either
+machine**, because the context points at whichever pipe Skrog actually took — which
+is why it is what the action exports rather than a hardcoded host.
+
+For a tool that does not read docker contexts, derive the host from the context
+instead of hardcoding a pipe name:
+
+```powershell
+$env:DOCKER_HOST = (docker context inspect skrog --format '{{.Endpoints.docker.Host}}')
+```
 
 ## GitHub Actions (self-hosted Windows runner)
 
@@ -83,13 +93,16 @@ Point the executor at the engine's pipe in the runner's `config.toml`:
   name = "windows-skrog"
   executor = "docker"
   [runners.docker]
-    host = "npipe:////./pipe/skrog_engine"
+    # The pipe Skrog took. On a runner without Docker Desktop that is
+    # //./pipe/docker_engine; confirm with
+    #   docker context inspect skrog --format "{{.Endpoints.docker.Host}}"
+    host = "npipe:////./pipe/docker_engine"
     image = "alpine:3.20"
     privileged = false
     volumes = ["/cache"]
 ```
 
-Use the pipe Skrog reports (`skrog status --json`), and note that the runner
+Confirm the host with `docker context inspect skrog`, and note that the runner
 service still needs the interactive session that keeps WSL2 alive — the
 executor talks to the engine, but the engine is per-user.
 
@@ -110,8 +123,12 @@ features:
   a bind mount to the engine's own `/var/run/docker.sock`, so this works as it
   does on Docker Desktop. No `TESTCONTAINERS_RYUK_DISABLED` needed.
 
-```
-DOCKER_HOST=npipe:////./pipe/skrog_engine go test ./...
+```powershell
+# On a runner Skrog holds the default pipe, so nothing is needed:
+go test ./...
+
+# Alongside Docker Desktop, point at Skrog explicitly:
+$env:DOCKER_CONTEXT = "skrog"; go test ./...
 ```
 
 The acceptance suite runs a real Testcontainers module (Go, Ryuk enabled)
