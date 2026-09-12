@@ -50,8 +50,16 @@ on purpose — it does not provision anything. Then:
    itself)
 3. `docker --context skrog run --rm hello-world`
 
-Binaries are not signed yet, so SmartScreen will warn on first run. Prefer to do it by
-hand? Download the zip for your architecture from the
+Binaries are not Authenticode-signed yet, so SmartScreen will warn on first run. Code
+signing is applied for through the [SignPath Foundation](https://signpath.org), with
+signing by [SignPath.io](https://about.signpath.io); until a certificate is issued the
+warning stands, and the [code signing policy](docs/code-signing.md) says who can produce
+a signed binary and how. What every release **does** carry today is SLSA build
+provenance and a cosign-signed `SHA256SUMS` — two checks an Authenticode signature does
+not give you, since they tie the artifact to a workflow and a commit. See
+[verifying a download](docs/security.md#verifying-a-download).
+
+Prefer to do it by hand? Download the zip for your architecture from the
 [latest release](https://github.com/wslkit/skrog/releases), check it against
 `SHA256SUMS`, and unpack it anywhere on your PATH — the script does nothing else.
 [Read it first](scripts/install.ps1) if you would rather not pipe a URL into your shell;
