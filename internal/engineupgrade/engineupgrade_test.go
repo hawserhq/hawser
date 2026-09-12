@@ -19,16 +19,19 @@ type fakeDistro struct {
 	calls      []string
 	installErr error
 	version    string
+	// versionErr makes the dockerd --version probe fail, which is what the
+	// "confirm the swap took" step has to survive without reporting a blank.
+	versionErr error
 }
 
 func (f *fakeDistro) Exec(_ context.Context, _, _ string, args ...string) (string, error) {
 	cmd := args[len(args)-1]
 	f.calls = append(f.calls, cmd)
 	if strings.Contains(cmd, "dockerd") && strings.Contains(cmd, "--version") {
-		return f.version, nil
+		return f.version, f.versionErr
 	}
 	if len(args) > 0 && args[0] == "dockerd" {
-		return f.version, nil
+		return f.version, f.versionErr
 	}
 	if strings.Contains(cmd, "install -m 0755") {
 		return "", f.installErr
