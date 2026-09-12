@@ -67,9 +67,13 @@ stores it LSA-encrypted rather than in plain registry text — following
 skrog runner check
 ```
 
-which reports on auto-logon, autostart, power/sleep settings and engine health
-in one verdict. It compares the configured account without ever printing it, and
-never reads the stored password.
+which reports on auto-logon and its account, autostart, and supervisor and
+engine health in one verdict. It compares the configured account without ever
+printing it, and never reads the stored password.
+
+It does not look at power or sleep settings
+([#268](https://github.com/wslkit/skrog/issues/268)); a green verdict says
+nothing about whether the machine will sleep mid-job.
 
 ## See also
 

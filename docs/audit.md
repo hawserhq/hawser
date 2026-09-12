@@ -85,5 +85,5 @@ query field) but not the image or mounts (body fields).
   > a security feature to fail is the way you cannot see.
 - Records are best-effort: a write failure never blocks or fails the docker
   command being proxied.
-- It pairs with the coming policy engine ([#120](https://github.com/wslkit/skrog/issues/120)):
+- It pairs with the policy engine ([#120](https://github.com/wslkit/skrog/issues/120)):
   every allow/deny decision there becomes one audit record here.

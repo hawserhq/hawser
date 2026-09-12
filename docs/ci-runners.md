@@ -44,7 +44,11 @@ jobs:
 The runner needs a **logged-on interactive session** — WSL2 cannot start from a
 Windows service. See [auto-logon-runner.md](auto-logon-runner.md); `skrog
 runner check` gives one verdict on whether a host is set up correctly
-(auto-logon, autostart, power settings, engine health).
+(auto-logon and its account, autostart, the supervisor and engine health).
+
+It does **not** check power or sleep settings
+([#268](https://github.com/wslkit/skrog/issues/268)) — a green verdict is not
+evidence the machine will stay awake through a job. Set that separately.
 
 Two things GitHub-hosted runners get wrong for this workload and a Skrog runner
 gets right: the engine is pinned by *you* (a committed `skrog.lock`, so laptop

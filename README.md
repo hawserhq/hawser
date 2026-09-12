@@ -141,8 +141,9 @@ docker context. Nothing else on the system is touched.
 
 ## What's ahead
 
-Data-dir relocation and signed installers (winget/scoop/choco) — tracked in the
-[issue tracker](https://github.com/wslkit/skrog/issues).
+Signed installers (winget/scoop/choco) — tracked in the
+[issue tracker](https://github.com/wslkit/skrog/issues). Data-dir relocation
+shipped: see [`skrog relocate`](docs/housekeeping.md).
 
 ## What it will never be
 
