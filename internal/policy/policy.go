@@ -424,6 +424,9 @@ type Watcher struct {
 	modTime time.Time
 	size    int64
 	loaded  bool
+	// unknown is set when a rule file exists but has never parsed. The rules
+	// are then neither "empty" nor known, and requests are refused.
+	unknown bool
 	// lastErr is remembered so a file that breaks mid-edit is reported once
 	// rather than on every request.
 	lastErr string
@@ -466,6 +469,20 @@ func (w *Watcher) refreshLocked() {
 		// Keep the rules that were working. A typo saved mid-edit must not
 		// silently drop the guardrail — that is the failure direction this
 		// package exists to avoid.
+		//
+		// Unless there are none to keep. On the FIRST load there is no
+		// previous rule set, so "keep what we have" kept the zero Rules{} —
+		// which Empty() reports as "no policy" and EvaluateCreate allows
+		// everything through. That is the exact failure this package's doc
+		// comment names as the one a guardrail must not have, and it survives
+		// a reboot: save a typo, restart, and admission control is off while
+		// the file on disk still looks enforced (#254).
+		//
+		// So when nothing has ever parsed, the rules are not empty — they are
+		// unknown, and DenyCreate refuses rather than guessing.
+		if !w.loaded {
+			w.unknown = true
+		}
 		if w.OnError != nil && err.Error() != w.lastErr {
 			w.OnError(err)
 		}
@@ -475,12 +492,38 @@ func (w *Watcher) refreshLocked() {
 		w.modTime, w.size = fi.ModTime(), fi.Size()
 		return
 	}
-	w.rules, w.loaded = rules, true
+	w.rules, w.loaded, w.unknown = rules, true, false
 	w.modTime, w.size = fi.ModTime(), fi.Size()
 	w.lastErr = ""
 }
 
+// Unavailable reports that a rule file exists but has never been read
+// successfully, so what the operator asked for is unknown.
+//
+// Distinct from "no policy": an absent file means "no rules, allow
+// everything", which is the default state of a machine nobody has configured.
+// A file that is present and unreadable means the opposite — someone
+// configured something, and we cannot tell what.
+func (w *Watcher) Unavailable() error {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	w.refreshLocked()
+	if !w.unknown {
+		return nil
+	}
+	return fmt.Errorf("%s could not be read: %s", Path(w.stateDir), w.lastErr)
+}
+
 // DenyCreate implements the bridge's Gate.
+//
+// A rule file that has never parsed refuses here rather than falling through
+// to an empty rule set: the operator configured something, and allowing
+// everything because we cannot read it is the one failure direction this
+// package exists to avoid (#254).
 func (w *Watcher) DenyCreate(body map[string]any) (string, bool) {
+	if err := w.Unavailable(); err != nil {
+		return "policy is configured but its rule file cannot be read, so this request is refused " +
+			"rather than allowed unjudged (" + err.Error() + "). Fix the file, or remove it to run without rules.", true
+	}
 	return w.Rules().DenyCreate(body)
 }
