@@ -117,7 +117,7 @@ built yourself gets in.
 $ skrog engine upgrade --to 29.7.2 --dry-run
 would move the engine from 29.7.2-4 to 29.7.2-3:
   fetch and verify https://github.com/…/skrog-rootfs-29.7.2-3.tar.gz
-  extract 11 engine binaries
+  extract 12 engine binaries
   stop the engine
   replace the binaries in skrog-engine:/usr/local/bin
   start the engine and confirm it answers
