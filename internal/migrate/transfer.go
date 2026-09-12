@@ -65,9 +65,39 @@ func (t CLITransfer) MoveImages(ctx context.Context, refs []string) error {
 // half-close), so a `run -i` receiver hangs forever waiting for a tar that
 // never ends. `docker cp` frames the body as ordinary chunked HTTP, which the
 // bridge carries cleanly. The source volume is only ever read, never written.
-func (t CLITransfer) MoveVolume(ctx context.Context, name string) error {
+func (t CLITransfer) MoveVolume(ctx context.Context, name string) (err error) {
+	// Whether this call is what brought the destination volume into existence.
+	//
+	// It decides whether a failure may clean up after itself. Resume skips any
+	// volume the destination already has, so a volume created here and then
+	// left unfilled is not a retryable half-state — it is permanent: the next
+	// run reports "already on the Skrog engine, will skip" over a truncated
+	// tar, and the user is told the migration completed (#236). Removing it on
+	// the way out turns that into an ordinary retry.
+	//
+	// Only ever a volume we created. One that was already there holds someone
+	// else's data, and deleting that to tidy up our own failure would be a far
+	// worse bug than the one this fixes.
+	had, herr := t.Dest.HasVolume(ctx, name)
+	if herr != nil {
+		return fmt.Errorf("checking the destination volume: %w", herr)
+	}
 	if _, err := t.Dest.output(ctx, "volume", "create", name); err != nil {
 		return fmt.Errorf("creating destination volume: %w", err)
+	}
+	if !had {
+		defer func() {
+			if err == nil {
+				return
+			}
+			// context.Background: ctx is typically already cancelled here —
+			// Ctrl-C is how this path is usually reached — and the cleanup
+			// still has to run.
+			if _, rmErr := t.Dest.output(context.Background(), "volume", "rm", "-f", name); rmErr != nil {
+				err = fmt.Errorf("%w (and the empty destination volume %q could not be removed: %v; "+
+					"remove it before re-running, or the retry will skip it)", err, name, rmErr)
+			}
+		}()
 	}
 	// A stopped helper container gives docker cp a filesystem path (the mounted
 	// volume) to extract into. It never runs; removed in all exit paths.
