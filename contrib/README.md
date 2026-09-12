@@ -77,5 +77,5 @@ never reads the stored password.
   (GitHub Actions, GitLab, Testcontainers, act, gitlab-ci-local)
 - [docs/auto-logon-runner.md](../docs/auto-logon-runner.md) — the unattended-host playbook
 - [docs/air-gap.md](../docs/air-gap.md) — `skrog bundle` and `install --offline`
-- [docs/declarative-install.md](../docs/declarative-install.md) — `skrog declare`, if you
+- [docs/declarative-install.md](../docs/declarative-install.md) — `skrog install --config`, if you
   would rather converge from a file than from role variables

@@ -32,7 +32,7 @@ skrog_engine_config: {}
 # Skrog's own settings, applied through `skrog config set <key>`. Example:
 #   skrog_config:
 #     idle-timeout: "30m"
-#     disk-warn-below: "20G"
+#     disk.warn-below: "20GiB"
 skrog_config: {}
 
 # Register the logon autostart so the engine is up after a reboot.

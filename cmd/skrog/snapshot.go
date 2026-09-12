@@ -42,15 +42,18 @@ flags:
 `, exitError, exitUsage, exitNotFound)
 		fs.PrintDefaults()
 	}
-	if err := fs.Parse(args); err != nil {
+	// Flags on either side of the verb: `snapshot restore golden --yes` is what
+	// the docs show and what people type (#244).
+	rest, err := parseInterleaved(fs, args)
+	if err != nil {
 		return exitUsage
 	}
 
 	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
 	log := cliLogger(false)
 	p := &provision.Provisioner{Logger: log}
-	m, err := p.ReadManifest(opts)
-	if err != nil {
+	m, merr := p.ReadManifest(opts)
+	if merr != nil {
 		fmt.Fprintln(os.Stderr, "skrog: no install found. Run `skrog install` first.")
 		return exitNotFound
 	}
@@ -65,7 +68,6 @@ flags:
 		Logger:   log,
 	}
 
-	rest := fs.Args()
 	switch {
 	case len(rest) == 0 || (rest[0] == "list" && len(rest) == 1):
 		return snapshotList(mgr, *asJSON)
