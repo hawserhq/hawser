@@ -4,10 +4,16 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
+	"path/filepath"
 
+	"github.com/wslkit/skrog/internal/audit"
+	"github.com/wslkit/skrog/internal/config"
 	"github.com/wslkit/skrog/internal/dockerctx"
+	"github.com/wslkit/skrog/internal/logging"
 	"github.com/wslkit/skrog/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/policy"
 	"github.com/wslkit/skrog/internal/provision"
 )
 
@@ -105,7 +111,29 @@ flags:
 		Logger: log,
 	}
 	if !*noRewrite {
-		srv.Handler = pipeproxy.RewriteBinds
+		// Guarded here too. This is the debug bridge, so the case is weaker
+		// than `skrog serve` — but it served the same engine with the owner's
+		// rules unenforced and its calls unaudited, which is not something a
+		// debug flag should quietly buy you (#257).
+		//
+		// --no-rewrite still turns the whole HTTP layer off, gate included:
+		// that flag exists to take Skrog out of the request path entirely.
+		// Resolved, not the raw flag: --state-dir is optional, and policy.Path("")
+		// would look for policy.yaml in the current directory.
+		sd := optsWithResolvedStateDir(opts).StateDir
+		settings := config.NewWatcher(sd)
+		watcher := policy.NewWatcher(sd)
+		watcher.OnError = func(err error) {
+			log.Error("policy file is not valid", "error", err, "path", policy.Path(sd))
+		}
+		auditor := &audit.Switch{
+			Enabled: func() bool { return settings.Config().Audit },
+			Open: func() (io.WriteCloser, error) {
+				return logging.NewRotatingWriter(filepath.Join(sd, "audit.log"), 0, 0)
+			},
+		}
+		defer auditor.Close()
+		srv.Handler = pipeproxy.RewriteBindsGuarded(auditor, watcher)
 	}
 
 	fmt.Fprintf(os.Stderr, `
