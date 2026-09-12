@@ -13,11 +13,19 @@ runs commands inside it.
 
 Both use the docker CLI, so anything that selects the Skrog engine works:
 
+**Without Docker Desktop you need neither.** Skrog serves
+`\\.\pipe\docker_engine`, the pipe `docker` already talks to, so Dev Containers
+finds the engine with no configuration.
+
+Alongside Docker Desktop, Desktop keeps that pipe and Skrog serves its own, so
+say which engine you mean:
+
 - **Docker context** (simplest): `docker context use skrog` makes it the
   default for every tool, the CLI and Dev Containers included.
-- **`DOCKER_HOST`**: set it to the Skrog pipe for one shell —
-  `npipe:////./pipe/docker_engine` (or `…/skrog_engine` if Docker Desktop holds
-  the default pipe; `skrog status` and the install output name the one in use).
+- **`DOCKER_HOST`**: for one shell, taken from the context so it is right
+  whichever pipe Skrog took —
+  `docker context inspect skrog --format '{{.Endpoints.docker.Host}}'`. The
+  install output also names the pipe it chose.
 
 ### Dev Containers CLI
 
@@ -30,10 +38,13 @@ devcontainer exec --workspace-folder . bash
 ### VS Code
 
 VS Code's Dev Containers extension uses whatever docker context / `DOCKER_HOST`
-your environment selects. Select the `skrog` context (or set `DOCKER_HOST`) and
-"Reopen in Container" builds against the Skrog engine like any other. To be
-explicit, set `"docker.environment": { "DOCKER_HOST": "npipe:////./pipe/docker_engine" }`
-in your VS Code settings.
+your environment selects, so without Docker Desktop "Reopen in Container" builds
+against the Skrog engine with nothing configured.
+
+Alongside Docker Desktop, select the `skrog` context — or pin it per-workspace
+with `"docker.environment": { "DOCKER_HOST": "…" }` in your VS Code settings,
+using the host that `docker context inspect skrog` reports rather than a pipe
+name typed by hand.
 
 ## Notes
 

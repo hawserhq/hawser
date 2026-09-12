@@ -22,21 +22,33 @@ git add skrog.lock
 Docker Desktop cannot pin an engine version, so "works locally, fails in CI"
 from engine drift stops being a category of bug.
 
-Point any tool at the engine the same way:
+Point any tool at the engine the same way — and on most machines that means
+pointing at nothing at all.
 
-```
-DOCKER_HOST=npipe:////./pipe/skrog_engine
+**Without Docker Desktop**, Skrog serves `\\.\pipe\docker_engine`, the pipe
+`docker` already talks to. Every example below works as written, with no
+environment variable and no context.
+
+**Alongside Docker Desktop**, Desktop keeps that pipe and Skrog serves its own,
+so say which engine you mean:
+
+```powershell
+$env:DOCKER_CONTEXT = "skrog"
+
+# or, for a tool that does not read docker contexts:
+$env:DOCKER_HOST = (docker context inspect skrog --format '{{.Endpoints.docker.Host}}')
 ```
 
-(`skrog status --json` prints the pipe in use — Skrog takes
-`\\.\pipe\docker_engine` when it is free, its own when Docker Desktop holds it.)
+Set that once in the shell and the commands below are unchanged. Deriving the
+host from the context rather than writing a pipe name keeps it correct either
+way — the context points at whichever pipe Skrog actually took.
 
 ## GitHub Actions with act
 
 [act](https://github.com/nektos/act) runs workflow jobs as containers.
 
 ```
-DOCKER_HOST=npipe:////./pipe/skrog_engine act -j build
+act -j build
 ```
 
 Verified on the Skrog engine: a `container:` job with a `services:` sidecar —
@@ -70,7 +82,7 @@ That is act, not Skrog.
 way to run a `.gitlab-ci.yml` without a GitLab instance.
 
 ```
-DOCKER_HOST=npipe:////./pipe/skrog_engine gitlab-ci-local unit
+gitlab-ci-local unit
 ```
 
 Verified on the Skrog engine: a job with a `services:` entry (service
@@ -111,7 +123,7 @@ distro (`skrog wsl-integrate` shares the engine socket into your own distros)
 or a container:
 
 ```
-docker run --rm -v //./pipe/skrog_engine:/var/run/docker.sock \
+docker run --rm -v //./pipe/docker_engine:/var/run/docker.sock \
   -v "%CD%:/work" node:22-bookworm bash -lc \
   "apt-get -qq update && apt-get -qq install -y rsync git && npm i -g gitlab-ci-local && cd /work && gitlab-ci-local"
 ```
@@ -125,7 +137,7 @@ That is exactly how the runs above were verified. (gitlab-ci-local needs Node
 `DOCKER_HOST`, so it needs nothing special:
 
 ```
-DOCKER_HOST=npipe:////./pipe/skrog_engine dagger core container \
+dagger core container \
   from --address=alpine:3.20 with-exec --args=echo,hello stdout
 ```
 

@@ -49,7 +49,8 @@ nodes:
 ```
 
 ```powershell
-$env:DOCKER_HOST = 'npipe:////./pipe/skrog_engine'   # or: docker context use skrog
+# Only needed alongside Docker Desktop; without it Skrog holds the default pipe.
+$env:DOCKER_CONTEXT = 'skrog'
 kind create cluster --name dev --config kind-skrog.yaml --wait 180s
 kubectl get nodes
 ```
@@ -69,7 +70,7 @@ Lighter, and the better default recommendation for most people — one k3s serve
 container plus a proxy, and its kubeconfig needs nothing done to it:
 
 ```powershell
-$env:DOCKER_HOST = 'npipe:////./pipe/skrog_engine'
+$env:DOCKER_CONTEXT = 'skrog'   # only needed alongside Docker Desktop
 k3d cluster create dev --api-port 0.0.0.0:6550 -p "8080:80@loadbalancer" --wait
 kubectl get nodes
 ```
