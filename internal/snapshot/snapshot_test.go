@@ -2,8 +2,10 @@ package snapshot
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wslkit/skrog/internal/wsl"
@@ -15,6 +17,8 @@ type fakeWSL struct {
 	content                            []byte
 	imported, unregistered, terminated bool
 	importErr                          error
+	unregisterErr                      error
+	distros                            []string
 }
 
 func (f *fakeWSL) Status(context.Context) (wsl.Status, error) { return wsl.Status{}, nil }
@@ -29,10 +33,17 @@ func (f *fakeWSL) Import(_ context.Context, _, _, _ string) error {
 	f.imported = true
 	return f.importErr
 }
-func (f *fakeWSL) Unregister(context.Context, string) error { f.unregistered = true; return nil }
-func (f *fakeWSL) Terminate(context.Context, string) error  { f.terminated = true; return nil }
+func (f *fakeWSL) Unregister(context.Context, string) error {
+	f.unregistered = true
+	return f.unregisterErr
+}
+func (f *fakeWSL) Terminate(context.Context, string) error { f.terminated = true; return nil }
 func (f *fakeWSL) List(context.Context) ([]wsl.Distro, error) {
-	return nil, nil
+	var out []wsl.Distro
+	for _, n := range f.distros {
+		out = append(out, wsl.Distro{Name: n})
+	}
+	return out, nil
 }
 func (f *fakeWSL) Exec(context.Context, string, string, ...string) (string, error) { return "", nil }
 func (f *fakeWSL) Start(context.Context, string, string, ...string) (func(), error) {
@@ -149,5 +160,83 @@ func TestDelete(t *testing.T) {
 	}
 	if err := m.Delete("dev"); err == nil {
 		t.Error("deleting a missing snapshot should error")
+	}
+}
+
+// A restore whose import fails must say where the data is and how to get it
+// back. Past the unregister the archive is the only copy, and the caller used
+// to print "importing the snapshot: <wsl error>" over a machine with no engine
+// and no instruction (#235).
+func TestRestoreReportsAnOrphanedEngineWithTheRecoveryCommand(t *testing.T) {
+	w := &fakeWSL{importErr: errors.New("wsl: not enough space")}
+	m := newManager(t, w)
+	if _, err := m.Save(context.Background(), "before-upgrade", ""); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	err := m.Restore(context.Background(), "before-upgrade")
+	var orph *ErrOrphaned
+	if !errors.As(err, &orph) {
+		t.Fatalf("Restore error is %T (%v), want *ErrOrphaned", err, err)
+	}
+	msg := err.Error()
+	for _, want := range []string{
+		"Your data is intact in",
+		m.ArchivePath("before-upgrade"),
+		"wsl --import skrog-engine",
+	} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("the recovery message does not mention %q:\n%s", want, msg)
+		}
+	}
+	// The cause must survive for callers that inspect it.
+	if !strings.Contains(msg, "not enough space") {
+		t.Errorf("the underlying cause was lost:\n%s", msg)
+	}
+}
+
+// The state a failed restore leaves behind must be retryable.
+//
+// There is no distro to unregister the second time round, and `wsl
+// --unregister` on a missing name is an error — which used to abort the retry
+// before the import that would have recovered the data.
+func TestRestoreRetriesAfterTheDistroIsAlreadyGone(t *testing.T) {
+	w := &fakeWSL{
+		unregisterErr: errors.New("There is no distribution with the supplied name."),
+		distros:       nil, // and the list agrees: it really is gone
+	}
+	m := newManager(t, w)
+	if _, err := m.Save(context.Background(), "golden", ""); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	if err := m.Restore(context.Background(), "golden"); err != nil {
+		t.Fatalf("Restore did not recover from a missing distro: %v", err)
+	}
+	if !w.imported {
+		t.Error("the retry never reached the import")
+	}
+}
+
+// But an unregister that fails while the distro is still there is a real
+// failure, and must not be walked past into an import that would then fail
+// for a second, more confusing reason.
+func TestRestoreStillFailsWhenUnregisterFailsAndTheDistroRemains(t *testing.T) {
+	w := &fakeWSL{
+		unregisterErr: errors.New("access denied"),
+		distros:       []string{"skrog-engine"},
+	}
+	m := newManager(t, w)
+	if _, err := m.Save(context.Background(), "golden", ""); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	err := m.Restore(context.Background(), "golden")
+	if err == nil {
+		t.Fatal("Restore succeeded despite a failed unregister")
+	}
+	if !strings.Contains(err.Error(), "access denied") {
+		t.Errorf("the unregister failure was not reported: %v", err)
+	}
+	if w.imported {
+		t.Error("the import ran even though the old distro is still registered")
 	}
 }
