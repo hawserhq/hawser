@@ -5,11 +5,16 @@ import (
 	"crypto/x509"
 	"flag"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 
+	"github.com/wslkit/skrog/internal/audit"
+	"github.com/wslkit/skrog/internal/config"
+	"github.com/wslkit/skrog/internal/logging"
 	"github.com/wslkit/skrog/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/policy"
 	"github.com/wslkit/skrog/internal/provision"
 	"github.com/wslkit/skrog/internal/remotecert"
 )
@@ -91,9 +96,34 @@ flags:
 	ctx, stop := interruptible()
 	defer stop()
 
+	// Guarded, like the supervisor's listener.
+	//
+	// This one used the bare rewriter, so every rule the machine's owner wrote
+	// was unenforced for remote clients and none of their calls were audited
+	// (#257). The project's "a hostile local user owns the machine anyway"
+	// scope does not cover it: the whole point of `skrog serve` is that the
+	// requester is NOT the machine's owner and holds only a client
+	// certificate. A rule set that stops at the pipe is not a rule set the
+	// operator asked for, and docs/policy.md scopes the feature by API
+	// endpoint, never by listener.
+	watcher := policy.NewWatcher(opts.StateDir)
+	watcher.OnError = func(err error) {
+		log.Error("policy file is not valid", "error", err, "path", policy.Path(opts.StateDir))
+	}
+	// One watcher, not one per request: it stats before it reads, so consulting
+	// it per docker call is cheap only if it is the same watcher each time.
+	settings := config.NewWatcher(opts.StateDir)
+	auditor := &audit.Switch{
+		Enabled: func() bool { return settings.Config().Audit },
+		Open: func() (io.WriteCloser, error) {
+			return logging.NewRotatingWriter(filepath.Join(opts.StateDir, "audit.log"), 0, 0)
+		},
+	}
+	defer auditor.Close()
+
 	srv := &pipeproxy.Server{
 		Logger:  log,
-		Handler: pipeproxy.RewriteBinds,
+		Handler: pipeproxy.RewriteBindsGuarded(auditor, watcher),
 		Dialer:  engineDialer(targetDistro, "", opts.StateDir, log),
 	}
 	if err := srv.Serve(ctx, ln); err != nil {
