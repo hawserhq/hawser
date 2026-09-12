@@ -62,6 +62,11 @@ disableKinds = ["taxonomy", "term", "rss"]
   source = "../assets/skrog-mark-ondark.svg"
   target = "static/skrog-mark-ondark.svg"
 [[module.mounts]]
+  # The link-preview card (og:image). Already rasterized by tools/genicons for
+  # the GitHub social preview, so mounting it means one card, not two.
+  source = "../assets/icons/social-preview.png"
+  target = "static/social-preview.png"
+[[module.mounts]]
   source = "content"
   target = "content"
 [[module.mounts]]
