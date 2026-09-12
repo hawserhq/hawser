@@ -4,7 +4,7 @@
 # Pin the version. "latest" resolves at run time, which means two hosts
 # converged a week apart are not the same host -- the thing this role exists to
 # prevent.
-skrog_version: "0.3.0"
+skrog_version: "0.4.0"
 
 # Where skrog.exe lands. Machine-wide so the runner account and any
 # provisioning account both see it.
@@ -12,7 +12,7 @@ skrog_home: 'C:\Skrog'
 
 # Tag of wslkit/setup-skrog whose install script is used, so a host, a
 # GitHub Action and a baked image all install Skrog the same way.
-skrog_setup_ref: "v1"
+skrog_setup_ref: "v2"
 
 # Optional: a `skrog bundle` zip already on the host (air-gapped install, #75).
 # When set, the engine is imported from it and nothing is downloaded.
