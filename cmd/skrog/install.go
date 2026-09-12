@@ -114,7 +114,7 @@ flags:
 		// copies it into the cache and verifies its SHA-256 — the same verified
 		// path a networked install uses, so "offline" adds no unchecked import.
 		sd := optsWithResolvedStateDir(opts).StateDir
-		extracted := filepath.Join(sd, "offline", b.RootfsName())
+		extracted := filepath.Join(sd, "offline", bundle.ExtractedRootfsName)
 		if err := b.ExtractRootfs(extracted); err != nil {
 			fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
 			return exitError

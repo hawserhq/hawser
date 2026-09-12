@@ -165,6 +165,21 @@ func (b *Bundle) ExtractRootfs(dest string) error {
 // RootfsName is the bundled rootfs filename, used to name the extracted file.
 func (b *Bundle) RootfsName() string { return rootfsEntryName(b.lock) }
 
+// ExtractedRootfsName is what the rootfs is called once written to disk.
+//
+// Deliberately a constant, and deliberately not RootfsName(). That is
+// path.Base of a string the bundle's author wrote, and `path` is slash-only —
+// so separators of the other kind survive it intact and are then honoured by
+// filepath.Join, which cleans the traversal away and lands the write outside
+// the directory the caller chose. Both halves are attacker-controlled, because
+// the same string also selects the zip entry, and the write happens before any
+// checksum is consulted (#255).
+//
+// The bundle's own name serves no purpose on disk: the file is handed straight
+// to the installer as a path. A constant removes the class rather than
+// filtering it.
+const ExtractedRootfsName = "rootfs.tar.gz"
+
 // Close releases the bundle's file handle.
 func (b *Bundle) Close() error { return b.zr.Close() }
 
