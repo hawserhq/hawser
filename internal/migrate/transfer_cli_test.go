@@ -131,3 +131,71 @@ func TestEnsureTarImagePullError(t *testing.T) {
 		t.Fatal("a failed pull should error")
 	}
 }
+
+// A volume this call created and then failed to fill must not survive.
+//
+// Resume skips any volume the destination already has (Plan -> HasVolume, which
+// is `docker volume inspect`: existence, not content). So a created-but-unfilled
+// volume is not a retryable half-state — it is permanent. The next run reports
+// "already on the Skrog engine, will skip" over an empty or truncated tar and
+// tells the user the migration completed, which is silent data loss on the
+// resume path the help text recommends (#236).
+func TestMoveVolumeRemovesAVolumeItCreatedAndCouldNotFill(t *testing.T) {
+	var argvs []string
+	tr := CLITransfer{Dest: destCLI(func(argv []string) (string, error) {
+		joined := strings.Join(argv, " ")
+		argvs = append(argvs, joined)
+		switch {
+		case strings.Contains(joined, "volume inspect"):
+			return "", errors.New("Error: No such volume: v") // not there yet
+		case strings.Contains(joined, "volume create"):
+			return "v", nil
+		case strings.HasPrefix(joined, "create "):
+			// The helper container is where this test forces the failure:
+			// everything before it has already created the volume.
+			return "", errors.New("no space left on device")
+		}
+		return "", nil
+	})}
+
+	err := tr.MoveVolume(context.Background(), "v")
+	if err == nil {
+		t.Fatal("MoveVolume succeeded despite the helper container failing")
+	}
+	var removed bool
+	for _, a := range argvs {
+		if strings.Contains(a, "volume rm") && strings.Contains(a, "v") {
+			removed = true
+		}
+	}
+	if !removed {
+		t.Errorf("the volume was created and left behind; a resume will skip it as migrated.\ncalls: %v", argvs)
+	}
+}
+
+// The mirror image, and the more dangerous direction: a volume that was
+// already on the destination holds someone else's data. Deleting it to tidy up
+// our own failure would be a far worse bug than the one above.
+func TestMoveVolumeNeverRemovesAVolumeItDidNotCreate(t *testing.T) {
+	var argvs []string
+	tr := CLITransfer{Dest: destCLI(func(argv []string) (string, error) {
+		joined := strings.Join(argv, " ")
+		argvs = append(argvs, joined)
+		switch {
+		case strings.Contains(joined, "volume inspect"):
+			return "already here", nil // pre-existing
+		case strings.HasPrefix(joined, "create "):
+			return "", errors.New("no space left on device")
+		}
+		return "", nil
+	})}
+
+	if err := tr.MoveVolume(context.Background(), "v"); err == nil {
+		t.Fatal("MoveVolume succeeded despite the helper container failing")
+	}
+	for _, a := range argvs {
+		if strings.Contains(a, "volume rm") {
+			t.Errorf("a pre-existing destination volume was removed: %q\ncalls: %v", a, argvs)
+		}
+	}
+}

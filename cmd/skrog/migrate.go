@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 
 	"github.com/wslkit/skrog/internal/migrate"
 	"github.com/wslkit/skrog/internal/pipeproxy"
@@ -81,7 +82,11 @@ flags:
 	transfer := migrate.CLITransfer{Src: src, Dest: dst}
 	m := &migrate.Migrator{Source: src, Dest: dst, Transfer: transfer, Logger: log, Only: only}
 
-	ctx := context.Background()
+	// Ctrl-C must cancel rather than kill: a half-streamed volume has to be
+	// cleaned up, and a killed process runs no deferred cleanup at all (#236).
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	defer stop()
+
 	plan, err := m.Plan(ctx)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
