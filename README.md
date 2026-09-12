@@ -10,6 +10,7 @@
 <p align="center"><em><strong>skrog</strong> (n., Norwegian) — the hull: the body of the ship that carries the cargo and keeps the sea out.</em></p>
 
 <p align="center">
+  <a href="https://wslkit.github.io/skrog/"><img alt="Docs" src="https://img.shields.io/badge/docs-wslkit.github.io%2Fskrog-0a7d84"></a>
   <a href="https://github.com/wslkit/skrog/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/wslkit/skrog/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/wslkit/skrog/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/wslkit/skrog?include_prereleases&sort=semver&label=release&color=0a7d84"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/github/license/wslkit/skrog?color=2F3B45"></a>

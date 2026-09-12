@@ -95,10 +95,33 @@ function Get-Summary([string[]]$bodyLines) {
     # A bare "(corporate-network.md)" is what is left once a link whose label
     # was its own filename has been unwrapped. Useful in the page, noise here.
     $text = $text -replace '\s*\([^)]*\.md\)', ''
-    # First sentence: a period followed by a space and a capital, so "v1.45"
-    # and "Docker, Inc." do not end it early.
-    if ($text -match '^(.{20,}?[.!?])\s+[A-Z(`]') { $text = $Matches[1] }
-    if ($text.Length -gt 180) { $text = $text.Substring(0, 177).TrimEnd() + '...' }
+    # Whole sentences only. A summary that ends "...refuse a container this
+    # mac..." reads as a broken page, and this string is what a search result
+    # and a link preview show.
+    #
+    # A sentence ends at .!? followed by a space and a capital, so "v1.45" and
+    # "Docker, Inc. and" do not end one early.
+    $sentences = [regex]::Split($text, '(?<=[.!?])\s+(?=[A-Z(`])')
+    # Take the opening sentence, then keep going only while the summary is too
+    # short to say anything: these docs open with a declarative hook --
+    # "Runners die of full disks." -- which is good prose and a useless search
+    # result, and the sentence after it is the one that names the subject. A
+    # sentence that would push past the budget is left out rather than cut, so
+    # a page whose second sentence is a paragraph keeps just the hook.
+    $summary = $sentences[0]
+    foreach ($s in $sentences | Select-Object -Skip 1) {
+        if ($summary.Length -ge 80) { break }
+        if ($summary.Length + 1 + $s.Length -gt 200) { break }
+        $summary = "$summary $s"
+    }
+    $text = $summary
+    # The docs write an em dash as "--". That is a markdown convention; this
+    # string is rendered text, so give it the character. Bounded by whitespace
+    # on both sides, so "wsl --shutdown" and "--json" survive.
+    $text = $text -replace '\s--\s', (' ' + [string][char]0x2014 + ' ')
+    # The only thing left that can be over-long is a single sentence, and there
+    # is nothing to do with that but cut it.
+    if ($text.Length -gt 210) { $text = $text.Substring(0, 207).TrimEnd() + '...' }
     return $text.Trim()
 }
 

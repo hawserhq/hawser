@@ -12,6 +12,9 @@ on:
       - 'docs/**'
       - 'site/**'
       - 'assets/*.svg'
+      # The link-preview card is mounted into the site too (hugo.toml), so a
+      # regenerated mark has to reach /social-preview.png the same way.
+      - 'assets/icons/social-preview.png'
       - 'scripts/build-docs.ps1'
       # install.ps1 is mounted into the site (hugo.toml) and served at
       # /install.ps1 -- the file people pipe into their shell. Without it
@@ -23,6 +26,9 @@ on:
       - 'docs/**'
       - 'site/**'
       - 'assets/*.svg'
+      # The link-preview card is mounted into the site too (hugo.toml), so a
+      # regenerated mark has to reach /social-preview.png the same way.
+      - 'assets/icons/social-preview.png'
       - 'scripts/build-docs.ps1'
       # install.ps1 is mounted into the site (hugo.toml) and served at
       # /install.ps1 -- the file people pipe into their shell. Without it
