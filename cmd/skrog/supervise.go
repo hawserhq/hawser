@@ -235,10 +235,25 @@ flags:
 	// installed no gate at all.
 	watcher := policy.NewWatcher(opts.StateDir)
 	watcher.OnError = func(err error) {
+		// Which of the two it is matters to whoever reads this line, and the
+		// old wording asserted the reassuring one unconditionally. A file that
+		// has never parsed has no previous rules to stay in force (#254).
+		if unavail := watcher.Unavailable(); unavail != nil {
+			log.Error("policy file has never been read successfully; every container create is refused until it parses or is removed",
+				"error", err, "path", policy.Path(opts.StateDir))
+			return
+		}
 		log.Error("policy file is not valid; the previous rules stay in force",
 			"error", err, "path", policy.Path(opts.StateDir))
 	}
-	if rules := watcher.Rules(); !rules.Empty() {
+	switch {
+	case watcher.Unavailable() != nil:
+		// Said at startup as well as on change: this is the state that
+		// survives a reboot, and the one where silence used to mean "no rules"
+		// rather than "rules unknown".
+		log.Error("admission control cannot start: the policy file does not parse",
+			"path", policy.Path(opts.StateDir))
+	case !watcher.Rules().Empty():
 		log.Info("admission control enabled", "path", policy.Path(opts.StateDir))
 	}
 
