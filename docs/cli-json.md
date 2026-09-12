@@ -50,9 +50,40 @@ Exits `3` when no engine is installed (still emits JSON).
 
 ## `skrog doctor --json`
 
-An array of check results: `{ "name", "title", "status", "summary", "detail",
-"remedy", "fixed" }` with `status` one of `ok` | `skip` | `warn` | `fail`.
-Exit code is the worst status (`0` ok/skip, `1` warn, `2`… see `doctor --help`).
+```json
+{
+  "app": "0.4.0",
+  "worst": "warn",
+  "results": [
+    {
+      "name": "wsl-version",
+      "title": "WSL default version",
+      "status": "ok",
+      "summary": "default version is 2",
+      "detail": ["..."],
+      "remedy": "wsl --set-default-version 2",
+      "fixed": "set the default WSL version to 2"
+    }
+  ]
+}
+```
+
+An **object**, not an array: `worst` saves a consumer from folding the
+statuses itself, and `app` identifies the build that ran the checks. The
+results are under `results`. `status` is one of `ok` | `skip` | `warn` |
+`fail`; `detail`, `remedy` and `fixed` are omitted when empty, and `fixed`
+records what `--fix` did on this run.
+
+Exit code is **`0` when every check passed or only warned, `1` when one or
+more failed, `2` usage** — the same three `doctor --help` states. A warning is
+not a failure: `doctor` warns about things worth knowing that do not stop the
+engine working, so gating a fleet script on a non-zero exit would report
+healthy machines as broken.
+
+> Both of these were documented wrongly here until v0.4.0
+> ([#238](https://github.com/wslkit/skrog/issues/238)) — as an array, and with
+> `1` meaning warn. A consumer written against the old text iterated object
+> keys and treated a *failing* doctor as a usage error.
 
 ## `skrog config --json`
 
