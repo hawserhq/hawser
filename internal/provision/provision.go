@@ -637,8 +637,8 @@ func agentStartCmd() string {
 	for _, bin := range agentBinaries {
 		fmt.Fprintf(&b, "if command -v %s >/dev/null 2>&1; then "+
 			"pgrep -x %s >/dev/null 2>&1 && exit 0; "+
-			"exec %s -socket %s >>/var/log/%s.log 2>&1; fi; ",
-			bin, bin, bin, EngineSocket, bin)
+			"exec %s -socket %s -secret-file %s >>/var/log/%s.log 2>&1; fi; ",
+			bin, bin, bin, EngineSocket, DistroAgentSecret, bin)
 	}
 	b.WriteString("exit 0")
 	return b.String()
@@ -660,8 +660,27 @@ func AgentSecretPath(stateDir string) string {
 // prints it. Generating in-distro (from /dev/urandom) keeps the secret out of
 // any process argv; the value crosses only the wsl.exe stdout pipe, host to
 // distro, within the user's own session.
-const agentSecretScript = `f=/etc/skrog/agent-secret; ` +
-	`[ -s "$f" ] || { mkdir -p /etc/skrog && umask 077 && ` +
+// DistroAgentSecret is where the secret lives inside the distro.
+//
+// It is passed to the agent explicitly (see agentStartCmd) rather than left to
+// the agent's own default, because the default moved with the rename: an agent
+// built before it defaults to /etc/hawser/agent-secret, and rootfs 29.7.2 --
+// still a live target for `--engine-version` and `engine rollback` -- ships
+// exactly that agent. The host would write the secret here, demand the
+// authenticated handshake, and the agent would look somewhere else, find
+// nothing, offer v1, and be refused as a downgrade. Silently, because
+// startAgent is never fatal: no vsock, socat at ~165ms per connection instead
+// of ~0.6ms (#239).
+//
+// Both the old and the new agent accept -secret-file, so naming it is enough;
+// only the default differs.
+const (
+	distroConfDir     = "/etc/skrog"
+	DistroAgentSecret = distroConfDir + "/agent-secret"
+)
+
+const agentSecretScript = `f=` + DistroAgentSecret + `; ` +
+	`[ -s "$f" ] || { mkdir -p ` + distroConfDir + ` && umask 077 && ` +
 	`head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > "$f"; }; cat "$f"`
 
 // ensureAgentSecret makes the agent's vsock handshake mutually authenticated
