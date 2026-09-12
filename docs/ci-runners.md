@@ -129,12 +129,12 @@ measured numbers and each tool's own limitations — is in
 A runner that never reboots accumulates images, build cache and volumes:
 
 ```
-skrog prune --all --keep-recent 24h     # reclaim, with a report
+skrog prune --all --until 24h           # reclaim, with a report
 skrog reset --to clean-slate            # restore a snapshot between jobs
 skrog prewarm images.txt                # pull the pinned list ahead of need
 ```
 
-`skrog doctor` warns before the data disk runs out (`disk-warn-below` is
+`skrog doctor` warns before the data disk runs out (`disk.warn-below` is
 configurable), which is the failure that otherwise shows up as an opaque
 mid-build error. See [housekeeping.md](housekeeping.md) and
 [snapshots.md](snapshots.md).

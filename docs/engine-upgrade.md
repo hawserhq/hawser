@@ -63,7 +63,7 @@ reported:
 ```
 $ skrog engine upgrade --rootfs-url file:///C:/tmp/broken.tar.gz --rootfs-sha256 …
 skrog: engineupgrade: the new engine did not start: dockerd did not create
-/var/run/docker.sock within 1m0s (see `skrog logs --engine`); rolled back to
+/var/run/docker.sock within 1m0s (see `skrog logs --source dockerd`); rolled back to
 29.7.2-4, which is running
 ```
 

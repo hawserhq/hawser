@@ -410,7 +410,7 @@ func hostPathInDistro(p string) (string, error) {
 // brief reduces a start failure to something a person reads. StartEngine
 // reports the tail of the engine's own log, which is the right thing to keep
 // somewhere and the wrong thing to paste into a one-line failure: the useful
-// part is the first line, and `skrog logs --engine` has the rest.
+// part is the first line, and `skrog logs --source dockerd` has the rest.
 func brief(err error) string {
 	if err == nil {
 		return ""
@@ -428,5 +428,5 @@ func brief(err error) string {
 	if len(line) > max {
 		line = line[:max] + "…"
 	}
-	return line + " (see `skrog logs --engine`)"
+	return line + " (see `skrog logs --source dockerd`)"
 }

@@ -384,7 +384,13 @@ func TestBriefKeepsFailuresReadable(t *testing.T) {
 	if strings.Contains(msg, "Last log lines:") {
 		t.Errorf("a label introducing nothing survived:\n%s", msg)
 	}
-	for _, want := range []string{"docker.sock", "skrog logs --engine", "rolled back to 29.7.2-3"} {
+	// `skrog logs --source dockerd`, not `--engine`: there has never been an
+	// --engine flag (cmd/skrog/logs.go takes --source supervisor|dockerd|audit),
+	// so this message sent a user whose upgrade had just rolled back to a usage
+	// error, at the worst possible moment. docs/engine-upgrade.md quoted it
+	// faithfully and this test pinned it, which is how a wrong command outlived
+	// three readings of the file (#244).
+	for _, want := range []string{"docker.sock", "skrog logs --source dockerd", "rolled back to 29.7.2-3"} {
 		if !strings.Contains(msg, want) {
 			t.Errorf("message is missing %q:\n%s", want, msg)
 		}

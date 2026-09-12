@@ -19,7 +19,7 @@
         skrog_lockfile_path: 'C:\ci\skrog.lock'
         skrog_config:
           idle-timeout: "0"          # a runner should not idle-stop mid-queue
-          disk-warn-below: "20G"
+          disk.warn-below: "20GiB"
         skrog_engine_config:
           registry-mirrors: "https://mirror.example.com"
           max-concurrent-downloads: "6"
