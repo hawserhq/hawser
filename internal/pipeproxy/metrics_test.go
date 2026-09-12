@@ -90,6 +90,83 @@ func TestCountedClientStaysANetConn(t *testing.T) {
 	}
 }
 
+// halfCloseConn is a net.Conn that records a half-close, so a test can tell
+// "CloseWrite reached the connection" from "the assertion quietly failed".
+type halfCloseConn struct {
+	net.Conn
+	closed *bool
+}
+
+func (c halfCloseConn) CloseWrite() error { *c.closed = true; return nil }
+
+type halfCloseRWC struct {
+	io.ReadWriteCloser
+	closed *bool
+}
+
+func (c halfCloseRWC) CloseWrite() error { *c.closed = true; return nil }
+
+// The counting wrappers must stay half-closeable.
+//
+// This is the check TestCountedClientStaysANetConn was written to be and was
+// not: net.Conn does not declare CloseWrite, so asserting for net.Conn passes
+// on a wrapper that has lost it. It did lose it — embedding an interface gives
+// the wrapper that interface's method set and nothing more — and every
+// `docker run -i` through the supervisor hung as a result (#237).
+//
+// So this asserts the behaviour rather than a type: half-close the wrapper,
+// and require it to arrive at the connection underneath.
+func TestCountingWrappersForwardCloseWrite(t *testing.T) {
+	m := &Metrics{}
+
+	t.Run("client", func(t *testing.T) {
+		a, b := net.Pipe()
+		defer a.Close()
+		defer b.Close()
+		var got bool
+		w := m.countClient(halfCloseConn{Conn: a, closed: &got})
+		hc, ok := w.(halfCloser)
+		if !ok {
+			t.Fatal("the counted client is not a halfCloser, so closeWrite() will skip it")
+		}
+		if err := hc.CloseWrite(); err != nil {
+			t.Fatalf("CloseWrite: %v", err)
+		}
+		if !got {
+			t.Error("CloseWrite did not reach the wrapped connection")
+		}
+	})
+
+	t.Run("engine", func(t *testing.T) {
+		a, b := net.Pipe()
+		defer a.Close()
+		defer b.Close()
+		var got bool
+		w := m.countEngine(halfCloseRWC{ReadWriteCloser: a, closed: &got})
+		hc, ok := w.(halfCloser)
+		if !ok {
+			t.Fatal("the counted engine conn is not a halfCloser, so closeWrite() will skip it")
+		}
+		if err := hc.CloseWrite(); err != nil {
+			t.Fatalf("CloseWrite: %v", err)
+		}
+		if !got {
+			t.Error("CloseWrite did not reach the wrapped connection")
+		}
+	})
+
+	// A connection that cannot half-close must not become an error or a panic;
+	// closeWrite did nothing for it before and must still do nothing.
+	t.Run("connection without CloseWrite", func(t *testing.T) {
+		a, b := net.Pipe()
+		defer a.Close()
+		defer b.Close()
+		if err := m.countClient(a).(halfCloser).CloseWrite(); err != nil {
+			t.Errorf("CloseWrite on a plain conn: %v", err)
+		}
+	})
+}
+
 func TestCountersAreIndependent(t *testing.T) {
 	m := &Metrics{}
 	var n atomic.Uint64
