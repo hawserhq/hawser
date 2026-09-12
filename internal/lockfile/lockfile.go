@@ -7,7 +7,10 @@ package lockfile
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
+	"path"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -87,6 +90,25 @@ func (l Lock) Validate() error {
 	}
 	if strings.TrimSpace(l.Rootfs.URL) == "" {
 		return fmt.Errorf("lock is missing rootfs.url")
+	}
+	// Parsed, not merely non-empty. A lock travels: it is the artifact handed
+	// across an air gap inside a bundle, so its fields are input from
+	// elsewhere, and this one was previously accepted as any string at all —
+	// including one whose basename carries path separators (#255). Defence in
+	// depth behind bundle.ExtractedRootfsName, which no longer derives a
+	// filename from it; this stops the bad value entering rather than
+	// declining to use it.
+	//
+	// A file:// URL or an internal mirror is legitimate here — air-gapped and
+	// custom installs point at exactly those — so this checks that the value
+	// is a URL, not that it is a particular one.
+	if u, err := url.Parse(l.Rootfs.URL); err != nil {
+		return fmt.Errorf("lock rootfs.url %q is not a URL: %w", l.Rootfs.URL, err)
+	} else if u.Scheme == "" {
+		return fmt.Errorf("lock rootfs.url %q has no scheme", l.Rootfs.URL)
+	}
+	if base := path.Base(l.Rootfs.URL); base != filepath.Base(base) || base == "." || base == ".." {
+		return fmt.Errorf("lock rootfs.url %q does not end in a plain filename", l.Rootfs.URL)
 	}
 	if !sha256Re.MatchString(l.Rootfs.SHA256) {
 		return fmt.Errorf("lock rootfs.sha256 %q is not a 64-hex SHA-256", l.Rootfs.SHA256)
