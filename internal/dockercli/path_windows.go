@@ -4,6 +4,7 @@ package dockercli
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -138,13 +139,43 @@ func containsPath(entries []string, dir string) bool {
 	return false
 }
 
-// samePath compares two PATH entries case-insensitively with trailing
-// separators normalized, which is how Windows treats them.
+// samePath reports whether two PATH entries name the same directory.
+//
+// One side is normally a raw registry entry and the other a directory derived
+// from exec.LookPath, and those are spelled differently often enough that a
+// naive comparison is wrong on a stock Windows machine (#286).
 func samePath(a, b string) bool {
-	norm := func(s string) string {
-		return strings.ToLower(strings.TrimRight(strings.TrimSpace(s), `\/`))
+	na, nb := normPathEntry(a), normPathEntry(b)
+	return na != "" && na == nb
+}
+
+// normPathEntry renders a PATH entry the way exec.LookPath would hand it back.
+//
+// Three differences, each of which produced a silent miss:
+//
+//   - REG_EXPAND_SZ values come out of registry.GetStringValue *unexpanded*, so
+//     a stock `%SystemRoot%\system32` never matched `C:\Windows\system32`, and
+//     the caller concluded the directory was on neither PATH. Expanding a
+//     literal path is a no-op, so both sides can go through it.
+//   - filepath.SplitList and exec.LookPath strip surrounding quotes, so an
+//     entry stored as "C:\Program Files\X" never matched the unquoted
+//     directory of the binary found in it.
+//   - LookPath returns filepath.Join(dir, name), which Cleans: `C:/tools/bin`,
+//     `C:\tools\\bin` and `C:\tools\.\bin` all arrive spelled `C:\tools\bin`.
+func normPathEntry(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) >= 2 && strings.HasPrefix(s, `"`) && strings.HasSuffix(s, `"`) {
+		s = strings.TrimSpace(s[1 : len(s)-1])
 	}
-	return norm(a) == norm(b)
+	if strings.Contains(s, "%") {
+		if expanded, err := registry.ExpandString(s); err == nil {
+			s = expanded
+		}
+	}
+	if s == "" {
+		return ""
+	}
+	return strings.ToLower(strings.TrimRight(filepath.Clean(s), `\/`))
 }
 
 // broadcastEnvChange tells top-level windows the environment changed, so a new
@@ -164,9 +195,14 @@ func broadcastEnvChange() {
 		uintptr(unsafe.Pointer(env)), uintptr(SMTO_ABORTIFHUNG), 5000, uintptr(unsafe.Pointer(&out)))
 }
 
-// machineEnvKeyPath is the system-wide environment key; a var so tests can
-// redirect it, the same way envKeyPath is.
-var machineEnvKeyPath = `SYSTEM\CurrentControlSet\Control\Session Manager\Environment`
+// The system-wide environment key. Both the root and the path are vars so a
+// test can point them at a scratch key under HKCU: HKLM is not writable without
+// elevation, so redirecting the path alone -- as this used to -- achieved
+// nothing and left the machine half of PathScopeOf with no coverage (#286).
+var (
+	machineEnvRoot    = registry.LOCAL_MACHINE
+	machineEnvKeyPath = `SYSTEM\CurrentControlSet\Control\Session Manager\Environment`
+)
 
 // Scope says which PATH a directory is on.
 //
@@ -205,7 +241,7 @@ func PathScopeOf(dir string) Scope {
 }
 
 func onMachinePath(dir string) bool {
-	k, err := registry.OpenKey(registry.LOCAL_MACHINE, machineEnvKeyPath, registry.QUERY_VALUE)
+	k, err := registry.OpenKey(machineEnvRoot, machineEnvKeyPath, registry.QUERY_VALUE)
 	if err != nil {
 		return false
 	}
