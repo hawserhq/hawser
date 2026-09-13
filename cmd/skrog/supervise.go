@@ -136,6 +136,18 @@ flags:
 	}
 	defer lock.Close()
 
+	// Drop any predecessor's endpoint record the moment the lock is ours.
+	//
+	// A supervisor killed hard runs no cleanup, so its record survives. Between
+	// Acquire here and the write after Listen below there is log setup, a
+	// manifest read and SelectPipeName -- which dials with a timeout when
+	// something else holds the default pipe. Throughout that window Held() is
+	// true, so a reader would take the dead supervisor's record as live and
+	// could be told the engine is on a pipe nothing is serving (#288).
+	if err := supervise.ClearEndpoint(opts.StateDir); err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: clearing a stale endpoint record: %v\n", err)
+	}
+
 	// Log to a rotating file and stderr both: the file for the months-long
 	// logon session, stderr for a human running it in the foreground.
 	logFile, err := logging.NewRotatingWriter(

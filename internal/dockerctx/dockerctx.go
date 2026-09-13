@@ -117,7 +117,26 @@ func (m *Manager) EndpointOf(ctx context.Context, name string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strings.TrimSpace(out), nil
+	return lastLine(out), nil
+}
+
+// lastLine returns the final non-empty line.
+//
+// m.run merges stderr, and docker writes to it on success -- most commonly
+// `WARNING: Error loading config file: ...` on every invocation when
+// ~/.docker/config.json is malformed. The endpoint is compared with == (against
+// what the supervisor bound, and against the host Ensure is about to write), so
+// a warning prepended to the value turns into a spurious "your context is not
+// skrog" and a needless context update on every start (#288). The value itself
+// is a single line, so the last one is it.
+func lastLine(s string) string {
+	lines := strings.Split(strings.ReplaceAll(s, "\r\n", "\n"), "\n")
+	for i := len(lines) - 1; i >= 0; i-- {
+		if t := strings.TrimSpace(lines[i]); t != "" {
+			return t
+		}
+	}
+	return ""
 }
 
 // Ensure creates the Skrog context, or updates it when the endpoint has moved.
