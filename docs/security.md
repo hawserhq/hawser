@@ -92,7 +92,7 @@ different questions:
 
 ```
 # 1. Did GitHub Actions build this, from this repository, at a known commit?
-gh attestation verify skrog_0.4.0_windows_amd64.zip --owner wslkit
+gh attestation verify skrog_0.4.1_windows_amd64.zip --owner wslkit
 
 # 2. Is the checksum list itself authentic? (offline against the Sigstore log)
 cosign verify-blob \
@@ -116,7 +116,8 @@ sha256sum -c SHA256SUMS --ignore-missing
 > ```
 >
 > The file is signed as published, so past releases cannot be corrected without
-> invalidating their signature. Later ones are written with LF.
+> invalidating their signature. **From v0.4.1 it is written with LF**, and step 3
+> above passes against the file as downloaded.
 
 ### Licences of what the rootfs ships
 
