@@ -47,9 +47,19 @@ func ShadowAdvice(scope Scope, activeDir, origin string) string {
 	}
 }
 
-// who names the shadowing docker in a way that stays true whether or not it was
-// recognised. Saying "Docker Desktop" when the origin is unknown is a guess,
-// and it is the guess that made the old advice useless.
+// who names the shadowing docker in the SUBJECT position of a sentence, in a
+// way that stays true whether or not it was recognised. Saying "Docker Desktop"
+// when the origin is unknown is a guess, and it is the guess that made the old
+// advice useless.
+//
+// The empty origin is the common case, not an edge one: both callers pass ""
+// whenever the active binary is not in the list version.FindDockerBinaries
+// returns. It must never fall through to "", which would open the sentence with
+// a space and no subject (#287).
+//
+// version.OriginLabel renders the same value for the *parenthetical* position
+// ("(unrecognised install location)"), which does not read as a subject. The
+// two are deliberately separate.
 func who(origin string) string {
 	if origin == "" || origin == "unknown" {
 		return "that docker"
