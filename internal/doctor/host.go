@@ -231,17 +231,10 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 	// Only under the lock: the endpoint record outlives a supervisor killed
 	// hard, and comparing against a pipe nothing is serving would be worse than
 	// not comparing at all (#273).
-	if f.SupervisorHeld {
-		if e, ok := supervise.ReadEndpoint(stateDir); ok {
-			f.ServedEndpoint = pipeproxy.DockerHostFor(e.Pipe)
-			// Best-effort on both counts: no docker CLI, or a context that
-			// cannot be inspected, leaves this empty and the check falls back
-			// to comparing names.
-			if f.Report.Context != "" {
-				f.ActiveEndpoint, _ = (&dockerctx.Manager{}).EndpointOf(ctx, f.Report.Context)
-			}
-		}
-	}
+	f.ServedEndpoint, f.ActiveEndpoint = endpointFacts(ctx, stateDir,
+		f.SupervisorHeld, f.Report.Context,
+		supervise.ReadEndpoint,
+		(&dockerctx.Manager{}).EndpointOf)
 
 	f.CredHelpers = discoverCredHelpers(dockerConfigPath(), execLookPath)
 	f.Disk = diskInfo(engineDataDir(stateDir))
@@ -491,4 +484,40 @@ func gatherWSLSizing(stateDir string) WSLSizingInfo {
 		info.Pending = append(info.Pending, c.Key+"="+c.New)
 	}
 	return info
+}
+
+// endpointFacts gathers the pair checkContext compares: what the running
+// supervisor bound, and what the active docker context points at.
+//
+// Split out with its dependencies as parameters because inline in Gather it had
+// no coverage at all -- deleting the context lookup reverted #283 entirely and
+// the whole suite stayed green (#289). Gather itself cannot be unit-tested: it
+// reads WSL, the registry, the filesystem and an engine.
+//
+// Both lookups are best-effort and both halves must be present to mean
+// anything. No supervisor means nothing was bound; no record means nothing to
+// compare; a context that cannot be inspected must never be assumed to match,
+// because "equal" is what suppresses the warning.
+func endpointFacts(
+	ctx context.Context,
+	stateDir string,
+	supervisorHeld bool,
+	activeContext string,
+	readEndpoint func(string) (supervise.Endpoint, bool),
+	endpointOf func(context.Context, string) (string, error),
+) (served, active string) {
+	// Only under the lock: the record outlives a supervisor killed hard, and
+	// naming a pipe nothing is listening on is worse than saying nothing (#273).
+	if !supervisorHeld {
+		return "", ""
+	}
+	e, ok := readEndpoint(stateDir)
+	if !ok {
+		return "", ""
+	}
+	served = pipeproxy.DockerHostFor(e.Pipe)
+	if activeContext != "" {
+		active, _ = endpointOf(ctx, activeContext)
+	}
+	return served, active
 }

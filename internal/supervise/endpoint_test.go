@@ -16,8 +16,8 @@ import (
 func TestEndpointRoundTrips(t *testing.T) {
 	dir := t.TempDir()
 	want := supervise.Endpoint{
-		Pipe:   `\.\pipe\skrog_engine`,
-		Reason: `\.\pipe\docker_engine is already served by another engine (likely Docker Desktop)`,
+		Pipe:   `\\.\pipe\skrog_engine`,
+		Reason: `\\.\pipe\docker_engine is already served by another engine (likely Docker Desktop)`,
 	}
 	if err := supervise.WriteEndpoint(dir, want); err != nil {
 		t.Fatalf("WriteEndpoint: %v", err)
@@ -35,7 +35,7 @@ func TestEndpointWriteCreatesTheStateDir(t *testing.T) {
 	// The supervisor binds before anything else has necessarily created the
 	// directory; a missing one must not cost the record.
 	dir := filepath.Join(t.TempDir(), "not", "yet")
-	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\x`}); err != nil {
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\\.\pipe\x`}); err != nil {
 		t.Fatalf("WriteEndpoint into a missing state dir: %v", err)
 	}
 	if _, ok := supervise.ReadEndpoint(dir); !ok {
@@ -81,7 +81,7 @@ func TestClearEndpointRemovesTheRecordAndToleratesAbsence(t *testing.T) {
 	if err := supervise.ClearEndpoint(dir); err != nil {
 		t.Errorf("ClearEndpoint on an empty state dir: %v", err)
 	}
-	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\x`}); err != nil {
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\\.\pipe\x`}); err != nil {
 		t.Fatal(err)
 	}
 	if err := supervise.ClearEndpoint(dir); err != nil {
@@ -97,7 +97,7 @@ func TestWriteEndpointLeavesNoTempFileBehind(t *testing.T) {
 	// temp file is an implementation detail that must not become litter in
 	// the state dir a support bundle collects.
 	dir := t.TempDir()
-	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\x`}); err != nil {
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\\.\pipe\x`}); err != nil {
 		t.Fatal(err)
 	}
 	entries, err := os.ReadDir(dir)
