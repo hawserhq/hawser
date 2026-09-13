@@ -103,7 +103,16 @@ func (m *Manager) Exists(ctx context.Context) (bool, error) {
 
 // Endpoint returns the docker host the Skrog context points at.
 func (m *Manager) Endpoint(ctx context.Context) (string, error) {
-	out, err := m.run(ctx, "context", "inspect", Name,
+	return m.EndpointOf(ctx, Name)
+}
+
+// EndpointOf returns the docker host any context points at.
+//
+// Any, because "is docker aimed at Skrog" is a question about the endpoint and
+// not about the name: when Skrog takes the default pipe, the stock `default`
+// context already reaches it (#283).
+func (m *Manager) EndpointOf(ctx context.Context, name string) (string, error) {
+	out, err := m.run(ctx, "context", "inspect", name,
 		"--format", "{{.Endpoints.docker.Host}}")
 	if err != nil {
 		return "", err

@@ -73,8 +73,26 @@ func checkContext() Check {
 			return r
 		}
 
+		// A different name is not a different engine. When Skrog holds the
+		// default pipe -- the normal case on a machine without Docker Desktop
+		// -- the stock `default` context points at exactly what the supervisor
+		// bound, and `docker` already reaches Skrog with no context at all.
+		// Warning there tells the user to fix something that is not broken, and
+		// the remedy would change nothing (#283).
+		if f.ServedEndpoint != "" && f.ActiveEndpoint == f.ServedEndpoint {
+			r := result(c, OK, fmt.Sprintf("docker context is %q (%s), which points at the Skrog engine", ctx, src))
+			r.Detail = []string{"  endpoint: " + f.ActiveEndpoint}
+			return r
+		}
+
 		r := result(c, Warn, fmt.Sprintf("the active docker context is %q, not skrog", ctx))
 		r.Detail = []string{"  source: " + src}
+		if f.ActiveEndpoint != "" {
+			r.Detail = append(r.Detail, "  endpoint: "+f.ActiveEndpoint)
+		}
+		if f.ServedEndpoint != "" {
+			r.Detail = append(r.Detail, "  skrog is serving: "+f.ServedEndpoint)
+		}
 		r.Remedy = "run `skrog remote use local` (or `docker context use skrog`) so docker " +
 			"talks to the Skrog engine."
 		return r

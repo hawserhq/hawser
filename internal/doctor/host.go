@@ -11,7 +11,9 @@ import (
 
 	"github.com/wslkit/skrog/internal/config"
 	"github.com/wslkit/skrog/internal/dockercli"
+	"github.com/wslkit/skrog/internal/dockerctx"
 	"github.com/wslkit/skrog/internal/hooks"
+	"github.com/wslkit/skrog/internal/pipeproxy"
 	"github.com/wslkit/skrog/internal/provision"
 	"github.com/wslkit/skrog/internal/remote"
 	"github.com/wslkit/skrog/internal/runner"
@@ -49,6 +51,17 @@ type Facts struct {
 	// SupervisorHeld is true when the single-instance lock is held, i.e. a
 	// supervisor is running.
 	SupervisorHeld bool
+
+	// ServedEndpoint is the DOCKER_HOST the running supervisor actually bound,
+	// and ActiveEndpoint is the one the active docker context points at. Both
+	// are empty when there is nothing to ask — no supervisor, no context, or no
+	// docker CLI to ask with.
+	//
+	// They exist so checks can compare endpoints rather than context names:
+	// when Skrog takes the default pipe, the stock `default` context already
+	// reaches it, and a name comparison calls that a misconfiguration (#283).
+	ServedEndpoint string
+	ActiveEndpoint string
 
 	// CredHelpers are the docker credential helpers the CLI config references,
 	// each annotated with whether its binary resolves on PATH.
@@ -208,6 +221,21 @@ func Gather(ctx context.Context, opts GatherOptions) Facts {
 		f.GPU.EngineInstalled = true
 	}
 	f.SupervisorHeld = supervise.Held(stateDir)
+
+	// Only under the lock: the endpoint record outlives a supervisor killed
+	// hard, and comparing against a pipe nothing is serving would be worse than
+	// not comparing at all (#273).
+	if f.SupervisorHeld {
+		if e, ok := supervise.ReadEndpoint(stateDir); ok {
+			f.ServedEndpoint = pipeproxy.DockerHostFor(e.Pipe)
+			// Best-effort on both counts: no docker CLI, or a context that
+			// cannot be inspected, leaves this empty and the check falls back
+			// to comparing names.
+			if f.Report.Context != "" {
+				f.ActiveEndpoint, _ = (&dockerctx.Manager{}).EndpointOf(ctx, f.Report.Context)
+			}
+		}
+	}
 
 	f.CredHelpers = discoverCredHelpers(dockerConfigPath(), execLookPath)
 	f.Disk = diskInfo(engineDataDir(stateDir))
