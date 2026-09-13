@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/wslkit/skrog/internal/supervise"
 )
@@ -107,5 +108,82 @@ func TestWriteEndpointLeavesNoTempFileBehind(t *testing.T) {
 		if e.Name() != "endpoint.json" {
 			t.Errorf("unexpected file left in the state dir: %s", e.Name())
 		}
+	}
+}
+
+// #288: on Windows a reader holding endpoint.json blocks the rename that
+// commits a new one, and blocks the delete that clears it. os.Rename is
+// MoveFileEx(REPLACE_EXISTING) and os.ReadFile opens without FILE_SHARE_DELETE.
+// A single attempt could lose the record for the whole life of a supervisor.
+func TestWriteEndpointSurvivesAConcurrentReader(t *testing.T) {
+	dir := t.TempDir()
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\first`}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Hold the file open the way a reader does, then release it while the
+	// write is retrying.
+	f, err := os.Open(filepath.Join(dir, "endpoint.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	released := make(chan struct{})
+	go func() {
+		time.Sleep(60 * time.Millisecond)
+		f.Close()
+		close(released)
+	}()
+
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\second`}); err != nil {
+		t.Fatalf("WriteEndpoint gave up while a reader held the file: %v", err)
+	}
+	<-released
+
+	got, ok := supervise.ReadEndpoint(dir)
+	if !ok || got.Pipe != `\.\pipe\second` {
+		t.Errorf("record = %+v (ok=%v), want the second pipe", got, ok)
+	}
+}
+
+func TestClearEndpointSurvivesAConcurrentReader(t *testing.T) {
+	dir := t.TempDir()
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\x`}); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(filepath.Join(dir, "endpoint.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	go func() {
+		time.Sleep(60 * time.Millisecond)
+		f.Close()
+	}()
+
+	if err := supervise.ClearEndpoint(dir); err != nil {
+		t.Fatalf("ClearEndpoint gave up while a reader held the file: %v", err)
+	}
+	if _, ok := supervise.ReadEndpoint(dir); ok {
+		t.Error("record survived ClearEndpoint")
+	}
+}
+
+// A commit that never lands must not leave the temp file behind, where a
+// support bundle would collect it looking like a record.
+func TestWriteEndpointLeavesNoTempFileWhenItGivesUp(t *testing.T) {
+	dir := t.TempDir()
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\x`}); err != nil {
+		t.Fatal(err)
+	}
+	f, err := os.Open(filepath.Join(dir, "endpoint.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close() // held for the whole attempt, so every retry fails
+
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\y`}); err == nil {
+		t.Skip("this platform allows replacing an open file; nothing to assert")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "endpoint.json.tmp")); err == nil {
+		t.Error("endpoint.json.tmp left behind after the commit gave up")
 	}
 }
