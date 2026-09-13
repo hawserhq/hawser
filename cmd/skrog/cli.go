@@ -10,6 +10,7 @@ import (
 
 	"github.com/wslkit/skrog/internal/dockercli"
 	"github.com/wslkit/skrog/internal/provision"
+	"github.com/wslkit/skrog/internal/version"
 )
 
 // runCLI is `skrog cli`: install the bundled docker CLI + compose + buildx +
@@ -127,7 +128,7 @@ flags:
 		fmt.Printf("\nAdd this directory to your PATH to use the bundled docker:\n  %s\n", binDir)
 	}
 
-	warnIfDesktopShadows(binDir)
+	warnIfShadowed(binDir)
 	fmt.Printf("\nVerify in a new terminal:  docker version   docker compose version   docker buildx version\n")
 	return exitOK
 }
@@ -246,17 +247,28 @@ func runCLIUninstall(args []string) int {
 	return exitOK
 }
 
-// warnIfDesktopShadows notes when the docker that resolves on PATH is NOT the
-// one we just installed — typically Docker Desktop still ahead on PATH. The new
-// entry wins only in a fresh shell, so this is guidance, not an error.
-func warnIfDesktopShadows(binDir string) {
+// warnIfShadowed notes when the docker that resolves on PATH is NOT the one we
+// just installed, and says what will actually fix it. Which depends on where
+// the shadowing entry lives: a machine-PATH one cannot be out-ordered from the
+// user PATH at all, and the old text promised it would be (#282).
+func warnIfShadowed(binDir string) {
 	active, err := exec.LookPath("docker")
 	if err != nil {
 		return
 	}
-	if !strings.EqualFold(filepath.Dir(active), filepath.Clean(binDir)) {
-		fmt.Printf("\nNote: `docker` currently resolves to %s\n"+
-			"      (likely Docker Desktop). Skrog's docker takes over in a new terminal;\n"+
-			"      once you're happy, you can uninstall Docker Desktop.\n", active)
+	activeDir := filepath.Dir(active)
+	if strings.EqualFold(activeDir, filepath.Clean(binDir)) {
+		return
 	}
+	// The origin travels so the advice can name what it is rather than guess
+	// Docker Desktop; empty when this docker matches no install we recognise.
+	origin := ""
+	for _, b := range version.FindDockerBinaries(version.Env{SkrogBin: binDir}) {
+		if strings.EqualFold(b.Path, active) {
+			origin = string(b.Origin)
+			break
+		}
+	}
+	fmt.Printf("\nNote: `docker` currently resolves to %s\n      %s\n",
+		active, dockercli.ShadowAdvice(dockercli.PathScopeOf(activeDir), activeDir, origin))
 }

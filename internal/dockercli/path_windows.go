@@ -163,3 +163,56 @@ func broadcastEnvChange() {
 	proc.Call(uintptr(HWND_BROADCAST), uintptr(WM_SETTINGCHANGE), 0,
 		uintptr(unsafe.Pointer(env)), uintptr(SMTO_ABORTIFHUNG), 5000, uintptr(unsafe.Pointer(&out)))
 }
+
+// machineEnvKeyPath is the system-wide environment key; a var so tests can
+// redirect it, the same way envKeyPath is.
+var machineEnvKeyPath = `SYSTEM\CurrentControlSet\Control\Session Manager\Environment`
+
+// Scope says which PATH a directory is on.
+//
+// It matters because Windows composes a process PATH as machine-then-user, so
+// *every* machine entry resolves before *every* user entry. Skrog writes only
+// the user PATH -- deliberately, since that needs no elevation -- and therefore
+// cannot out-order a machine entry at all. Advice that says "make sure Skrog's
+// bin directory precedes it" is impossible in that case, and telling a user to
+// do an impossible thing is worse than telling them nothing (#282).
+type Scope int
+
+const (
+	// ScopeUnknown means neither PATH could be read, or the directory is on
+	// neither -- a session-only PATH entry, most likely.
+	ScopeUnknown Scope = iota
+	// ScopeUser is the per-user PATH, which Skrog can edit without elevation.
+	ScopeUser
+	// ScopeMachine is the system PATH, which always resolves first and needs
+	// elevation to change.
+	ScopeMachine
+)
+
+// PathScopeOf reports which PATH dir is on. Machine wins when it is on both,
+// because that is the one that decides resolution order.
+//
+// Errors are folded into ScopeUnknown on purpose: this exists to make a message
+// more accurate, and a message is never worth failing a command for.
+func PathScopeOf(dir string) Scope {
+	if onMachinePath(dir) {
+		return ScopeMachine
+	}
+	if ok, err := UserPathContains(dir); err == nil && ok {
+		return ScopeUser
+	}
+	return ScopeUnknown
+}
+
+func onMachinePath(dir string) bool {
+	k, err := registry.OpenKey(registry.LOCAL_MACHINE, machineEnvKeyPath, registry.QUERY_VALUE)
+	if err != nil {
+		return false
+	}
+	defer k.Close()
+	cur, _, err := k.GetStringValue("Path")
+	if err != nil {
+		return false
+	}
+	return containsPath(splitPath(cur), dir)
+}
