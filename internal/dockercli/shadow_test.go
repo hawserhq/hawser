@@ -74,3 +74,44 @@ func TestShadowAdviceNamesOnlyWhatWasIdentified(t *testing.T) {
 		})
 	}
 }
+
+// #289: mutating `who` so the empty origin falls through left every other test
+// passing, while the message became " is on the system PATH..." -- a sentence
+// with no subject. And "" is what both production callers usually pass.
+func TestShadowAdviceAlwaysHasASubject(t *testing.T) {
+	for _, origin := range []string{"", "unknown"} {
+		advice := dockercli.ShadowAdvice(dockercli.ScopeMachine, `C:\x`, origin)
+		if !strings.Contains(advice, "that docker") {
+			t.Errorf("origin %q: no subject in %q", origin, advice)
+		}
+		if strings.HasPrefix(advice, " ") {
+			t.Errorf("origin %q: advice opens with a space, so the subject is missing: %q",
+				origin, advice)
+		}
+	}
+}
+
+// #289: moving the ScopeUser branch so user scope fell through to the profile
+// text left all four original tests passing -- they only asserted things the
+// unknown-scope text also satisfies. Pin what is distinctive about each branch.
+func TestShadowAdviceBranchesAreDistinguishable(t *testing.T) {
+	machine := dockercli.ShadowAdvice(dockercli.ScopeMachine, `C:\m`, "")
+	user := dockercli.ShadowAdvice(dockercli.ScopeUser, `C:\u`, "")
+	unknown := dockercli.ShadowAdvice(dockercli.ScopeUnknown, `C:\n`, "")
+
+	if machine == user || user == unknown || machine == unknown {
+		t.Fatal("two scopes produce the same advice; the branch is not doing anything")
+	}
+	// The user branch's whole point is the reorder instruction.
+	if !strings.Contains(user, "move Skrog's entry first") {
+		t.Errorf("user-scope advice lost its reorder instruction: %q", user)
+	}
+	if strings.Contains(unknown, "move Skrog's entry first") {
+		t.Errorf("unknown-scope advice should not tell the user to reorder a PATH it is not on: %q", unknown)
+	}
+	// Positive assertion rather than forbidding "open a new terminal": the old
+	// check failed on a rewording that meant the same thing (#289).
+	if !strings.Contains(machine, "will not help") {
+		t.Errorf("machine-scope advice must say a new terminal will not help: %q", machine)
+	}
+}

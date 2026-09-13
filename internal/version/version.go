@@ -49,11 +49,20 @@ func (r *Report) analyze() {
 	// runs first. Commands still work — that binary talks to whatever its
 	// context says — but the user is not driving Skrog, which looks like a
 	// Skrog fault (PLAN §05, v0.3 doctor check).
+	//
+	// This states the fact and stops. It used to append "put Skrog's bin
+	// directory earlier, or use its full path", which is impossible when the
+	// shadowing entry is on the machine PATH -- Windows resolves the whole
+	// machine PATH before the whole user PATH, and Skrog writes only the user
+	// half (#282). Saying the right thing requires knowing which PATH the entry
+	// is on, which is a registry read, and analyze() is deliberately pure so the
+	// rules stay testable without touching the machine. So the remedy lives
+	// where that scope is already gathered: `skrog doctor` (#287).
 	if r.Context == "skrog" && first != nil && first.Origin != OriginSkrog {
 		r.Warnings = append(r.Warnings, fmt.Sprintf(
 			"the skrog context is active but %s (%s) resolves first on PATH; "+
-				"put Skrog's bin directory earlier, or use its full path",
-			first.Path, first.Origin))
+				"run `skrog doctor` for what will move it",
+			first.Path, OriginLabel(first.Origin)))
 	}
 
 	if len(r.Docker) == 0 {
@@ -130,7 +139,7 @@ func (r *Report) WriteText(w io.Writer) error {
 		// It never meant that: it means this docker.exe matches no install
 		// location we recognise, which for a hand-downloaded binary is correct
 		// and not a problem.
-		fmt.Fprintf(tw, "docker %s\t%s\t(%s)\n", marker, b.Path, originLabel(b.Origin))
+		fmt.Fprintf(tw, "docker %s\t%s\t(%s)\n", marker, b.Path, OriginLabel(b.Origin))
 	}
 	if err := tw.Flush(); err != nil {
 		return err
@@ -159,11 +168,17 @@ func shortSHA(s string) string {
 	return s
 }
 
-// originLabel renders an Origin for humans. OriginUnknown becomes a phrase
+// OriginLabel renders an Origin for humans in the PARENTHETICAL position --
+// "(skrog)", "(unrecognised install location)". OriginUnknown becomes a phrase
 // rather than a bare word: "unknown" alone reads as a missing fact, when what
 // it records is that the binary sits somewhere no installer we know puts one
 // (#281). The --json field keeps the raw value -- that is a pinned contract.
-func originLabel(o Origin) string {
+//
+// Exported because it was unexported, so `skrog doctor` grew its own bare
+// rendering and kept showing the "unknown" #281 was filed about (#287).
+// dockercli.ShadowAdvice has a separate renderer for the SUBJECT position of a
+// sentence, where this phrasing would not read; each names the other.
+func OriginLabel(o Origin) string {
 	if o == OriginUnknown {
 		return "unrecognised install location"
 	}

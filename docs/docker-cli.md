@@ -36,16 +36,27 @@ docker compose version
 docker buildx version
 ```
 
-If Docker Desktop is still installed, its `docker` may win in shells opened before
-the PATH change. `skrog doctor` flags that:
+Another `docker` on PATH may win over the bundled one. `skrog doctor` flags it
+and says what will actually move it:
 
 ```
 [warn] bundled docker CLI: another docker shadows the bundled CLI on PATH
   bundled: ...\Skrog\bin\docker.exe
   active:  C:\Program Files\Docker\Docker\resources\bin\docker.exe
+  active is on the SYSTEM PATH, which always resolves first
 ```
 
-Open a new terminal (or stop/uninstall Docker Desktop) and it resolves to Skrog's.
+**Which PATH the other one is on decides what fixes it**, and `doctor` says which:
+
+- **User PATH** — open a new terminal; a PATH change only reaches shells started
+  after it. If it persists, that entry sits ahead of Skrog's; move Skrog's first.
+- **System PATH** — a new terminal will *not* help, and neither will reordering
+  your user PATH. Windows resolves the whole system PATH before the whole user
+  PATH, and `skrog cli install` writes the user one so that it needs no
+  elevation. Removing the directory from the system PATH, or removing the
+  docker.exe in it, needs an administrator.
+- **Neither** — nothing in the registry puts it there, so something in your
+  shell's profile does.
 
 Pass `--no-path` to install the tools without touching PATH (you add the directory
 yourself).

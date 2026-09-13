@@ -432,3 +432,68 @@ func TestVersionTextKeepsARecognisedOrigin(t *testing.T) {
 		t.Errorf("a recognised origin should be named:\n%s", b.String())
 	}
 }
+
+// #289: deleting the Flush before the docker rows left every version test
+// passing, while "(implicit default)" got pushed out to the width of the
+// longest path -- the layout regression #281 was filed about.
+func TestVersionTextDockerRowsAlignSeparately(t *testing.T) {
+	var b strings.Builder
+	r := version.Report{
+		App:           "0.4.1",
+		Context:       "default",
+		ContextSource: "implicit default",
+		Docker: []version.Binary{
+			{Path: `C:\Users\someone\AppData\Local\Skrog\bin\docker.exe`, Origin: version.OriginSkrog, First: true},
+		},
+	}
+	if err := r.WriteText(&b); err != nil {
+		t.Fatal(err)
+	}
+	var ctxLine string
+	for _, l := range strings.Split(b.String(), "\n") {
+		if strings.HasPrefix(l, "context") {
+			ctxLine = l
+			break
+		}
+	}
+	if ctxLine == "" {
+		t.Fatalf("no context row:\n%s", b.String())
+	}
+	// If the docker row shared this row's tab columns, the gap before
+	// "(implicit default)" would stretch to the width of the path.
+	gap := strings.Index(ctxLine, "(implicit default)") - len("context  default")
+	if gap > 4 {
+		t.Errorf("context row is padded to the docker path's width (gap %d); "+
+			"the docker rows are not in their own tabwriter group:\n%q", gap, ctxLine)
+	}
+}
+
+// #289: the column test located the parenthesis with strings.Index, so a format
+// that pushed the path into a different tab column still passed. Split on tab
+// and assert the path is the first field after the label.
+func TestVersionTextDockerRowColumns(t *testing.T) {
+	var b strings.Builder
+	r := version.Report{
+		App:    "0.4.1",
+		Docker: []version.Binary{{Path: `C:\x\docker.exe`, Origin: version.OriginUnknown, First: true}},
+	}
+	if err := r.WriteText(&b); err != nil {
+		t.Fatal(err)
+	}
+	for _, l := range strings.Split(b.String(), "\n") {
+		if !strings.HasPrefix(l, "docker ") {
+			continue
+		}
+		// tabwriter has already expanded tabs, so compare on collapsed spaces.
+		fields := strings.Fields(l)
+		// docker, *, C:\x\docker.exe, (unrecognised, install, location)
+		if len(fields) < 3 {
+			t.Fatalf("docker row has too few fields: %q", l)
+		}
+		if fields[2] != `C:\x\docker.exe` {
+			t.Errorf("field after the marker should be the path, got %q in %q", fields[2], l)
+		}
+		return
+	}
+	t.Fatalf("no docker row:\n%s", b.String())
+}
