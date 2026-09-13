@@ -3,6 +3,8 @@ package doctor
 import (
 	"path/filepath"
 	"strings"
+
+	"github.com/wslkit/skrog/internal/dockercli"
 )
 
 // checkCLI reports on the bundled docker CLI (#66): whether it is installed and,
@@ -36,16 +38,24 @@ func checkCLI() Check {
 			return r
 		}
 
-		// On PATH, but another docker resolves first — typically Docker Desktop
-		// still ahead, or a shell opened before the PATH change.
+		// On PATH, but another docker resolves first. What fixes it depends on
+		// where that one lives: Windows resolves the whole machine PATH before
+		// the whole user PATH, and Skrog only writes the user half, so a
+		// machine-PATH shadow cannot be out-ordered and no new terminal helps.
+		// The old remedy promised both, and named Docker Desktop whether or not
+		// that is what was in the way (#282).
 		r := result(c, Warn, "another docker shadows the bundled CLI on PATH")
 		detail := []string{"  bundled: " + filepath.Join(f.CLI.BinDir, "docker.exe")}
 		if f.CLI.ActiveDocker != "" {
 			detail = append(detail, "  active:  "+f.CLI.ActiveDocker)
+			if f.CLI.ShadowScope == dockercli.ScopeMachine {
+				detail = append(detail, "  active is on the SYSTEM PATH, which always resolves first")
+			}
 		}
 		r.Detail = detail
-		r.Remedy = "open a new terminal; if it persists, make sure Skrog's bin directory " +
-			"precedes Docker Desktop on PATH. Then you can uninstall Docker Desktop."
+		if f.CLI.ActiveDocker != "" {
+			r.Remedy = dockercli.ShadowAdvice(f.CLI.ShadowScope, filepath.Dir(f.CLI.ActiveDocker), f.CLI.ActiveOrigin)
+		}
 		return r
 	}
 	return c

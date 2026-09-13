@@ -138,6 +138,12 @@ type CLIStatus struct {
 	BinDir       string `json:"binDir"`
 	OnPath       bool   `json:"onPath"`
 	ActiveDocker string `json:"activeDocker,omitempty"`
+	// ActiveOrigin is what `skrog version` attributed ActiveDocker to, empty
+	// when nothing recognised it; ShadowScope is which PATH its directory is
+	// on. Together they let checkCLI say what is actually in the way and what
+	// would actually move it, instead of guessing Docker Desktop (#282).
+	ActiveOrigin string          `json:"activeOrigin,omitempty"`
+	ShadowScope  dockercli.Scope `json:"-"`
 }
 
 // CredHelper is one docker credential helper referenced by the CLI config, and
@@ -304,6 +310,18 @@ func gatherCLIStatus(stateDir string) CLIStatus {
 	}
 	if active, err := execLookPath("docker"); err == nil {
 		s.ActiveDocker = active
+		activeDir := filepath.Dir(active)
+		// Only interesting when something else wins: the scope of our own bin
+		// dir is never in question, and PathScopeOf reads the registry.
+		if !strings.EqualFold(filepath.Clean(activeDir), filepath.Clean(s.BinDir)) {
+			s.ShadowScope = dockercli.PathScopeOf(activeDir)
+			for _, b := range version.FindDockerBinaries(version.Env{SkrogBin: s.BinDir}) {
+				if strings.EqualFold(b.Path, active) {
+					s.ActiveOrigin = string(b.Origin)
+					break
+				}
+			}
+		}
 	}
 	return s
 }

@@ -107,6 +107,14 @@ func (r *Report) WriteText(w io.Writer) error {
 		fmt.Fprintf(tw, "api\t%s\n", r.APIVersion)
 	}
 
+	// Flush before the docker rows so they align among themselves and not with
+	// everything above. A full path is far wider than a version, and one shared
+	// column would push every annotation above it -- "(implicit default)" and
+	// "(distro skrog-engine)" -- out to the width of the longest path.
+	if err := tw.Flush(); err != nil {
+		return err
+	}
+
 	if len(r.Docker) == 0 {
 		fmt.Fprintf(tw, "docker\tnone found on PATH\n")
 	}
@@ -115,7 +123,14 @@ func (r *Report) WriteText(w io.Writer) error {
 		if b.First {
 			marker = "*"
 		}
-		fmt.Fprintf(tw, "docker %s\t%s\t%s\n", marker, b.Origin, b.Path)
+		// Path in the column every row above uses for a version, origin after
+		// it in parentheses. The origin used to sit in that column, so the word
+		// "unknown" landed exactly where five versions had just been printed
+		// and read as "skrog cannot tell what version your docker is" (#281).
+		// It never meant that: it means this docker.exe matches no install
+		// location we recognise, which for a hand-downloaded binary is correct
+		// and not a problem.
+		fmt.Fprintf(tw, "docker %s\t%s\t(%s)\n", marker, b.Path, originLabel(b.Origin))
 	}
 	if err := tw.Flush(); err != nil {
 		return err
@@ -142,4 +157,15 @@ func shortSHA(s string) string {
 		return s[:12] + "..."
 	}
 	return s
+}
+
+// originLabel renders an Origin for humans. OriginUnknown becomes a phrase
+// rather than a bare word: "unknown" alone reads as a missing fact, when what
+// it records is that the binary sits somewhere no installer we know puts one
+// (#281). The --json field keeps the raw value -- that is a pinned contract.
+func originLabel(o Origin) string {
+	if o == OriginUnknown {
+		return "unrecognised install location"
+	}
+	return string(o)
 }

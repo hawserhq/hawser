@@ -372,3 +372,63 @@ func TestWriteTextIncludesTheDecisiveFacts(t *testing.T) {
 		}
 	}
 }
+
+// #281: the origin used to occupy the column every other row uses for a
+// version, so "unknown" read as a missing version rather than what it means.
+func TestVersionTextPutsThePathInTheVersionColumn(t *testing.T) {
+	var b strings.Builder
+	r := version.Report{
+		App:           "0.4.1",
+		Engine:        version.EngineInfo{Installed: true, Version: "29.8.0", Distro: "skrog-engine"},
+		Context:       "default",
+		ContextSource: "implicit default",
+		Docker: []version.Binary{
+			{Path: `C:\Program Files\Docker\docker.exe`, Origin: version.OriginUnknown, First: true},
+		},
+	}
+	if err := r.WriteText(&b); err != nil {
+		t.Fatal(err)
+	}
+	out := b.String()
+
+	var line string
+	for _, l := range strings.Split(out, "\n") {
+		if strings.HasPrefix(l, "docker ") {
+			line = l
+			break
+		}
+	}
+	if line == "" {
+		t.Fatalf("no docker row in:\n%s", out)
+	}
+	// The path comes first, where a reader scanning the column expects the
+	// fact about the thing named on the left.
+	pathAt := strings.Index(line, `C:\Program Files\Docker\docker.exe`)
+	if pathAt < 0 {
+		t.Fatalf("docker row does not name the path: %q", line)
+	}
+	// A bare "unknown" is what caused the misread; it must not appear at all.
+	if strings.Contains(line, "unknown") {
+		t.Errorf("docker row still contains a bare %q: %q", "unknown", line)
+	}
+	// Whatever the origin is rendered as, it follows the path in parentheses.
+	parenAt := strings.Index(line, "(")
+	if parenAt < pathAt {
+		t.Errorf("origin should follow the path, not precede it: %q", line)
+	}
+}
+
+// A recognised origin still says its name, so the useful case is not lost.
+func TestVersionTextKeepsARecognisedOrigin(t *testing.T) {
+	var b strings.Builder
+	r := version.Report{
+		App:    "0.4.1",
+		Docker: []version.Binary{{Path: `C:\skrog\bin\docker.exe`, Origin: version.OriginSkrog, First: true}},
+	}
+	if err := r.WriteText(&b); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(b.String(), "(skrog)") {
+		t.Errorf("a recognised origin should be named:\n%s", b.String())
+	}
+}
