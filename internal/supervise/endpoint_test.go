@@ -117,7 +117,7 @@ func TestWriteEndpointLeavesNoTempFileBehind(t *testing.T) {
 // A single attempt could lose the record for the whole life of a supervisor.
 func TestWriteEndpointSurvivesAConcurrentReader(t *testing.T) {
 	dir := t.TempDir()
-	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\first`}); err != nil {
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\\.\pipe\first`}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -134,20 +134,20 @@ func TestWriteEndpointSurvivesAConcurrentReader(t *testing.T) {
 		close(released)
 	}()
 
-	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\second`}); err != nil {
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\\.\pipe\second`}); err != nil {
 		t.Fatalf("WriteEndpoint gave up while a reader held the file: %v", err)
 	}
 	<-released
 
 	got, ok := supervise.ReadEndpoint(dir)
-	if !ok || got.Pipe != `\.\pipe\second` {
+	if !ok || got.Pipe != `\\.\pipe\second` {
 		t.Errorf("record = %+v (ok=%v), want the second pipe", got, ok)
 	}
 }
 
 func TestClearEndpointSurvivesAConcurrentReader(t *testing.T) {
 	dir := t.TempDir()
-	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\x`}); err != nil {
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\\.\pipe\x`}); err != nil {
 		t.Fatal(err)
 	}
 	f, err := os.Open(filepath.Join(dir, "endpoint.json"))
@@ -171,7 +171,7 @@ func TestClearEndpointSurvivesAConcurrentReader(t *testing.T) {
 // support bundle would collect it looking like a record.
 func TestWriteEndpointLeavesNoTempFileWhenItGivesUp(t *testing.T) {
 	dir := t.TempDir()
-	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\x`}); err != nil {
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\\.\pipe\x`}); err != nil {
 		t.Fatal(err)
 	}
 	f, err := os.Open(filepath.Join(dir, "endpoint.json"))
@@ -180,7 +180,7 @@ func TestWriteEndpointLeavesNoTempFileWhenItGivesUp(t *testing.T) {
 	}
 	defer f.Close() // held for the whole attempt, so every retry fails
 
-	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\.\pipe\y`}); err == nil {
+	if err := supervise.WriteEndpoint(dir, supervise.Endpoint{Pipe: `\\.\pipe\y`}); err == nil {
 		t.Skip("this platform allows replacing an open file; nothing to assert")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "endpoint.json.tmp")); err == nil {
