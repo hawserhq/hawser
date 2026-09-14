@@ -183,6 +183,62 @@ jobs:
           path: dist/
           retention-days: 14
 
+  # The dry run's other half.
+  #
+  # `publish` is gated on event_name == 'release', so a workflow_dispatch run
+  # exercised the build and nothing else -- and the release-only half is where
+  # the interesting actions live. When Dependabot bumped download-artifact 4->8
+  # and attest-build-provenance 2->4, both PRs went green having never executed
+  # either action, and a dispatch dry run did not reach them either. A failure
+  # there surfaces AFTER the release is published, because this workflow runs on
+  # release:published -- leaving a published release with no assets on it.
+  #
+  # So: same steps, same actions, on dispatch. It stops before uploading, and it
+  # deliberately does NOT take contents: write, so it cannot publish anything
+  # even by accident. It does write a real attestation and a real Rekor entry
+  # for the dry-run binaries, which is the point -- an attestation that was
+  # never produced is not evidence the path works.
+  verify-signing:
+    name: dry run - provenance and signing
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: skrog-binaries
+          path: dist
+
+      # v8 stopped unzipping unconditionally; if that ever changes what lands
+      # here, fail loudly in a dry run rather than quietly attest a zip.
+      - name: the artifact really did unpack
+        run: |
+          set -euo pipefail
+          ls -l dist
+          test -f dist/SHA256SUMS || { echo "::error::SHA256SUMS missing -- download-artifact did not unpack as expected"; exit 1; }
+          count=$(find dist -name '*.zip' | wc -l)
+          test "$count" -ge 1 || { echo "::error::no zips in dist/"; exit 1; }
+          echo "unpacked $count zip(s) and SHA256SUMS"
+
+      - uses: actions/attest-build-provenance@v4
+        with:
+          subject-path: 'dist/*'
+
+      - uses: sigstore/cosign-installer@v3
+      - name: sign and verify the checksum file
+        run: |
+          cosign sign-blob --yes \
+            --bundle dist/SHA256SUMS.cosign.bundle \
+            dist/SHA256SUMS
+          cosign verify-blob \
+            --bundle dist/SHA256SUMS.cosign.bundle \
+            --certificate-identity-regexp "^https://github.com/${GITHUB_REPOSITORY}/" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            dist/SHA256SUMS
+
   # Separated so only this job holds contents: write. The build job compiles
   # code and must not be able to publish.
   publish:
