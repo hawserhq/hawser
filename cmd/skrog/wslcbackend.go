@@ -260,7 +260,15 @@ func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provisi
 	// policy/audit ride on the same handler, so both are off here too — which
 	// is why this backend is experimental and not something `skrog serve`
 	// offers yet (#322).
-	srv := &pipeproxy.Server{Dialer: dialer, Logger: log}
+	// Only the named-pipe case is translated here. See wslc.TranslateBindSource:
+	// a pipe means this engine's socket on any backend (#164), while a Windows
+	// drive path has no meaning in a session yet and fails loudly rather than
+	// silently mounting nothing (#321).
+	srv := &pipeproxy.Server{
+		Dialer:  dialer,
+		Logger:  log,
+		Handler: pipeproxy.RewriteBindsFor(wslc.TranslateBindSource, nil, nil),
+	}
 
 	fmt.Fprintf(os.Stderr, `
 Bridge is up against the wslc session %q (experimental).
