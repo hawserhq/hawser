@@ -185,13 +185,28 @@ distinction is usually invisible and occasionally expensive: rootless defaults, 
 handled by a shim, and the corners where tooling reaches for dockerd's actual behaviour.
 Skrog runs dockerd itself, so there is no compatibility surface to fall off.
 
+**`wslc`** is Microsoft's own, and if you have updated WSL recently you already have it —
+`wslc.exe` ships with WSL 2.9.3+ and is headed for general availability. It runs, builds
+and networks Linux containers, with GPU support, and there is a `Microsoft.WSL.Containers`
+NuGet for driving containers from a Windows app. It is the strongest argument against
+needing this project at all, and if you want a first-party runtime with Microsoft behind
+it, use it.
+
+What it is not is **the Docker API**. It is a new CLI and a new API, so nothing that
+already speaks Docker can talk to it: Compose, Testcontainers, Dev Containers, buildx,
+`act`, `gitlab-ci-local`, Dagger. Skrog runs dockerd itself, which is why that list works
+here without any of those tools knowing Skrog exists. `wslc` also
+[cannot bind-mount WSL host paths yet](https://github.com/Microsoft/WSL/issues/40957),
+which rules out docker-in-docker.
+
 **What none of them do** is let you pin the engine. `skrog lock` writes the exact dockerd,
 containerd, runc and BuildKit commits; `setup-skrog` installs that same file on the runner.
 Docker Desktop ships whatever version it ships, and updates it on its own schedule.
 
 Reasons to pick something else, stated plainly: you need a GUI, Windows containers, macOS
-or Linux, a bundled Kubernetes, or a vendor with a support contract. Skrog is one
-maintainer and a young project.
+or Linux, a bundled Kubernetes, a vendor with a support contract, or a runtime that ships
+with the OS and you do not need the Docker API. Skrog is one maintainer and a young
+project.
 
 ## What it will never be
 
