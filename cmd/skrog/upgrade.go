@@ -8,11 +8,14 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
+	"strings"
 	"time"
 
 	"github.com/wslkit/skrog/internal/dockercli"
 	"github.com/wslkit/skrog/internal/provision"
 	"github.com/wslkit/skrog/internal/release"
+	"github.com/wslkit/skrog/internal/supervise"
 	"github.com/wslkit/skrog/internal/upgrade"
 )
 
@@ -22,6 +25,7 @@ func runUpgrade(args []string) int {
 	fs := flag.NewFlagSet("upgrade", flag.ContinueOnError)
 	var (
 		check    = fs.Bool("check", false, "report only; change nothing")
+		apply    = fs.Bool("apply", false, "also replace skrog.exe itself with the newer release")
 		dryRun   = fs.Bool("dry-run", false, "print what would be applied, and apply nothing")
 		yes      = fs.Bool("yes", false, "skip the confirmation prompt (for runners)")
 		offline  = fs.Bool("offline", false, "skip the network check for the app version")
@@ -38,12 +42,22 @@ then brings forward the two it owns — after showing you what it will do.
   skrog upgrade            everything
   skrog engine upgrade     just the engine
 
-The app is REPORTED, never applied: a running .exe cannot cleanly replace
-itself on Windows, and a signed installer is the right owner of that path.
+The app is reported and not applied by default, because replacing the running
+binary restarts the supervisor and briefly drops the docker pipe. `+"`--apply`"+`
+does it: the release zip is downloaded and checked against that release's
+SHA256SUMS BEFORE anything on disk is touched, the binaries are moved aside
+rather than overwritten, and a failure at any point leaves the install exactly
+as it was.
 
   --check     report only; change nothing
+  --apply     replace skrog.exe too, not just the engine and the CLI
   --dry-run   print exactly what would be applied, and apply nothing
   --yes       do not ask (runners)
+
+--apply replaces the files. skrog.exe takes effect immediately, because the
+supervisor is recycled onto the new one; skrogw.exe and skrogtray.exe take
+effect when those processes next start, which for most people is the next
+logon. The command says which is which rather than implying it all swapped.
 
 Why this is not just a convenience: the engines `+"`skrog engine upgrade`"+` can
 reach are pinned in THIS binary's manifest. A newer engine can therefore need
@@ -120,12 +134,17 @@ flags:
 		return exitOK
 	}
 
-	if len(plan) == 0 {
-		// The app being behind is not something this command can act on, and
-		// saying "nothing to do" without that qualification would read as
-		// "you are current".
+	appBehind := rep.AppStream().Status == upgrade.StatusAvailable
+
+	if len(plan) == 0 && !(appBehind && *apply) {
+		// The app being behind is not something this command can act on
+		// without --apply, and saying "nothing to do" without that
+		// qualification would read as "you are current".
 		if rep.Available() {
 			fmt.Println("\nnothing here is Skrog's to apply — see above")
+			if appBehind {
+				fmt.Println("`skrog upgrade --apply` will replace skrog.exe itself")
+			}
 		}
 		return exitOK
 	}
@@ -133,12 +152,25 @@ flags:
 	if !*yes {
 		fmt.Println("\nwill run:")
 		printUpgradePlan(plan)
+		if appBehind && *apply {
+			fmt.Printf("  %-16s %s -> %s  (replaces skrog.exe; the supervisor restarts)\n",
+				"app", buildVersion, rep.AppStream().Latest)
+		}
 		if !confirm("\nproceed?") {
 			fmt.Println("nothing was changed")
 			return exitOK
 		}
 	}
-	return applyUpgradePlan(plan, *stateDir)
+	if code := applyUpgradePlan(plan, *stateDir); code != exitOK {
+		return code
+	}
+	// The app last: it is the only step that restarts the supervisor, so a
+	// failure in the engine or CLI half leaves the running binary the one that
+	// produced the log the user is about to read.
+	if appBehind && *apply {
+		return applyApp(rep.AppStream().Latest, opts.StateDir)
+	}
+	return exitOK
 }
 
 // printUpgradePlan shows the commands, not a summary of them: the reader can
@@ -280,4 +312,73 @@ func installedCLIVersion(opts provision.Options) string {
 		return string(m[1])
 	}
 	return ""
+}
+
+// applyApp replaces the installed binaries with a newer release (#309).
+//
+// The order is the whole safety argument: download, verify, and only then
+// touch the install directory. Nothing here can leave a half-upgraded install
+// -- SwapBinaries rolls back if any file cannot be replaced, and a download
+// that fails verification never reaches the swap at all.
+func applyApp(version, stateDir string) int {
+	exe, err := os.Executable()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: locating the running binary: %v\n", err)
+		return exitError
+	}
+	dir := filepath.Dir(exe)
+
+	// Clear leftovers from a previous upgrade before making new ones, so the
+	// directory never accumulates two generations of .old.
+	if cleaned := upgrade.CleanOld(dir); len(cleaned) > 0 {
+		fmt.Printf("  cleaned up from the last upgrade: %s\n", strings.Join(cleaned, ", "))
+	}
+
+	fmt.Printf("\n== app: %s -> %s\n", buildVersion, version)
+
+	staged, err := os.MkdirTemp("", "skrog-upgrade-")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		return exitError
+	}
+	defer os.RemoveAll(staged)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	fmt.Printf("  downloading %s\n", upgrade.AssetName(version, runtime.GOARCH))
+	if err := (&upgrade.Fetcher{}).Stage(ctx, version, runtime.GOARCH, staged); err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		fmt.Fprintln(os.Stderr, "nothing was changed")
+		return exitError
+	}
+	fmt.Println("  verified against the release's SHA256SUMS")
+
+	res, err := upgrade.SwapBinaries(dir, staged)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+		fmt.Fprintln(os.Stderr, "the install was rolled back and is unchanged")
+		return exitError
+	}
+	fmt.Printf("  replaced %s in %s\n", strings.Join(res.Replaced, ", "), dir)
+
+	// Recycle the supervisor so the new skrog.exe is the one serving. skrogw
+	// re-spawns it by path, so this is all it takes.
+	if supervise.Held(stateDir) {
+		fmt.Println("  restarting the supervisor onto the new binary")
+		if code := recycleSupervisor(stateDir); code != exitOK {
+			fmt.Fprintln(os.Stderr,
+				"skrog: the binaries are new but the supervisor did not come back; run `skrog start`")
+			return code
+		}
+	}
+
+	// Stated rather than probed. Which processes are still on the old image is
+	// fixed by design -- skrog.exe is live now via the recycle above, the other
+	// two at their next start -- and the obvious probe was wrong twice over
+	// (see upgrade.SwapResult).
+	fmt.Println("\nnote: skrogw.exe and skrogtray.exe pick up the new build when they next\n" +
+		"      start — the tray on relaunch, the watchdog at your next logon.")
+	fmt.Printf("\nskrog %s is installed. `skrog version` confirms it.\n", version)
+	return exitOK
 }
