@@ -35,11 +35,7 @@ func RequestRestart(stateDir string) error {
 		return fmt.Errorf("creating state dir: %w", err)
 	}
 	stamp := time.Now().UTC().Format(time.RFC3339Nano) + "\n"
-	tmp := restartPath(stateDir) + ".tmp"
-	if err := os.WriteFile(tmp, []byte(stamp), 0o644); err != nil {
-		return fmt.Errorf("writing restart request: %w", err)
-	}
-	if err := os.Rename(tmp, restartPath(stateDir)); err != nil {
+	if err := commit(restartPath(stateDir), []byte(stamp)); err != nil {
 		return fmt.Errorf("committing restart request: %w", err)
 	}
 	return nil
@@ -55,9 +51,9 @@ func RestartRequested(stateDir string) bool {
 // twice: once at startup, so a note left behind by a crash cannot shut down a
 // healthy new process, and once when it acts on one.
 func ClearRestart(stateDir string) error {
-	err := os.Remove(restartPath(stateDir))
-	if os.IsNotExist(err) {
-		return nil
-	}
-	return err
+	// The supervisor polls this path every tick, so the delete races a reader
+	// more often than any other in the package. Losing it is not cosmetic: a
+	// request that survives being cleared shuts down the next supervisor on
+	// sight, which is the failure the doc comment above describes.
+	return remove(restartPath(stateDir))
 }
