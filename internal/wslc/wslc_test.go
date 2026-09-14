@@ -165,3 +165,20 @@ func TestErrorsCarryTheCLIMessage(t *testing.T) {
 		t.Errorf("error %q does not carry the CLI message", err)
 	}
 }
+
+// agentPattern is AgentPath written out with its first character bracketed, so
+// pgrep/pkill cannot match the shell running them. The two are separate
+// constants because Go cannot slice a const, so nothing but this test stops
+// them drifting apart — and if they do, pkill starts SIGTERMing its own shell
+// and pgrep starts reporting a dead agent as alive.
+func TestAgentPatternMatchesAgentPath(t *testing.T) {
+	want := "[" + AgentPath[0:1] + "]" + AgentPath[1:]
+	if agentPattern != want {
+		t.Errorf("agentPattern = %q, want %q (derived from AgentPath %q)", agentPattern, want, AgentPath)
+	}
+	// And the whole point: the pattern must not contain the literal path, or
+	// it would match the command line that carries it.
+	if strings.Contains(agentPattern, AgentPath) {
+		t.Errorf("agentPattern %q contains AgentPath verbatim; it would self-match", agentPattern)
+	}
+}
