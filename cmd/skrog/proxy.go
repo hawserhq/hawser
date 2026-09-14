@@ -27,6 +27,8 @@ func runProxy(args []string) int {
 		noContext  = fs.Bool("no-context", false, "do not create or update the skrog docker context")
 		noRewrite  = fs.Bool("no-path-translation", false, "relay bytes verbatim, without translating Windows bind paths")
 		sddl       = fs.String("sddl", "", "security descriptor for the pipe (advanced; default restricts to SYSTEM, admins and interactive users)")
+		engine     = fs.String("engine", "distro", "engine backend: distro (a WSL2 distro Skrog owns) or wslc (a WSL container session) [experimental]")
+		agentPath  = fs.String("agent", "", "linux skrog-agent binary to place in the wslc session (default: lifted from the engine distro)")
 	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: skrog proxy [flags]
@@ -49,6 +51,16 @@ flags:
 
 	log := cliLogger(false)
 	opts := provision.Options{Distro: *distro, StateDir: *stateDir}
+
+	switch *engine {
+	case "distro", "wslc":
+	default:
+		fmt.Fprintf(os.Stderr, "skrog: unknown --engine %q (want distro or wslc)\n", *engine)
+		return exitUsage
+	}
+	if *engine == "wslc" {
+		return runProxyWslc(*agentPath, *pipeName, *sddl, *noContext, opts, log)
+	}
 
 	// The manifest knows which distro this machine actually has, which matters
 	// when it was installed under a custom name.
