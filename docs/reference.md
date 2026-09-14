@@ -1024,12 +1024,22 @@ then brings forward the two it owns — after showing you what it will do.
   skrog upgrade            everything
   skrog engine upgrade     just the engine
 
-The app is REPORTED, never applied: a running .exe cannot cleanly replace
-itself on Windows, and a signed installer is the right owner of that path.
+The app is reported and not applied by default, because replacing the running
+binary restarts the supervisor and briefly drops the docker pipe. `--apply`
+does it: the release zip is downloaded and checked against that release's
+SHA256SUMS BEFORE anything on disk is touched, the binaries are moved aside
+rather than overwritten, and a failure at any point leaves the install exactly
+as it was.
 
   --check     report only; change nothing
+  --apply     replace skrog.exe too, not just the engine and the CLI
   --dry-run   print exactly what would be applied, and apply nothing
   --yes       do not ask (runners)
+
+--apply replaces the files. skrog.exe takes effect immediately, because the
+supervisor is recycled onto the new one; skrogw.exe and skrogtray.exe take
+effect when those processes next start, which for most people is the next
+logon. The command says which is which rather than implying it all swapped.
 
 Why this is not just a convenience: the engines `skrog engine upgrade` can
 reach are pinned in THIS binary's manifest. A newer engine can therefore need
@@ -1050,6 +1060,8 @@ Exit codes: 0 nothing to do or everything applied, 1 error, 2 usage,
 3 something can be upgraded (--check and --dry-run only).
 
 flags:
+  -apply
+    	also replace skrog.exe itself with the newer release
   -check
     	report only; change nothing
   -dry-run

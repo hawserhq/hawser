@@ -384,3 +384,16 @@ func (r Report) Plan() []Action {
 	add("engine", "engine", "upgrade")
 	return plan
 }
+
+// AppStream returns the app's stream, or a zero Stream when the report has
+// none. Callers ask about the app specifically because it is the one stream
+// `skrog upgrade` treats differently: applying it replaces the running binary
+// (#309), so it is opt-in where the engine and CLI are not.
+func (r Report) AppStream() Stream {
+	for _, s := range r.Streams {
+		if s.Name == "app" {
+			return s
+		}
+	}
+	return Stream{}
+}

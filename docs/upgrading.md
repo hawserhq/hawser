@@ -38,13 +38,37 @@ Same verb at two scopes:
 
 | stream | |
 |---|---|
-| app | **reported, never applied** — download the release zip; a signed installer is coming ([#77](https://github.com/wslkit/skrog/issues/77)) |
+| app | **reported by default, applied with `--apply`** — replacing the running binary restarts the supervisor, so it is opt-in |
 | engine | applied — `skrog engine upgrade`, reversible with `skrog engine rollback` |
 | bundled CLI | applied — `skrog cli install` |
 
-A running `.exe` cannot cleanly replace itself on Windows, and once there is a
-signed distribution channel it owns that path properly — self-replacement earns
-its complexity last, if ever.
+`skrog upgrade --apply` brings the app forward too:
+
+```
+== app: 0.4.1 -> 0.4.2
+  downloading skrog_0.4.2_windows_amd64.zip
+  verified against the release's SHA256SUMS
+  replaced skrog.exe, skrogw.exe, skrogtray.exe in ...\Programs\skrog
+  restarting the supervisor onto the new binary
+```
+
+The order is the safety argument: the release zip is downloaded and checked
+against **that release's `SHA256SUMS`** before anything on disk is touched, and
+the binaries are moved aside rather than overwritten, so a failure at any point
+leaves the install exactly as it was. It is not signed yet (#77) — but the
+alternative it replaces is `irm https://… | iex`, a script from the internet run
+with no check at all, so this is the tighter loop of the two.
+
+`skrog.exe` takes effect immediately, because the supervisor is recycled onto
+it. `skrogw.exe` and `skrogtray.exe` take effect when those processes next start
+— the tray on relaunch, the watchdog at your next logon. The previous binaries
+stay as `.old` beside them until the next run clears them, because Windows will
+not delete an image a process is still executing.
+
+> This used to say *"a running `.exe` cannot cleanly replace itself on Windows"*.
+> That is not true: you cannot **overwrite** a running image, but you can
+> **rename** one, which is how every Windows self-updater works
+> ([#309](https://github.com/wslkit/skrog/issues/309)).
 
 It always shows you the plan and asks first:
 
