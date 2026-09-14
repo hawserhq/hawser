@@ -153,7 +153,9 @@ const (
 // (AgentPort) and writing it twice is how the two drift apart.
 func startScript() string {
 	port := strconv.FormatUint(uint64(AgentPort), 10)
-	return `setsid ` + AgentPath + ` -port ` + port + ` >` + AgentLogPath + ` 2>&1 &
+	fwd := strconv.FormatUint(uint64(ForwardPort), 10)
+	return `setsid ` + AgentPath + ` -port ` + port + ` -forward-port ` + fwd +
+		` >` + AgentLogPath + ` 2>&1 &
 for i in $(seq 1 50); do
   if grep -q listening ` + AgentLogPath + ` 2>/dev/null; then cat ` + AgentLogPath + `; exit 0; fi
   sleep 0.1
