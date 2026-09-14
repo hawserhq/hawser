@@ -20,7 +20,7 @@ jobs:
     name: shellcheck
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Same invocation as scripts/lint.ps1 and the pre-commit hook: -x follows
       # `source=` directives, -P SCRIPTDIR resolves them next to each script
       # (versions.env sits beside build.sh, not in the working directory).
@@ -32,7 +32,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Compiling the engine is ~4 min of the job; assembling the rootfs is
       # seconds. Cache only the binaries, keyed on what actually determines
