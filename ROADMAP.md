@@ -2,7 +2,7 @@
 
 Companion to [PLAN.md](PLAN.md) §05 — that file says *what* each milestone contains and why; this one says *in what order, by when, gated on what*. Assumptions: one developer, weekend cadence (~2 focused days/weekend), calendar anchored to a start the week of **2026-09-07**. Dates are targets, not promises — the gates are the contract, the dates are the pace check.
 
-**Strategic clock:** Microsoft targets wslc GA for **fall 2026**. wslc ships daemonless — no Docker API — so it is not a threat, but its GA press cycle is a free marketing wave. **v0.1 must be public and installable before that wave** so every "wslc can't run compose/Testcontainers" thread has a link-able answer. That makes early October a real deadline, not an aspiration.
+**Strategic clock:** Microsoft targets wslc GA for **fall 2026**. wslc ships a real Moby engine but no Docker endpoint to reach it (#317), so it is not a substitute, and its GA press cycle is a free marketing wave. **v0.1 must be public and installable before that wave** so every "wslc can't run compose/Testcontainers" thread has a link-able answer. That makes early October a real deadline, not an aspiration.
 
 ---
 
@@ -40,7 +40,7 @@ Goal: CLI-only, fresh Windows 11 VM → `docker run hello-world` in <5 min. Ship
 - [ ] uninstall leaves the system byte-identical (context restored, no stray files)
 - [ ] coexists with an installed Docker Desktop (fallback pipe name, both contexts usable)
 
-**Retires risks:** architecture viability, Desktop coexistence, path translation. **Publish:** README with honest scope, comparison table stub, "wslc has no Docker API — Skrog is the real one" positioning paragraph.
+**Retires risks:** architecture viability, Desktop coexistence, path translation. **Publish:** README with honest scope, comparison table stub, "wslc exposes no Docker endpoint — Skrog serves the real one" positioning paragraph.
 
 ---
 
