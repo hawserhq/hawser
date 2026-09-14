@@ -41,7 +41,7 @@ jobs:
       # binaries built from different pins, which is worse than a cache miss.
       - name: engine binary cache
         id: engine-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: engine-bin
           key: engine-bin-${{ runner.os }}-${{ hashFiles('guest/rootfs/versions.env', 'guest/rootfs/build-engine.sh') }}
