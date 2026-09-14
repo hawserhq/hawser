@@ -8,30 +8,37 @@ import (
 )
 
 // DefaultKeepaliveInterval is how often the session is poked while the bridge$
-// is serving. Measured: a `sleep 600` container was SIGKILLed about 30 s
-// after the last CLI activity, so the interval has to be comfortably inside
-// that, and the poke costs ~40 ms.
+// is serving. The default session idle timeout is 30 s — `session.idleTimeout`
+// in wslc's own settings.yaml — so the interval has to sit comfortably inside
+// it. The poke costs ~40 ms.
 const DefaultKeepaliveInterval = 10 * time.Second
 
 // Keepalive stops the session VM being terminated out from under running
 // containers.
 //
-// WSLC's idle timer counts *its own* API traffic — work that goes through
-// wslcsession — and Skrog deliberately bypasses that, talking to dockerd over
-// vsock. From the session manager's point of view the session is therefore
-// perfectly idle no matter how busy the engine is, and it reaps the VM on
-// schedule. Measured on 2.9.11.0: a `docker run -d busybox sleep 600` through
-// the bridge exited 137 (SIGKILL) after ~30 s, with nothing else touching the
-// machine. The same container survived indefinitely when a `wslc` command was
-// run every 10 s.
+// WSLC's idle timer only counts containers it knows about — ones created
+// through the WSLC API, by wslcsession. Skrog talks to dockerd directly over
+// vsock, so its containers are invisible to that accounting and the session
+// looks idle however busy the engine is. The VM is then torn down on schedule,
+// SIGKILLing them.
 //
-// That is arguably a WSLC bug — killing running containers because no one
-// called the CLI recently is surprising however the containers were started —
-// but Skrog has to work on the shipped build, so it generates the activity.
+// Measured on 2.9.11.0, same host, same fresh default VM, 75 s of silence:
 //
-// Only while something is running, though. Idle termination is the feature
-// that keeps a ~750 MB VM from sitting around after work stops, and defeating
-// it unconditionally would be a worse trade than the one Microsoft chose.
+//	created with `wslc run -d`        -> still running
+//	created on the engine socket      -> exited 137, VM rebooted
+//
+// So this is not "WSLC kills running containers" in general — through its own
+// CLI it behaves correctly. It is the Docker-API plane having no Windows-side
+// integration (microsoft/WSL#40957), with VM lifetime as the consequence.
+// Skrog has to work on the shipped build, so it generates the activity itself.
+//
+// There is a supported alternative: raising `session.idleTimeout` in wslc's
+// settings.yaml (0 is rejected; the maximum uint32 is effectively "never").
+// Skrog does not set it, because that file is global to every wslc session the
+// user has, and reaching into global config without asking is the thing
+// `skrog wsl-config` exists to avoid doing. A poke that lives and dies with the
+// bridge costs one CLI spawn per 10 s and leaves the user's configuration
+// alone.
 type Keepalive struct {
 	Local   *Local
 	Session string
