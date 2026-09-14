@@ -116,3 +116,27 @@ func TestLiveEngineSocketAnswers(t *testing.T) {
 	}
 	t.Logf("engine: %.160s", out)
 }
+
+// ReadPolicies must work on a machine with no policy deployed — the ordinary
+// case — and report permissive defaults rather than failing or denying.
+//
+// The restrictive path needs values under HKLM\Software\Policies\WSL, which
+// requires elevation to create, so it is not exercised here; the semantics it
+// would exercise are unit-tested against the rules copied from wslpolicies.h.
+func TestLiveReadPolicies(t *testing.T) {
+	liveCtx(t) // skips when wslc is absent
+	p, err := ReadPolicies()
+	if err != nil {
+		t.Fatalf("ReadPolicies: %v", err)
+	}
+	t.Logf("deployed policy: containers=%v privileged=%v allowlist=%v",
+		p.ContainersAllowed, p.PrivilegedAllowed, p.RegistryAllowlist)
+
+	// A machine with no policy must not be treated as a locked-down one: that
+	// would refuse to serve every ordinary install.
+	if !p.Restrictive() {
+		if !p.ContainersAllowed || !p.PrivilegedAllowed {
+			t.Error("an unrestrictive policy still reported a denial")
+		}
+	}
+}
