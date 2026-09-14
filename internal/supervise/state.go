@@ -50,11 +50,7 @@ func WriteDesired(stateDir string, d Desired) error {
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return fmt.Errorf("creating state dir: %w", err)
 	}
-	tmp := statePath(stateDir) + ".tmp"
-	if err := os.WriteFile(tmp, []byte(d+"\n"), 0o644); err != nil {
-		return fmt.Errorf("writing desired state: %w", err)
-	}
-	if err := os.Rename(tmp, statePath(stateDir)); err != nil {
+	if err := commit(statePath(stateDir), []byte(d+"\n")); err != nil {
 		return fmt.Errorf("committing desired state: %w", err)
 	}
 	return nil
@@ -95,20 +91,15 @@ func ReadEngineState(stateDir string) EngineState {
 // file, so absence stays the ground truth for the normal case.
 func WriteEngineState(stateDir string, st EngineState) error {
 	if st == EngineActive {
-		err := os.Remove(engineStatePath(stateDir))
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
+		// Deleting is as exposed to a concurrent reader as renaming is, and
+		// this delete is the wake-up poke the supervisor watches for -- losing
+		// it leaves an idle engine that nothing wakes.
+		return remove(engineStatePath(stateDir))
 	}
 	if err := os.MkdirAll(stateDir, 0o755); err != nil {
 		return fmt.Errorf("creating state dir: %w", err)
 	}
-	tmp := engineStatePath(stateDir) + ".tmp"
-	if err := os.WriteFile(tmp, []byte(st+"\n"), 0o644); err != nil {
-		return fmt.Errorf("writing engine state: %w", err)
-	}
-	if err := os.Rename(tmp, engineStatePath(stateDir)); err != nil {
+	if err := commit(engineStatePath(stateDir), []byte(st+"\n")); err != nil {
 		return fmt.Errorf("committing engine state: %w", err)
 	}
 	return nil

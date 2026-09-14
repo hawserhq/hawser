@@ -89,20 +89,12 @@ func WriteStats(stateDir string, s Stats) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".stats-*")
-	if err != nil {
-		return err
-	}
-	name := tmp.Name()
-	defer os.Remove(name)
-	if _, err := tmp.Write(append(b, '\n')); err != nil {
-		tmp.Close()
-		return err
-	}
-	if err := tmp.Close(); err != nil {
-		return err
-	}
-	return os.Rename(name, path)
+	// Retried past a concurrent reader like every other commit in this package
+	// (#314). This one is flushed every few seconds while `skrog status
+	// --stats` may be reading it, so the race is not hypothetical -- and a lost
+	// flush is a reading that silently goes stale, which Stats.Age() then
+	// reports as the supervisor being gone.
+	return commit(path, append(b, '\n'))
 }
 
 // ReadStats reads the last reading. A missing file returns ok=false rather than
