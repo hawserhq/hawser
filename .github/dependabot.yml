@@ -1,0 +1,46 @@
+# Dependabot for the Go toolchain dependencies and the CI actions (#294).
+#
+# NOT for the engine. dockerd, containerd, runc and BuildKit are pinned by
+# checksum in guest/rootfs/versions.env and internal/release/manifest.json, and
+# moving them is a reviewed commit with a rootfs release behind it
+# (docs/bumping-upstream.md). "Nothing is ever fetched as latest" is the
+# determinism promise this project sells, so nothing here may bump it.
+version: 2
+updates:
+  # The main module. Four direct dependencies, all small and all in the data
+  # path -- go-winio is the named-pipe implementation, x/sys the registry and
+  # Win32 calls -- so these are grouped but still land as reviewable PRs.
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      go-dependencies:
+        update-types: [minor, patch]
+    labels: [dependencies]
+    commit-message:
+      prefix: deps
+
+  # test/e2e is a SEPARATE module (its own go.mod), so it needs its own entry;
+  # the root one does not reach it and it would be watched by nothing.
+  - package-ecosystem: gomod
+    directory: /test/e2e
+    schedule:
+      interval: weekly
+    groups:
+      go-dependencies:
+        update-types: [minor, patch]
+    labels: [dependencies]
+    commit-message:
+      prefix: deps
+
+  # The actions that build, sign and attest every release. cosign-installer and
+  # attest-build-provenance are the supply-chain surface: a fix there is one we
+  # want to hear about the week it lands, not at the next release.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    labels: [dependencies]
+    commit-message:
+      prefix: ci
