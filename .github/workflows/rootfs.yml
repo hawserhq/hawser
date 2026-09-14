@@ -67,7 +67,7 @@ jobs:
       - name: compare against Docker's static bundle
         run: ./guest/rootfs/reference-diff.sh "$GITHUB_WORKSPACE/out"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: skrog-rootfs
           path: out/
