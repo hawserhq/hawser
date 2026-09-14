@@ -15,7 +15,7 @@
   <a href="https://github.com/wslkit/skrog/releases"><img alt="Latest release" src="https://img.shields.io/github/v/release/wslkit/skrog?include_prereleases&sort=semver&label=release&color=0a7d84"></a>
   <a href="LICENSE"><img alt="License: Apache-2.0" src="https://img.shields.io/github/license/wslkit/skrog?color=2F3B45"></a>
   <img alt="Go" src="https://img.shields.io/github/go-mod/go-version/wslkit/skrog?color=00ADD8">
-  <img alt="Platform: Windows 11 + WSL2" src="https://img.shields.io/badge/platform-Windows%2011%20%2B%20WSL2-2F3B45">
+  <img alt="Platform: Windows 10/11 + WSL2" src="https://img.shields.io/badge/platform-Windows%2010%2F11%20%2B%20WSL2-2F3B45">
 </p>
 
 A minimal, invisible way to run the upstream open source **Docker Engine on Windows** via WSL2.
@@ -37,7 +37,9 @@ matters more to you than the licence does, come back in a few months.
 
 ## Install
 
-Requirements: Windows 11 with WSL2, and a `docker` CLI. Docker Desktop's works (Skrog
+Requirements: WSL 2.x from the Store or MSI on a virtualization-capable machine, and a
+`docker` CLI. Windows 11 is the primary target; Windows 10 22H2 (build 19045) is tested
+and works. Docker Desktop's CLI works (Skrog
 coexists with it), or install Skrog's own bundled CLI with `skrog cli install` and drop
 Docker Desktop entirely — see [docs/docker-cli.md](docs/docker-cli.md).
 
@@ -192,12 +194,18 @@ NuGet for driving containers from a Windows app. It is the strongest argument ag
 needing this project at all, and if you want a first-party runtime with Microsoft behind
 it, use it.
 
-What it is not is **the Docker API**. It is a new CLI and a new API, so nothing that
+What it does not give you is **an endpoint**. Every wslc session really does run a Moby
+engine — dockerd on a unix socket inside the session VM — but it is started with no `-H`,
+and no named pipe, TCP port or inbound route reaches it from Windows. So nothing that
 already speaks Docker can talk to it: Compose, Testcontainers, Dev Containers, buildx,
-`act`, `gitlab-ci-local`, Dagger. Skrog runs dockerd itself, which is why that list works
-here without any of those tools knowing Skrog exists. `wslc` also
+`act`, `gitlab-ci-local`, Dagger. Skrog serves that endpoint — the real `docker` API on
+`\\.\pipe\docker_engine` — which is why that list works here without any of those tools
+knowing Skrog exists. `wslc` also
 [cannot bind-mount WSL host paths yet](https://github.com/Microsoft/WSL/issues/40957),
-which rules out docker-in-docker.
+which rules out docker-in-docker — a limitation of its CLI rather than of the engine
+underneath. [wslc and Skrog](docs/wsl-containers.md) has the full picture: what is
+actually inside a session, why `docker` cannot reach it, and how you can check both
+yourself in one command.
 
 **What none of them do** is let you pin the engine. `skrog lock` writes the exact dockerd,
 containerd, runc and BuildKit commits; `setup-skrog` installs that same file on the runner.
@@ -255,7 +263,8 @@ page is reachable from here.
 
 **Start**
 [Bundled docker CLI](docs/docker-cli.md) ·
-[Dev Containers](docs/devcontainers.md)
+[Dev Containers](docs/devcontainers.md) ·
+[wslc and Skrog](docs/wsl-containers.md)
 
 **Keep it healthy**
 [Housekeeping: prune, compact, relocate](docs/housekeeping.md) ·

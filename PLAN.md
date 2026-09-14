@@ -8,7 +8,7 @@ A minimal, invisible way to run the upstream open source Docker Engine on Window
 |---|---|
 | License | Apache-2.0 |
 | Language | Go |
-| Target | Windows 11 (primary) · Windows 10 22H2 best-effort (EOS Oct 2025; ESU fleets only) |
+| Target | WSL 2.x (Store/MSI) on a virtualization-capable host — not a Windows build number · Windows 11 primary; Windows 10 22H2 tested and working (past EOS Oct 2025, so ESU fleets only) |
 | Engine | upstream moby (dockerd) |
 | Binary budget | < 15 MB |
 | Telemetry | none |
@@ -17,7 +17,7 @@ A minimal, invisible way to run the upstream open source Docker Engine on Window
 
 ## 01 · Positioning
 
-Docker Desktop requires a paid subscription for most companies. Rancher Desktop carries Kubernetes and an Electron UI whether you want them or not. Podman Desktop swaps the runtime itself. Microsoft's new WSL Containers (`wslc`, public preview June 2026, GA targeted fall 2026) mimics the docker *CLI* but is daemonless — no dockerd, no socket, no Docker *API* — so compose, Testcontainers, IDE integrations, and anything that mounts `docker.sock` doesn't work with it. The remaining corner — *"I just want the real `docker` to work on Windows, free, with zero ceremony"* — is served today only by DIY wiki guides and dormant side projects. Skrog productizes that corner and nothing else.
+Docker Desktop requires a paid subscription for most companies. Rancher Desktop carries Kubernetes and an Electron UI whether you want them or not. Podman Desktop swaps the runtime itself. Microsoft's new WSL Containers (`wslc`, public preview June 2026, GA targeted fall 2026) mimics the docker *CLI*, and under it every session runs a real Moby engine — but it exposes **no Docker endpoint**: dockerd is started with no `-H`, so it listens on a unix socket inside the session VM and nowhere else, and there is no named pipe, TCP port or inbound route a Docker client could name. The engine is complete and unreachable, so compose, Testcontainers, IDE integrations, and anything that mounts `docker.sock` cannot talk to it. The remaining corner — *"I just want the real `docker` to work on Windows, free, with zero ceremony"* — is served today only by DIY wiki guides and dormant side projects. Skrog productizes that corner and nothing else.
 
 ### In scope
 
@@ -297,7 +297,7 @@ The `wsl` package hides every `wsl.exe` invocation behind an interface so unit t
 | Risk | Severity | Mitigation |
 |---|---|---|
 | Docker trademark | launch-blocking | No "docker" or whale in name/logo/package IDs (hence Skrog); nominative references only; ship CLI binaries unmodified under Apache-2.0; engine binaries built from source in CI, not repackaged from Docker's distribution channels. Legal sanity check before the repo goes public. |
-| Microsoft's wslc absorbs the niche | strategic | wslc (GA expected fall 2026) mimics the CLI but has no daemon and no API socket at all — compose, Testcontainers, and socket-mounting tools are architecturally out of reach, and the endpoint request (microsoft/WSL#40976) sits unanswered with no milestone. Ship v0.1 fast and own the "real Docker API" framing. If #40976 ever ships, the pre-thought pivot: Skrog's glue layer (doctor, service lifecycle, fleet policy, path-translating pipe) can sit on top of wslc's endpoint instead of its own distro. |
+| Microsoft's wslc absorbs the niche | strategic | wslc (GA expected fall 2026) mimics the CLI and runs a real Moby engine, but exposes no Docker endpoint — dockerd listens on a guest unix socket with no `-H`, and nothing reaches it from Windows — so compose, Testcontainers and socket-mounting tools cannot use it, and the endpoint request (microsoft/WSL#40976) sits unanswered with no milestone. Note the gap is a missing listener, not a missing engine: Microsoft narrows the surface deliberately, because their registry allowlist and plugin hooks are enforced in `wslcsession.exe` *in front of* dockerd. Ship fast and own the "real Docker API" framing. The pre-thought pivot is now measured rather than hypothetical (#316): Skrog's glue layer (doctor, service lifecycle, fleet policy, path-translating pipe) can sit on top of a wslc session — reached today over vsock (#320), or over Microsoft's own endpoint if #40976 ships. |
 | ~~Session-0 / no-login WSL~~ — **settled, and negative** | resolved | Spike B (#3) measured it: WSL2 will not create its utility VM outside an interactive session. LocalSystem is refused by name; a dedicated service account fails in HCS with `ERROR_LOGON_TYPE_NOT_GRANTED` holding Service + Batch + Interactive rights and local admin. No longer a risk but a documented constraint (§03, §06). Cost of finding out: one day, in week one, exactly as intended. |
 | Auto-logon forbidden by policy | medium | Unattended runners need a logged-on session, and auto-logon stores a password in LSA secrets. Fleets that ban it cannot run Skrog unattended — nor any WSL-based engine, so no competitor wins those machines either. Mitigation: state it in the docs, name it in `doctor`, and never automate credential storage on the user's behalf. Theoretical escape (out of scope): run the engine in a plain Hyper-V VM instead of WSL. |
 | WSL2 behavior drift | ongoing | Pin a minimum WSL version; doctor detects mismatches; abstract every `wsl.exe` call; test Insider builds before Windows feature updates land. |
