@@ -29,9 +29,10 @@ type PortWatcher struct {
 
 	Logger *slog.Logger
 
-	// Keepalive, when set, is run alongside the watcher: the session VM is
-	// reaped out from under running containers unless WSLC sees CLI activity.
-	Keepalive *Keepalive
+	// Lease, when set, is held alongside the watcher: the session VM is
+	// reaped out from under running containers unless something holds an
+	// activity reference (see Lease).
+	Lease *Lease
 
 	mu     sync.Mutex
 	active map[string][]*Forwarder // container ID -> its listeners
@@ -45,8 +46,8 @@ type PortWatcher struct {
 // that could have been published. So each reconnect re-syncs from scratch
 // rather than assuming the previous view still holds.
 func (w *PortWatcher) Run(ctx context.Context) error {
-	if w.Keepalive != nil {
-		go w.Keepalive.Run(ctx)
+	if w.Lease != nil {
+		go w.Lease.Run(ctx)
 	}
 
 	backoff := 500 * time.Millisecond
