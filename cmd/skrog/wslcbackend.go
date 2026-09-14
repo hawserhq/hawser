@@ -117,6 +117,11 @@ func wslcBackend(ctx context.Context, agentPath, stateDir string, log *slog.Logg
 		ForwardDial: forward.Dial,
 		Logger:      log,
 	}
+	watcher.Keepalive = &wslc.Keepalive{
+		Local:   l,
+		Session: session,
+		Logger:  log,
+	}
 	return engine, watcher, session, nil
 }
 
