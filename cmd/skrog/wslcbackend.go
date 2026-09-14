@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -25,17 +26,17 @@ import (
 // fallback exists because an older rootfs may have no agent; a wslc session
 // has no agent at all until we put one there, so if the bootstrap failed the
 // right answer is a clear error, not a slow path that also will not work.
-func wslcBackend(ctx context.Context, agentPath, stateDir string, log *slog.Logger) (pipeproxy.Dialer, string, error) {
+func wslcBackend(ctx context.Context, agentPath, stateDir string, log *slog.Logger) (pipeproxy.Dialer, *wslc.PortWatcher, string, error) {
 	l := wslc.New()
 
 	ver, err := l.Version(ctx)
 	if err != nil {
-		return nil, "", fmt.Errorf("wslc is not usable on this machine: %w", err)
+		return nil, nil, "", fmt.Errorf("wslc is not usable on this machine: %w", err)
 	}
 
 	session, err := l.ResolveSession(ctx)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 	log.Info("using wslc session", "session", session, "wslc", ver)
 	if session != wslc.SessionName {
@@ -48,15 +49,18 @@ func wslcBackend(ctx context.Context, agentPath, stateDir string, log *slog.Logg
 
 	agent, err := loadGuestAgent(ctx, agentPath)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
 	secret, err := wslcSecret(stateDir)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
 
-	bootstrap := func(ctx context.Context) error {
+	// place reports the caveat; bootstrap (used for recovery) swallows it,
+	// because by then the caller has already been told once and a re-bootstrap
+	// that "fails" for a known limitation must not fail the dial.
+	place := func(ctx context.Context) error {
 		// Re-resolve the session every time: the one we started with may have
 		// gone with its VM, and ResolveSession is a single cheap CLI call.
 		s, err := l.ResolveSession(ctx)
@@ -65,8 +69,25 @@ func wslcBackend(ctx context.Context, agentPath, stateDir string, log *slog.Logg
 		}
 		return l.Bootstrap(ctx, s, agent, secret)
 	}
-	if err := bootstrap(ctx); err != nil {
-		return nil, "", fmt.Errorf("bootstrapping the agent into session %q: %w", session, err)
+	bootstrap := func(ctx context.Context) error {
+		if err := place(ctx); err != nil && !errors.Is(err, wslc.ErrNoPortForwarding) {
+			return err
+		}
+		return nil
+	}
+
+	// ErrNoPortForwarding is a caveat, not a failure: the engine works, only
+	// published ports do not. Say it once here rather than letting it surface
+	// as a port that mysteriously refuses.
+	ports := true
+	if err := place(ctx); err != nil {
+		if !errors.Is(err, wslc.ErrNoPortForwarding) {
+			return nil, nil, "", fmt.Errorf("bootstrapping the agent into session %q: %w", session, err)
+		}
+		ports = false
+		log.Warn("published ports will not reach Windows on this agent",
+			"reason", "the agent lifted from the engine distro predates -forward-port",
+			"fix", "pass --agent with a binary built from this tree")
 	}
 	log.Info("agent running in the wslc session", "bytes", len(agent), "vsock-port", wslc.AgentPort)
 
@@ -74,11 +95,29 @@ func wslcBackend(ctx context.Context, agentPath, stateDir string, log *slog.Logg
 	// rootfs with no agent from paying a dial timeout per connection. Here a
 	// failure means the VM restarted and the agent needs re-placing, so pausing
 	// would only delay the fix.
-	return &wslc.Dialer{
+	engine := &wslc.Dialer{
 		Inner:     &pipeproxy.VsockDialer{Port: wslc.AgentPort, Secret: secret, Cooldown: -1},
 		Bootstrap: bootstrap,
 		Logger:    log,
-	}, session, nil
+	}
+	// The forward transport needs the same recovery: one idle termination
+	// takes both listeners down together.
+	forward := &wslc.Dialer{
+		Inner:     &pipeproxy.VsockDialer{Port: wslc.ForwardPort, Secret: secret, Cooldown: -1},
+		Bootstrap: bootstrap,
+		Logger:    log,
+	}
+	if !ports {
+		// No forward listener in the guest: a watcher would open Windows
+		// listeners that can never connect, which is worse than no listener.
+		return engine, nil, session, nil
+	}
+	watcher := &wslc.PortWatcher{
+		EngineDial:  engine.Dial,
+		ForwardDial: forward.Dial,
+		Logger:      log,
+	}
+	return engine, watcher, session, nil
 }
 
 // loadGuestAgent finds a linux skrog-agent to place in the session.
@@ -163,10 +202,23 @@ func wslcSecret(stateDir string) (string, error) {
 func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provision.Options, log *slog.Logger) int {
 	ctx := interruptCtx()
 
-	dialer, session, err := wslcBackend(ctx, agentPath, optsWithResolvedStateDir(opts).StateDir, log)
+	dialer, watcher, session, err := wslcBackend(ctx, agentPath, optsWithResolvedStateDir(opts).StateDir, log)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
 		return exitError
+	}
+
+	// Published ports are carried by Skrog on this backend, because the relay
+	// that would carry them is driven from the Windows side by wslcsession and
+	// a bridge talking to the engine socket never invokes it (#330). The
+	// watcher opens and closes the host listeners as containers come and go.
+	//
+	// Nil when the guest agent is too old to forward; the warning has already
+	// been logged and serving docker without published ports is the better of
+	// the two available outcomes.
+	if watcher != nil {
+		go watcher.Run(ctx)
+		defer watcher.StopAll()
 	}
 
 	selected, reason := pipeproxy.SelectPipeName(pipeName)
@@ -212,7 +264,7 @@ Bridge is up against the wslc session %q (experimental).
   $env:DOCKER_HOST = "%s"; docker ps
 
 Not yet supported on this backend: Windows-path bind mounts (#321),
-published ports reaching Windows (#330), policy and audit (#322).
+policy and audit (#322), UDP published ports.
 
 Ctrl-C to stop.
 

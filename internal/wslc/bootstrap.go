@@ -3,6 +3,7 @@ package wslc
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -84,15 +85,39 @@ func (l *Local) Bootstrap(ctx context.Context, session string, agent []byte, sec
 		}
 	}
 
-	out, err := l.RunInSession(ctx, session, "sh", "-c", startScript())
+	out, err := l.RunInSession(ctx, session, "sh", "-c", startScript(true))
+	if err == nil && strings.Contains(out, "listening") {
+		return nil
+	}
+
+	// An agent that predates -forward-port exits on the unknown flag, and Go's
+	// flag package says so in its usage output. That is not a broken install:
+	// it is the agent from a rootfs built before published-port support, which
+	// is exactly what `--agent` defaulting to "lift it from the engine distro"
+	// will hand us on any current machine. Serve docker without published
+	// ports rather than refusing to start (#330).
+	if !strings.Contains(out, "not defined") {
+		if err != nil {
+			return fmt.Errorf("wslc: starting the agent: %w", err)
+		}
+		return fmt.Errorf("wslc: agent did not report listening: %s", out)
+	}
+
+	out, err = l.RunInSession(ctx, session, "sh", "-c", startScript(false))
 	if err != nil {
 		return fmt.Errorf("wslc: starting the agent: %w", err)
 	}
 	if !strings.Contains(out, "listening") {
 		return fmt.Errorf("wslc: agent did not report listening: %s", out)
 	}
-	return nil
+	return ErrNoPortForwarding
 }
+
+// ErrNoPortForwarding reports that the agent came up but is too old to carry
+// published ports. The engine works; `docker run -p` will not be reachable
+// from Windows. Returned rather than logged so the caller can say so once, in
+// its own voice, instead of the user discovering it when a port refuses.
+var ErrNoPortForwarding = errors.New("wslc: this agent predates port forwarding; published ports will not reach Windows (#330)")
 
 // AgentRunning reports whether an agent process is alive in the session. Used
 // by the supervisor's health loop to decide whether a re-bootstrap is needed
@@ -151,10 +176,12 @@ const (
 //
 // A function rather than a const because the port has one source of truth
 // (AgentPort) and writing it twice is how the two drift apart.
-func startScript() string {
-	port := strconv.FormatUint(uint64(AgentPort), 10)
-	fwd := strconv.FormatUint(uint64(ForwardPort), 10)
-	return `setsid ` + AgentPath + ` -port ` + port + ` -forward-port ` + fwd +
+func startScript(withForward bool) string {
+	args := ` -port ` + strconv.FormatUint(uint64(AgentPort), 10)
+	if withForward {
+		args += ` -forward-port ` + strconv.FormatUint(uint64(ForwardPort), 10)
+	}
+	return `setsid ` + AgentPath + args +
 		` >` + AgentLogPath + ` 2>&1 &
 for i in $(seq 1 50); do
   if grep -q listening ` + AgentLogPath + ` 2>/dev/null; then cat ` + AgentLogPath + `; exit 0; fi
