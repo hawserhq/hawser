@@ -205,7 +205,7 @@ jobs:
       # SLSA build provenance for every artifact: what built it, from which
       # repository, at which commit, in which workflow run. Verified later with
       # `gh attestation verify <file> --owner <org>` and no key material.
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: 'dist/*'
 

@@ -98,7 +98,7 @@ jobs:
       # be tied to this workflow and commit independently of the sha256 pin in
       # internal/release/manifest.json. Tampering that also edits the manifest
       # still fails this check.
-      - uses: actions/attest-build-provenance@v2
+      - uses: actions/attest-build-provenance@v4
         with:
           subject-path: 'out/*'
 
