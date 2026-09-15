@@ -22,12 +22,7 @@ A minimal, invisible way to run the upstream open source **Docker Engine on Wind
 No license fees, no Electron, no Kubernetes — install once, `docker ps` works forever, on
 laptops and CI runners alike.
 
-And the engine is **pinned by checksum**: `skrog lock` writes a `skrog.lock` naming dockerd,
-containerd, runc and BuildKit to the commit, which your CI runner then installs too. Docker
-Desktop cannot pin an engine version, so *"works on my machine, fails in CI"* caused by engine
-drift stops being a category of bug.
-
-**Status: v0.4 pre-release.** Installable and working as a daily driver: install once and
+**Status: pre-release.** Installable and working as a daily driver: install once and
 the engine starts at every logon, heals itself, and answers `docker` at the same speed as
 Docker Desktop. Read [PLAN.md](PLAN.md) for the strategy and [ROADMAP.md](ROADMAP.md) for
 the schedule; the [issue tracker](https://github.com/wslkit/skrog/issues) is the live state.
