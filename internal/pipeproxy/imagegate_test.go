@@ -143,6 +143,50 @@ func TestDeniedBuildNeverReachesTheEngine(t *testing.T) {
 	}
 }
 
+// The regression that matters most here: gating /build alone gates nothing a
+// user would ever hit. buildx has been the default `docker build` since Docker
+// 23 and never touches /build — it opens a session and hijacks /grpc. Against a
+// real machine with an allowlist deployed, `DOCKER_BUILDKIT=0 docker build` was
+// refused while the ordinary `docker build` beside it pulled `FROM busybox` off
+// a forbidden docker.io and succeeded.
+func TestBuildKitEndpointsAreGatedToo(t *testing.T) {
+	for _, path := range []string{"/session", "/grpc", "/v1.45/session", "/v1.45/grpc"} {
+		t.Run(path, func(t *testing.T) {
+			gate := &fakeImageGate{denyBuild: "allowlist is in force"}
+			resp, engineReached := driveRequest(t, gate,
+				"POST "+path+" HTTP/1.1\r\nHost: d\r\nContent-Length: 0\r\n\r\n")
+
+			if resp.StatusCode != http.StatusForbidden {
+				t.Errorf("status = %d, want 403 — BuildKit reaches the daemon here, so the allowlist is void unless it is judged", resp.StatusCode)
+			}
+			if engineReached() {
+				t.Error("a denied BuildKit build reached the engine")
+			}
+			if !gate.sawBuild {
+				t.Error("the build gate was never consulted")
+			}
+		})
+	}
+}
+
+// The other half: a gate that allows builds must leave BuildKit alone entirely.
+// /session and /grpc are hijacking endpoints, so judging them wrongly would
+// break every build on a machine with no policy deployed at all.
+func TestBuildKitEndpointsPassWhenBuildsAreAllowed(t *testing.T) {
+	for _, path := range []string{"/session", "/grpc"} {
+		gate := &fakeImageGate{}
+		resp, engineReached := driveRequest(t, gate,
+			"POST "+path+" HTTP/1.1\r\nHost: d\r\nContent-Length: 0\r\n\r\n")
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: status = %d, want 200", path, resp.StatusCode)
+		}
+		if !engineReached() {
+			t.Errorf("%s: an allowed build was blocked", path)
+		}
+	}
+}
+
 // An import from a tarball names no registry, so there is nothing to judge and
 // it must not be mistaken for a pull.
 func TestImportIsNotTreatedAsAPull(t *testing.T) {

@@ -63,21 +63,37 @@ func (g *PolicyGate) DenyPull(image string) (string, bool) {
 
 // DenyBuild judges `docker build`.
 //
-// Refused outright whenever an allowlist is active, which is deliberate and is
-// WSL's own position: a Dockerfile's FROM and any RUN can reach any registry,
-// so the traffic cannot be attributed in advance. wslpolicies.h says so for
-// `wslc image build` — callers "that cannot attribute traffic to a specific
-// registry must therefore refuse the operation whenever any allowlist
-// restriction is active". Allowing builds here would be the easiest possible
-// way around the allowlist, so Skrog takes the same position rather than a
-// weaker one.
+// Refused outright whenever an allowlist is active: a Dockerfile's FROM and any
+// RUN can reach any registry, and at the pipe a BuildKit build is an opaque
+// gRPC stream, so the traffic cannot be attributed to an allowed registry.
+// Allowing builds through would be the easiest possible way around the
+// allowlist, so this fails closed.
+//
+// wslpolicies.h anticipates exactly this, for callers "that cannot attribute
+// traffic to a specific registry and must therefore refuse the operation
+// whenever any allowlist restriction is active", naming `wslc image build` as
+// the example.
+//
+// The shipped CLI is better than its own header, though, and it is worth being
+// straight about the difference: `wslc image build` is NOT refused. It runs,
+// and the allowlist is enforced per source inside BuildKit — a blocked base
+// image fails with `source "docker-image://docker.io/library/busybox:latest"
+// denied by policy`. wslcsession can do that because it drives BuildKit
+// directly and attaches a source policy to the solve request. That policy is
+// client-side, not daemon configuration: a build sent straight to this
+// session's dockerd inherits nothing, which is measured, not assumed.
+//
+// Matching it would mean parsing and rewriting protobuf inside a hijacked HTTP/2
+// stream. Until that exists, Skrog is stricter than WSL here rather than
+// looser, and says so in the refusal.
 func (g *PolicyGate) DenyBuild() (string, bool) {
 	if !g.Policies.HasRegistryAllowlist() {
 		return "", false
 	}
 	return "WSLContainerRegistryAllowlist is in force on this machine, and a build " +
 		"can pull from any registry, so it cannot be attributed to an allowed one. " +
-		"`wslc image build` is refused for the same reason", true
+		"Skrog refuses the build; `wslc image build` instead enforces the allowlist " +
+		"per source inside BuildKit, which Skrog cannot do at the pipe", true
 }
 
 // RegistryServer extracts the registry host from an image reference, the way

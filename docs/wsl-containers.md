@@ -185,7 +185,6 @@ the same exposure a distro already has through `/mnt/c`;
 ### What does not work
 
 - **UDP published ports.** The relay is a stream transport.
-- **UDP published ports.** The relay is a stream transport.
 - **Engine pinning.** `skrog lock` has nothing to pin: Microsoft ships the
   engine and `wsl --update` moves it underneath you.
 - **`compact`, `snapshot`, `relocate`, `wsl-integrate`, `gpu`, `engine upgrade`**
@@ -196,14 +195,40 @@ the same exposure a distro already has through `/mnt/c`;
 The engine socket sits behind `wslcsession`, which is where WSL enforces an
 administrator's registry allowlist. Talking to the socket directly would bypass
 that, so Skrog reads the same Group Policy configuration WSL reads
-(`HKLM\Software\Policies\WSL`) and applies it at the pipe: `WSLContainerRegistryAllowlist`
-on pulls and container creates, `AllowWSLContainerPrivileged` on `--privileged`,
-and builds refused while an allowlist is active — the same position WSL takes
-for `wslc image build`, because a Dockerfile can pull from anywhere.
+(`HKLM\Software\Policies\WSL`) and applies it at the pipe:
+
+| policy | where Skrog applies it |
+|---|---|
+| `WSLContainerRegistryAllowlist` | `docker pull`, and the image named by `docker run`/`create` |
+| `AllowWSLContainerPrivileged` | `--privileged` on create |
+| `WSLContainerRegistryAllowlist` | `docker build` — **refused outright** while an allowlist is active |
+
+Verified against a machine with a real allowlist deployed: a blocked `docker
+pull` and a `--privileged` run are both refused with a 403 naming the policy
+that stopped them, `docker ps`, `images` and `version` are untouched, and
+`wslc pull` refuses the same image with `WSLC_E_REGISTRY_BLOCKED_BY_POLICY` —
+so the two agree rather than Skrog inventing its own answer.
+
+Builds are the one place Skrog is **stricter than WSL**, and it is worth being
+straight about why. `wslc image build` is not refused: it runs, and the
+allowlist is enforced per source *inside* BuildKit, so a blocked base image
+fails with `source "docker-image://docker.io/library/busybox:latest" denied by
+policy`. `wslcsession` can do that because it drives BuildKit directly and
+attaches a source policy to the solve request. That policy is client-side and
+not daemon configuration — a build sent straight to the session's `dockerd`
+inherits none of it, which is measured rather than assumed. Matching it at the
+pipe would mean rewriting protobuf inside a hijacked HTTP/2 stream, so until
+that exists Skrog refuses the build instead of letting it through.
+
+Note that the refusal covers `/session` and `/grpc` as well as `/build`: buildx
+has been the default `docker build` since Docker 23 and never touches `/build`,
+so gating only the classic endpoint would leave the allowlist void for every
+build a user actually runs.
 
 Skrog's own [`policy.yaml`](policy.md) and the [audit log](audit.md) apply here
 too. The audit log is worth turning on: it records every container-affecting
-call with its outcome, which is a record WSLC itself does not keep.
+call with its outcome, including each denial and the reason — a record WSLC
+itself does not keep.
 
 ### Should you use it?
 

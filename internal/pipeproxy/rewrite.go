@@ -602,7 +602,23 @@ type ImageGate interface {
 
 var (
 	imageCreatePath = regexp.MustCompile(`^(/v[0-9.]+)?/images/create$`)
-	buildPath       = regexp.MustCompile(`^(/v[0-9.]+)?/build$`)
+	// A build reaches the daemon by one of two routes, and gating only the
+	// first is gating nothing on a current CLI.
+	//
+	//   /build            the classic builder, now reachable only with
+	//                     DOCKER_BUILDKIT=0, plus API clients that call it
+	//                     directly (docker-py, and so Testcontainers' own
+	//                     image build).
+	//   /session, /grpc   BuildKit. buildx has been the default `docker build`
+	//                     since Docker 23, and it never touches /build: it
+	//                     opens a session and then hijacks /grpc to speak
+	//                     BuildKit's protocol to the daemon.
+	//
+	// A live check against a machine with an allowlist deployed found exactly
+	// that hole: `DOCKER_BUILDKIT=0 docker build` was refused and the ordinary
+	// `docker build` next to it ran to completion, pulling `FROM busybox` off
+	// docker.io with the allowlist forbidding it.
+	buildPath = regexp.MustCompile(`^(/v[0-9.]+)?/(build|session|grpc)$`)
 )
 
 // pullTarget reports the image a pull request names, if it is one.
@@ -625,7 +641,11 @@ func pullTarget(req *http.Request) (image string, isPull bool) {
 	return from, true
 }
 
-// isImageBuild reports whether the request is a build.
+// isImageBuild reports whether the request is a build, by either route.
+//
+// The BuildKit endpoints are build-only — nothing else in the Docker API uses
+// /session or /grpc — so a gate that allows builds is unaffected by their being
+// matched here, and only a gate that refuses builds sees them at all.
 func isImageBuild(req *http.Request) bool {
 	return req.Method == http.MethodPost && buildPath.MatchString(req.URL.Path)
 }
