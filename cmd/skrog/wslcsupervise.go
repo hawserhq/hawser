@@ -132,7 +132,11 @@ func (s *wslcSupervised) Close() {
 		s.watcher.StopAll()
 	}
 	if s.shares != nil {
-		s.shares.Close(context.Background())
+		// Bounded: a session that has idle-terminated must not be cold-booted
+		// just to remove holder containers that went down with it.
+		cleanup, cancel := context.WithTimeout(context.Background(), shareCleanupTimeout)
+		defer cancel()
+		s.shares.Close(cleanup)
 	}
 }
 

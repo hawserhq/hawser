@@ -43,6 +43,18 @@ type ShareTable struct {
 
 	mu     sync.Mutex
 	shares map[string]string // drive letter -> /mnt/{GUID}
+
+	// createMu serialises holder CREATION, which the short mu above cannot:
+	// ensureHolder force-deletes any existing holder before making its own, so
+	// two goroutines creating the same drive concurrently meant the second
+	// destroyed the first one's live virtiofs share -- leaving a container
+	// already created with a /mnt/{GUID} that no longer exists, and an empty
+	// bind mount with nothing in any log.
+	//
+	// One lock for all drives rather than one per drive: creation is rare and
+	// already costs a container start, so the only cost is that a first bind to
+	// C: and D: at the same instant is serialised.
+	createMu sync.Mutex
 }
 
 // HolderPrefix names the containers that hold drive shares open. Visible in
@@ -102,6 +114,19 @@ func (s *ShareTable) shareFor(ctx context.Context, drive string) (string, error)
 		s.mu.Lock()
 		delete(s.shares, drive)
 		s.mu.Unlock()
+	}
+
+	s.createMu.Lock()
+	defer s.createMu.Unlock()
+
+	// Re-check under the creation lock: another goroutine may have established
+	// this drive while we waited, and recreating it would destroy the share it
+	// is already handing out.
+	s.mu.Lock()
+	cached, ok = s.shares[drive]
+	s.mu.Unlock()
+	if ok && s.shareExists(ctx, cached) {
+		return cached, nil
 	}
 
 	share, err := s.ensureHolder(ctx, drive)

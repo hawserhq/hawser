@@ -193,3 +193,41 @@ func TestShareFailureIsReported(t *testing.T) {
 		t.Errorf("error %q does not name the drive", err)
 	}
 }
+
+// Concurrent first binds to the SAME drive must produce one holder, not a race
+// where the second force-deletes the first one's live share.
+//
+// ensureHolder deletes any existing holder before creating its own, and it ran
+// unlocked. A compose project binding C: from several services hit this: the
+// loser's container was created with a /mnt/{GUID} that had just been
+// destroyed, so its bind mount was silently empty.
+func TestConcurrentBindsToOneDriveCreateOneHolder(t *testing.T) {
+	r := &shareRunner{}
+	s := shareTable(r, testShare)
+
+	var wg sync.WaitGroup
+	got := make([]string, 8)
+	for i := range got {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			p, err := s.Translate(context.Background(), `C:\src`)
+			if err != nil {
+				t.Errorf("Translate: %v", err)
+				return
+			}
+			got[i] = p
+		}(i)
+	}
+	wg.Wait()
+
+	if n := r.countMatching("run -d"); n != 1 {
+		t.Errorf("started %d holders for concurrent binds to one drive, want 1", n)
+	}
+	// And everyone got the same share, not a mix of live and destroyed ones.
+	for i, p := range got {
+		if p != got[0] {
+			t.Errorf("goroutine %d got %q, goroutine 0 got %q", i, p, got[0])
+		}
+	}
+}
