@@ -263,3 +263,33 @@ func resolveDistroFor(p *provision.Provisioner, opts provision.Options, cmd, why
 	}
 	return "", "skrog: no install found. Run `skrog install` first.\n"
 }
+
+// engineUp answers "is the engine answering" for whichever backend this
+// install uses.
+//
+// `skrog start`, `stop` and `restart` each polled p.EngineRunning directly,
+// which asks a DISTRO. On a wslc install that is the wrong question, and the
+// three commands failed outright at the resolve step before ever reaching it
+// (#335) -- while the documentation told people to run them.
+func engineUp(ctx context.Context, target engineTarget, p *provision.Provisioner, opts provision.Options) bool {
+	if target.isWslc() {
+		state, _ := wslcStatus(ctx)
+		return state == "running"
+	}
+	return p.EngineRunning(ctx, opts)
+}
+
+// stopEngineDirectly stops the engine with no supervisor to do it.
+func stopEngineDirectly(ctx context.Context, target engineTarget, p *provision.Provisioner, opts provision.Options, log *slog.Logger) error {
+	if !target.isWslc() {
+		return p.StopEngine(ctx, opts)
+	}
+	// Only ever the session Skrog resolved: terminating every session would
+	// take down whatever the user is running with `wslc` by hand (#35).
+	l := wslc.New()
+	session, err := l.ResolveSession(ctx)
+	if err != nil {
+		return err
+	}
+	return l.Terminate(ctx, session)
+}

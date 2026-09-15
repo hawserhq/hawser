@@ -446,7 +446,7 @@ running, and waits for the engine to answer.
 	}
 
 	p := &provision.Provisioner{Logger: cliLogger(false)}
-	distro, ok := resolveDistro(p, opts)
+	target, ok := resolveEngineTarget(p, opts)
 	if !ok {
 		fmt.Fprintln(os.Stderr, "skrog: no install found. Run `skrog install` first.")
 		return exitNotFound
@@ -454,7 +454,7 @@ running, and waits for the engine to answer.
 	// The resolved name must actually be used: polling the default distro
 	// while the install lives under a custom name reports a healthy engine as
 	// missing — the poll timed out while `skrog status` said running.
-	opts.Distro = distro
+	opts.Distro = target.Distro
 
 	if !supervise.Held(opts.StateDir) {
 		fmt.Fprintln(os.Stderr, "  starting the supervisor in the background")
@@ -466,7 +466,7 @@ running, and waits for the engine to answer.
 
 	deadline := time.Now().Add(*timeout)
 	for time.Now().Before(deadline) {
-		if p.EngineRunning(context.Background(), opts) {
+		if engineUp(context.Background(), target, p, opts) {
 			fmt.Println("engine is running")
 			return exitOK
 		}
@@ -504,16 +504,16 @@ stopped. Only Skrog's own distro is touched, never other WSL distros.
 	supervise.WriteEngineState(opts.StateDir, supervise.EngineActive)
 
 	p := &provision.Provisioner{Logger: cliLogger(false)}
-	distro, ok := resolveDistro(p, opts)
+	target, ok := resolveEngineTarget(p, opts)
 	if !ok {
 		fmt.Fprintln(os.Stderr, "skrog: no install found; nothing to stop")
 		return exitNotFound
 	}
-	opts.Distro = distro
+	opts.Distro = target.Distro
 
 	// With no supervisor to do it, stop the engine directly.
 	if !supervise.Held(opts.StateDir) {
-		if err := p.StopEngine(context.Background(), opts); err != nil {
+		if err := stopEngineDirectly(context.Background(), target, p, opts, cliLogger(false)); err != nil {
 			fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
 			return exitError
 		}
@@ -521,7 +521,7 @@ stopped. Only Skrog's own distro is touched, never other WSL distros.
 
 	deadline := time.Now().Add(*timeout)
 	for time.Now().Before(deadline) {
-		if !p.EngineRunning(context.Background(), opts) {
+		if !engineUp(context.Background(), target, p, opts) {
 			fmt.Println("engine is stopped (and stays stopped until `skrog start`)")
 			return exitOK
 		}
