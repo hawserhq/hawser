@@ -119,6 +119,123 @@ Sharing the default session has a practical consequence worth stating: anything
 you run with the `wslc` CLI by hand lands in the same VM as your containers, and
 `wslc system session terminate` will take your containers down with it.
 
+## Behaviour differences from the distro backend
+
+Things a `docker` user hits here that they do not hit on `skrog-engine`. All of
+it measured on WSL 2.9.11.0 / Windows 10 22H2 rather than inferred from the
+`wslc` CLI's surface, which matters — several differences people expect from the
+CLI do not exist over the engine socket.
+
+### The one that will actually bite you: API 1.44
+
+| | wslc session | skrog-engine |
+|---|---|---|
+| engine | 25.0.3 (Microsoft build, `GitCommit f417435`) | 29.8.0 |
+| API | **1.44** | 1.56 |
+| minimum API | 1.24 | 1.24 |
+
+Docker CLI 29.x's *minimum* supported API is 1.44, so the bundled CLI negotiates
+down and works — **with zero headroom**. Anything that requires 1.45 or newer
+fails rather than degrades: newer BuildKit attestation and SBOM flags, some
+Compose fields, `docker debug`.
+
+`skrog upgrade` cannot fix this. `wsl --update` might, silently, in either
+direction.
+
+### No cross-architecture execution
+
+`--platform` itself works — the daemon selects and pulls the requested platform
+happily:
+
+```
+docker pull --platform linux/arm64 busybox      # succeeds
+docker image inspect busybox --format '{{.Architecture}}'   # arm64
+```
+
+What is missing is qemu/binfmt, so a foreign binary cannot *run*:
+
+```
+docker run --rm --platform linux/arm64 busybox true
+exec /bin/true: exec format error
+```
+
+A `buildx --platform linux/arm64` build gets through `FROM` and dies at the
+first `RUN` for the same reason. So multi-arch builds are out, but pinning a
+platform to the host's own architecture is fine.
+
+A trap worth knowing, because it is easy to do to yourself: pulling a foreign
+platform **overwrites the local tag**. After the `docker pull --platform
+linux/arm64 busybox` above, plain `docker run busybox` fails with
+`exec format error` until you re-pull the native one.
+
+### What works here that the `wslc` CLI cannot do
+
+The CLI's limits are the CLI's, not the engine's. Over the socket, all of these
+work and are verified:
+
+| | |
+|---|---|
+| `--network host` | exits 0 and joins the **session VM's** network namespace — not Windows' |
+| `--privileged`, `--pid host`, `--cap-add` | all supported by dockerd and all reachable here |
+| `docker network create` | bridge, ipvlan, macvlan, overlay and null drivers are present |
+| guest-path binds (`-v /var/run/docker.sock:…`, `/tmp`) | the basis of Ryuk and docker-in-docker |
+| `buildx build -o type=local` | the artifact lands on Windows |
+
+`--network host` deserves the caveat: "host" is the session VM, so it gets you
+the VM's interfaces, not the Windows host's. Published ports do not apply to a
+container in host mode, and nothing in that namespace is reachable from Windows
+except through Skrog's relay.
+
+### Published ports bind what you asked for
+
+`wslc`'s own relay only ever binds `127.0.0.1`. Skrog runs its own relay and
+honours the address in `-p`:
+
+```
+docker run -d -p 0.0.0.0:18411:80 busybox httpd -f -p 80
+netstat -an | findstr 18411
+  TCP    0.0.0.0:18411    LISTENING
+  TCP    [::]:18411       LISTENING
+```
+
+Reachable from the host's LAN address, not just loopback. TCP only — see
+[What does not work](#what-does-not-work).
+
+### Bind-mount metadata is virtiofs-flavoured
+
+Files under a Windows share present as `-rwxrwxrwx root root`, and `chmod` is
+silently a no-op:
+
+```
+-rwxrwxrwx  1 root root  3 /m/f.txt
+chmod 600 /m/f.txt
+-rwxrwxrwx  1 root root  3 /m/f.txt
+```
+
+Same class of surprise as `drvfs` on a distro, and it breaks anything that
+insists on strict permissions — an `ssh` key, or a tool that refuses a
+world-writable config.
+
+### Registry credentials
+
+`X-Registry-Auth` passes straight through, so `docker login` works and its state
+lives in the Windows CLI's own config, exactly as on the distro backend. WSLC
+keeps a *separate* credential store for `wslc registry login`; Skrog's pipe does
+not read it, and logging in with one does not log you in on the other.
+
+### GPU
+
+The guest daemon has CDI enabled, so `--gpus` maps to `DeviceRequests` → CDI
+inside dockerd 25. The runtime list is `runc` and `io.containerd.runc.v2` only —
+there is no `nvidia` runtime, and there does not need to be. **`skrog gpu` is
+for Skrog's own distro and will not help here**; the CDI spec comes from the
+WSLC guest image.
+
+### Windows 10 is fine
+
+Microsoft's docs say Windows 11 22H2+. All of the above was measured on **Windows
+10 22H2 (19045)**. Nothing in Skrog gates on the OS build, and nothing needs to.
+
 ## Windows folders, and the reason to use this backend at all
 
 A session has no `/mnt/c`. Each Windows folder is instead its own **virtiofs**
