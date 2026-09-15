@@ -8,7 +8,7 @@
 # would link to it.
 sections:
   - section: Start
-    pages: [docker-cli, devcontainers, wsl-containers]
+    pages: [docker-cli, devcontainers, wsl-containers, wslc-backend]
   - section: Keep it healthy
     pages: [housekeeping, snapshots, upgrading, engine-upgrade, vm-sizing]
   - section: At work
@@ -25,6 +25,7 @@ sections:
 # an entry here is an exception, not the pattern.
 short:
   wsl-containers: wslc and Skrog
+  wslc-backend: wslc as the engine
   code-signing: Code signing
   auto-logon-runner: Unattended runners
   security: Security model

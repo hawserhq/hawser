@@ -54,22 +54,41 @@ type Gate interface {
 // The handler therefore proxies HTTP only until the engine signals a hijack,
 // then reverts to a raw byte relay for the life of the connection.
 func RewriteBinds(client net.Conn, engine io.ReadWriteCloser) error {
-	return rewriteBinds(client, engine, nil, nil)
+	return rewriteBinds(client, engine, nil, nil, nil)
 }
 
 // RewriteBindsAudited is RewriteBinds with an audit sink wired in, for use as a
 // Server.Handler when the audit log is enabled.
 func RewriteBindsAudited(sink AuditSink) func(net.Conn, io.ReadWriteCloser) error {
-	return func(c net.Conn, e io.ReadWriteCloser) error { return rewriteBinds(c, e, sink, nil) }
+	return func(c net.Conn, e io.ReadWriteCloser) error { return rewriteBinds(c, e, sink, nil, nil) }
 }
 
 // RewriteBindsGuarded is RewriteBinds with an audit sink and an admission gate
 // (#120). Either may be nil.
 func RewriteBindsGuarded(sink AuditSink, gate Gate) func(net.Conn, io.ReadWriteCloser) error {
-	return func(c net.Conn, e io.ReadWriteCloser) error { return rewriteBinds(c, e, sink, gate) }
+	return func(c net.Conn, e io.ReadWriteCloser) error { return rewriteBinds(c, e, sink, gate, nil) }
 }
 
-func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink, gate Gate) error {
+// SourceTranslator maps one bind source to the path the engine should see.
+//
+// It exists because the right mapping is a property of the BACKEND, not of
+// Docker. For an engine distro a Windows drive path becomes /mnt/<drive>,
+// because the distro auto-mounts drives. A wslc session has no /mnt/c at all --
+// each Windows folder is its own virtiofs share at /mnt/{GUID} (#321) -- so the
+// same translation would hand dockerd a path that does not exist.
+//
+// What both backends share is the named-pipe case (#164): a pipe bind-mounted
+// into a Linux container can only mean "this engine socket", and that is what
+// Testcontainers Ryuk and docker-in-docker rely on.
+type SourceTranslator func(source string) (string, error)
+
+// RewriteBindsFor is RewriteBindsGuarded with the backend's own source
+// translation. A nil translator keeps the engine-distro behaviour.
+func RewriteBindsFor(t SourceTranslator, sink AuditSink, gate Gate) func(net.Conn, io.ReadWriteCloser) error {
+	return func(c net.Conn, e io.ReadWriteCloser) error { return rewriteBinds(c, e, sink, gate, t) }
+}
+
+func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink, gate Gate, translate SourceTranslator) error {
 	clientR := bufio.NewReader(client)
 	engineR := bufio.NewReader(engine)
 
@@ -85,8 +104,29 @@ func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink, g
 		}
 		reqStart := time.Now()
 
+		// Pulls and builds are judged before anything is forwarded. Unlike a
+		// container create there is no body to rewrite — the reference is in
+		// the query string — so this is a decision, not an edit (#322).
+		if ig, ok := gate.(ImageGate); ok && gate != nil {
+			var denied error
+			if image, isPull := pullTarget(req); isPull {
+				if reason, no := ig.DenyPull(image); no {
+					denied = errors.New(reason)
+				}
+			} else if isImageBuild(req) {
+				if reason, no := ig.DenyBuild(); no {
+					denied = errors.New(reason)
+				}
+			}
+			if denied != nil {
+				observe(audit, reqStart, req, http.StatusForbidden, denied)
+				trace("DENY %s %s: %v", req.Method, req.URL.Path, denied)
+				return writeError(client, http.StatusForbidden, denied)
+			}
+		}
+
 		if isContainerCreate(req) {
-			denied, err := rewriteCreateBody(req, gate)
+			denied, err := rewriteCreateBody(req, gate, translate)
 			switch {
 			case denied != nil:
 				// Admission control refused it (#120). 403 rather than 400:
@@ -328,7 +368,7 @@ func isHijack(resp *http.Response) bool {
 // every release, and silently dropping a caller's option would be far worse
 // than not translating a path. json.Number likewise preserves numeric literals
 // exactly instead of round-tripping them through float64.
-func rewriteCreateBody(req *http.Request, gate Gate) (denied, err error) {
+func rewriteCreateBody(req *http.Request, gate Gate, translate SourceTranslator) (denied, err error) {
 	if req.Body == nil {
 		return nil, nil
 	}
@@ -360,7 +400,7 @@ func rewriteCreateBody(req *http.Request, gate Gate) (denied, err error) {
 		}
 	}
 
-	changed, err := translateHostConfig(body)
+	changed, err := translateHostConfig(body, translate)
 	if err != nil {
 		return nil, err
 	}
@@ -384,7 +424,10 @@ func rewriteCreateBody(req *http.Request, gate Gate) (denied, err error) {
 
 // translateHostConfig rewrites HostConfig.Binds and the source of any bind-type
 // entry in HostConfig.Mounts, reporting whether anything changed.
-func translateHostConfig(body map[string]any) (bool, error) {
+func translateHostConfig(body map[string]any, translate SourceTranslator) (bool, error) {
+	if translate == nil {
+		translate = winpath.ToWSL
+	}
 	hc, ok := body["HostConfig"].(map[string]any)
 	if !ok {
 		return false, nil
@@ -401,7 +444,7 @@ func translateHostConfig(body map[string]any) (bool, error) {
 			}
 			binds = append(binds, s)
 		}
-		translated, err := winpath.TranslateBinds(binds)
+		translated, err := translateBindList(binds, translate)
 		if err != nil {
 			return false, err
 		}
@@ -437,7 +480,7 @@ func translateHostConfig(body map[string]any) (bool, error) {
 			if !ok || src == "" {
 				continue
 			}
-			translated, err := winpath.ToWSL(src)
+			translated, err := translate(src)
 			if err != nil {
 				return false, err
 			}
@@ -515,4 +558,94 @@ func relayBuffered(client net.Conn, engine io.ReadWriteCloser, clientR, engineR 
 		clientR.Discard(n)
 	}
 	return Relay(client, engine)
+}
+
+// translateBindList applies the backend's source translation to each entry of
+// HostConfig.Binds, reusing winpath's spec parsing so the delicate parts --
+// a Windows drive designator being part of the source rather than a separator,
+// and a named volume never becoming a bind -- stay in one place.
+func translateBindList(binds []string, translate SourceTranslator) ([]string, error) {
+	out := make([]string, len(binds))
+	for i, b := range binds {
+		t, err := winpath.TranslateBindWith(b, translate)
+		if err != nil {
+			return nil, fmt.Errorf("bind %q: %w", b, err)
+		}
+		out[i] = t
+	}
+	return out, nil
+}
+
+// ImageGate is an optional extension of Gate for requests that name an image
+// without carrying a container-create body (#322).
+//
+// It exists because gating container creation is not the same guarantee as
+// gating a registry. `POST /containers/create` is the only request the handler
+// parsed until now, so a rule about which registries may be used stopped a
+// blocked image from RUNNING but not from being PULLED — and on a backend whose
+// whole premise is standing in for an administrator's registry allowlist, that
+// gap is the difference between enforcing the policy and appearing to.
+//
+// A Gate that does not implement this is unaffected; pulls and builds pass as
+// they always have.
+type ImageGate interface {
+	// DenyPull judges `docker pull` and the implicit pull inside `docker run`.
+	// The image is the reference as the client wrote it.
+	DenyPull(image string) (reason string, denied bool)
+
+	// DenyBuild judges `docker build`. It takes no image because a Dockerfile
+	// can pull from anywhere, which is exactly why it may need refusing: WSL
+	// takes the same position for `wslc image build`, refusing whenever an
+	// allowlist is active because it cannot attribute the traffic.
+	DenyBuild() (reason string, denied bool)
+}
+
+var (
+	imageCreatePath = regexp.MustCompile(`^(/v[0-9.]+)?/images/create$`)
+	// A build reaches the daemon by one of two routes, and gating only the
+	// first is gating nothing on a current CLI.
+	//
+	//   /build            the classic builder, now reachable only with
+	//                     DOCKER_BUILDKIT=0, plus API clients that call it
+	//                     directly (docker-py, and so Testcontainers' own
+	//                     image build).
+	//   /session, /grpc   BuildKit. buildx has been the default `docker build`
+	//                     since Docker 23, and it never touches /build: it
+	//                     opens a session and then hijacks /grpc to speak
+	//                     BuildKit's protocol to the daemon.
+	//
+	// A live check against a machine with an allowlist deployed found exactly
+	// that hole: `DOCKER_BUILDKIT=0 docker build` was refused and the ordinary
+	// `docker build` next to it ran to completion, pulling `FROM busybox` off
+	// docker.io with the allowlist forbidding it.
+	buildPath = regexp.MustCompile(`^(/v[0-9.]+)?/(build|session|grpc)$`)
+)
+
+// pullTarget reports the image a pull request names, if it is one.
+//
+// The reference lives in the query string rather than a body: `fromImage` plus
+// an optional `tag`. A request with `fromSrc` instead is an import from a
+// tarball, which names no registry and is left alone.
+func pullTarget(req *http.Request) (image string, isPull bool) {
+	if req.Method != http.MethodPost || !imageCreatePath.MatchString(req.URL.Path) {
+		return "", false
+	}
+	q := req.URL.Query()
+	from := q.Get("fromImage")
+	if from == "" {
+		return "", false
+	}
+	if tag := q.Get("tag"); tag != "" && !strings.ContainsAny(from, "@") {
+		from += ":" + tag
+	}
+	return from, true
+}
+
+// isImageBuild reports whether the request is a build, by either route.
+//
+// The BuildKit endpoints are build-only — nothing else in the Docker API uses
+// /session or /grpc — so a gate that allows builds is unaffected by their being
+// matched here, and only a gate that refuses builds sees them at all.
+func isImageBuild(req *http.Request) bool {
+	return req.Method == http.MethodPost && buildPath.MatchString(req.URL.Path)
 }

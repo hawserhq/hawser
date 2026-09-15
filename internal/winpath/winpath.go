@@ -177,3 +177,60 @@ func TranslateBinds(binds []string) ([]string, error) {
 	}
 	return out, nil
 }
+
+// TranslateBindWith is TranslateBind with a caller-supplied source mapping.
+//
+// The parsing is the part worth sharing — a Windows drive designator belongs to
+// the source rather than being a field separator, and a named volume must never
+// become a bind mount. What the source then BECOMES is a property of the
+// backend: an engine distro auto-mounts drives at /mnt/<drive>, while a wslc
+// session has no /mnt/c at all (#321). A nil mapping keeps ToWSL's behaviour.
+func TranslateBindWith(spec string, translate func(string) (string, error)) (string, error) {
+	if translate == nil {
+		translate = ToWSL
+	}
+	if spec == "" {
+		return "", fmt.Errorf("empty bind spec")
+	}
+	src, rest, ok := splitBindSource(spec)
+	if !ok {
+		return spec, nil
+	}
+	if volumeName.MatchString(src) {
+		return spec, nil
+	}
+	translated, err := translate(src)
+	if err != nil {
+		return "", err
+	}
+	return translated + ":" + rest, nil
+}
+
+// IsPipe reports whether the path names a Windows named pipe. Exported so a
+// backend with its own source mapping can still recognise the one case every
+// backend agrees on (#164).
+func IsPipe(path string) bool { return isPipe(path) }
+
+// HasDrive reports whether the path starts with a Windows drive designator
+// (C:\, C:/, /c/, //c/ and the other spellings driveLen accepts).
+func HasDrive(path string) bool { return driveLen(path) > 0 }
+
+// SplitDrive splits a Windows path into its drive letter and the remainder,
+// with separators normalised:
+//
+//	C:\src\app  -> ("c", "src/app", true)
+//	C:/src      -> ("c", "src", true)
+//	C:\         -> ("c", "", true)
+//	/tmp        -> ("", "", false)
+//
+// Exported for backends that map a drive somewhere other than /mnt/<drive>. A
+// wslc session has no /mnt/c at all: each Windows folder handed to it becomes
+// its own virtiofs share at /mnt/{GUID}, so the drive has to be resolved to a
+// share before the remainder can be appended (#321).
+func SplitDrive(path string) (drive, rest string, ok bool) {
+	n := driveLen(path)
+	if n == 0 {
+		return "", "", false
+	}
+	return strings.ToLower(path[:1]), strings.TrimPrefix(toSlash(path[n:]), "/"), true
+}

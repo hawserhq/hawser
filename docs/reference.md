@@ -621,8 +621,12 @@ without a logged-in session is v0.2 work (issue #3).
 Exit codes: 0 clean shutdown, 1 error, 2 usage, 3 no engine installed.
 
 flags:
+  -agent string
+    	linux skrog-agent binary to place in the wslc session (default: lifted from the engine distro)
   -distro string
     	WSL distro to relay to (default: from the install manifest)
+  -engine string
+    	engine backend: distro (a WSL2 distro Skrog owns) or wslc (a WSL container session) [experimental] (default "distro")
   -no-context
     	do not create or update the skrog docker context
   -no-path-translation

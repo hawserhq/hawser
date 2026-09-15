@@ -195,3 +195,31 @@ func TestTranslateBindsFailsLoudly(t *testing.T) {
 		t.Fatal("TranslateBinds succeeded with a UNC bind, want error")
 	}
 }
+
+func TestSplitDrive(t *testing.T) {
+	cases := map[string]struct {
+		drive, rest string
+		ok          bool
+	}{
+		`C:\src\app`: {"c", "src/app", true},
+		`C:/src`:     {"c", "src", true},
+		`c:\src`:     {"c", "src", true},
+		`D:\`:        {"d", "", true},
+		`C:\a\b\c`:   {"c", "a/b/c", true},
+		// Not drive paths: winpath only recognises the "C:" designator, so
+		// these stay whatever they are on both backends.
+		"/tmp":        {"", "", false},
+		"/c/src":      {"", "", false},
+		"//c/src":     {"", "", false},
+		"relative":    {"", "", false},
+		"":            {"", "", false},
+		`\host\share`: {"", "", false},
+	}
+	for in, want := range cases {
+		drive, rest, ok := winpath.SplitDrive(in)
+		if ok != want.ok || drive != want.drive || rest != want.rest {
+			t.Errorf("SplitDrive(%q) = (%q, %q, %v), want (%q, %q, %v)",
+				in, drive, rest, ok, want.drive, want.rest, want.ok)
+		}
+	}
+}

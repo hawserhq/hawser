@@ -207,6 +207,14 @@ underneath. [wslc and Skrog](docs/wsl-containers.md) has the full picture: what 
 actually inside a session, why `docker` cannot reach it, and how you can check both
 yourself in one command.
 
+Skrog can also **serve that engine** — `skrog proxy --engine wslc` puts the Docker
+API in front of a wslc session, and Compose, Testcontainers and Windows-folder
+bind mounts work against it, the last over virtiofs at roughly 2× the write and
+4× the read of a distro's `/mnt/c`. It is experimental, it cannot pin an engine,
+and a session costs a second VM. [wslc as the engine](docs/wslc-backend.md) is
+the full guide, with the measured numbers and a pros-and-cons table for choosing
+between the two backends.
+
 **What none of them do** is let you pin the engine. `skrog lock` writes the exact dockerd,
 containerd, runc and BuildKit commits; `setup-skrog` installs that same file on the runner.
 Docker Desktop ships whatever version it ships, and updates it on its own schedule.
@@ -264,7 +272,8 @@ page is reachable from here.
 **Start**
 [Bundled docker CLI](docs/docker-cli.md) ·
 [Dev Containers](docs/devcontainers.md) ·
-[wslc and Skrog](docs/wsl-containers.md)
+[wslc and Skrog](docs/wsl-containers.md) ·
+[wslc as the engine](docs/wslc-backend.md)
 
 **Keep it healthy**
 [Housekeeping: prune, compact, relocate](docs/housekeeping.md) ·

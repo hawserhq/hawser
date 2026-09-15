@@ -125,37 +125,30 @@ What you get today, on a shipping release:
 It is Windows-only and Linux-containers-only, one maintainer, and not yet
 code-signed — so SmartScreen warns on first run. Those are the honest edges.
 
-## Could Skrog serve the engine inside a wslc session?
+## Using a wslc session as Skrog's engine
 
-This is active research, not a shipped feature. Tracked in
-[#316](https://github.com/wslkit/skrog/issues/316).
+**Experimental**, and the most interesting thing on this page: Skrog can serve
+that unreachable engine. `internal/pipeproxy` does not care which VM a
+`docker.sock` lives in, so pointing it at a session gets stock `docker` talking
+to the engine Microsoft ships:
 
-The idea is straightforward once you know the engine is real: skrog already
-serves a pipe and relays it to a `dockerd` socket, and `internal/pipeproxy` does
-not care which VM that socket lives in. Point it at a `wslc` session and you get
-Compose and Testcontainers on Microsoft's engine — the one enterprise IT has
-already approved — with Microsoft shipping, signing and patching it.
+```powershell
+wslc run --rm hello-world     # the CLI cannot create a named session, so make the default one exist
+skrog proxy --engine wslc
+docker --context skrog ps
+```
 
-What has been established so far:
+Compose and Testcontainers work against it, published ports reach Windows, and
+Windows folders bind-mount over **virtiofs** — roughly 2× the write and 4× the
+read of the 9p transport a WSL2 distro uses for `/mnt/c`. An administrator's
+deployed WSL container policy is enforced at the pipe rather than bypassed.
 
-- The session VM is reachable over AF_HYPERV, and the Docker API answers across
-  it in about 4 ms
-- Windows-folder bind mounts inside a session use **virtiofs**, which is
-  markedly faster than the 9p transport a normal WSL2 distro uses for `/mnt/c` —
-  the largest single developer-visible difference between the two
-- Published ports are the real obstacle: the port relay is driven from the
-  Windows side, so a direct socket relay gets containers but no reachable ports
-  ([#330](https://github.com/wslkit/skrog/issues/330))
-- Policy is the other one: bypassing `wslcsession` means bypassing the registry
-  allowlist and plugin hooks, so Skrog has to enforce an equivalent in their
-  place before this could ship to anyone
-  ([#322](https://github.com/wslkit/skrog/issues/322))
+What it cannot do is pin the engine: Microsoft ships it and `wsl --update` moves
+it underneath you, so `skrog lock` has nothing to record.
 
-Where this should end up is not a clever workaround. It is Microsoft exposing an
-endpoint officially — gated by the same policy their CLI enforces — at which
-point a Skrog backend becomes a thin adapter and everyone else's tools work too.
-That is what [microsoft/WSL#40976](https://github.com/microsoft/WSL/issues/40976)
-asks for, and the measurements above exist to argue for it.
+**[Using wslc as Skrog's engine](wslc-backend.md)** is the full guide — setup,
+what works and what does not, the measured numbers, policy and audit, and an
+honest pros-and-cons table for choosing between the two backends.
 
 ## Verifying any of this yourself
 
