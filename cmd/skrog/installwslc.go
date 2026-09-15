@@ -141,8 +141,8 @@ Installed, using a WSL container session as the engine (experimental).
 		fmt.Printf("Then point docker at it:\n\n  $env:DOCKER_HOST = %q\n\n", dockerHost)
 	}
 
-	fmt.Printf(`This backend cannot pin the engine: `+"`wsl --update`"+` moves it, so
-`+"`skrog lock`"+`, `+"`engine upgrade`"+`, `+"`compact`"+`, `+"`snapshot`"+` and `+"`gpu`"+` do not apply.
+	fmt.Printf(`This backend cannot pin the engine: ` + "`wsl --update`" + ` moves it, so
+` + "`skrog lock`" + `, ` + "`engine upgrade`" + `, ` + "`compact`" + `, ` + "`snapshot`" + ` and ` + "`gpu`" + ` do not apply.
 See docs/wslc-backend.md for what does and does not work.
 
 `)
