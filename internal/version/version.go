@@ -29,12 +29,21 @@ type Report struct {
 	Warnings []string `json:"warnings,omitempty"`
 }
 
+// BackendWslc mirrors provision.BackendWslc. Duplicated rather than imported:
+// internal/version is a leaf that several commands pull in, and provision drags
+// wsl, gpu and rootfsverify with it. A test pins the two together.
+const BackendWslc = "wslc"
+
 // EngineInfo is what the install manifest recorded.
 type EngineInfo struct {
-	Installed bool   `json:"installed"`
-	Version   string `json:"version,omitempty"`
-	Distro    string `json:"distro,omitempty"`
-	Rootfs    string `json:"rootfsSha256,omitempty"`
+	Installed bool `json:"installed"`
+	// Backend is which engine this install serves: "distro" or "wslc" (#335).
+	// On wslc, Version, Distro and Rootfs are all empty -- Microsoft ships the
+	// engine, so there is no rootfs to pin and no version Skrog chose.
+	Backend string `json:"backend,omitempty"`
+	Version string `json:"version,omitempty"`
+	Distro  string `json:"distro,omitempty"`
+	Rootfs  string `json:"rootfsSha256,omitempty"`
 	// WSLAtInstall is the WSL version present when Skrog was installed;
 	// a difference from WSL means the host was updated since.
 	WSLAtInstall string `json:"wslAtInstall,omitempty"`
@@ -98,7 +107,15 @@ func (r *Report) WriteText(w io.Writer) error {
 
 	fmt.Fprintf(tw, "skrog\t%s\n", r.App)
 	if r.Engine.Installed {
-		fmt.Fprintf(tw, "engine\t%s\t(distro %s)\n", orUnknown(r.Engine.Version), r.Engine.Distro)
+		// "which engine am I running" has a different answer on the wslc
+		// backend, and the version is not Skrog's to state: Microsoft ships it
+		// and `wsl --update` moves it, so there is no rootfs and nothing to
+		// pin (#324, #335).
+		if r.Engine.Backend == BackendWslc {
+			fmt.Fprintf(tw, "engine\tMicrosoft's\t(WSL container session; not pinnable)\n")
+		} else {
+			fmt.Fprintf(tw, "engine\t%s\t(distro %s)\n", orUnknown(r.Engine.Version), r.Engine.Distro)
+		}
 		if r.Engine.Rootfs != "" {
 			fmt.Fprintf(tw, "rootfs\t%s\n", shortSHA(r.Engine.Rootfs))
 		}

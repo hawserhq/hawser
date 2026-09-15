@@ -23,6 +23,16 @@ import (
 // so it never collides with a user's own Ubuntu (PLAN §04).
 const DefaultDistro = "skrog-engine"
 
+// Engine backends an install can use (#335).
+//
+// BackendDistro is a WSL2 distro Skrog imports, owns and can pin. BackendWslc
+// is a WSL container session, where Microsoft ships the engine -- so there is
+// no rootfs, no version to pin, and several commands have nothing to act on.
+const (
+	BackendDistro = "distro"
+	BackendWslc   = "wslc"
+)
+
 // distroNameRE bounds what a distro name may contain (#93). Names flow into
 // shells (the /mnt/wsl share/unshare scripts pass them as positional args, but
 // the unshare's rm -rf operates on a path derived from the name) and into a
@@ -125,6 +135,15 @@ func defaultStateDir() string {
 // Manifest records what an install put on the machine, so uninstall can remove
 // exactly that and `skrog version` can report it without re-deriving anything.
 type Manifest struct {
+	// Backend is which engine this install uses (#335). Empty or
+	// BackendDistro means Skrog's own WSL2 distro; BackendWslc means a WSL
+	// container session, in which case Distro, RootfsURL and the engine
+	// version fields are all empty — Microsoft ships that engine.
+	//
+	// Empty rather than "distro" on existing installs, and omitempty on the
+	// way out, so the manifest of a distro install is byte-identical to what
+	// it was. Read it through Manifest.BackendName.
+	Backend       string    `json:"backend,omitempty"`
 	Distro        string    `json:"distro"`
 	DataDir       string    `json:"dataDir"`
 	RootfsURL     string    `json:"rootfsUrl"`
@@ -961,3 +980,18 @@ func (p *Provisioner) verifyRootfsSignature(ctx context.Context, opts Options, t
 // signature made by any other repository's workflow -- a fork's included -- is
 // rejected, so this is a trust anchor and not a convenience.
 const signingRepo = "wslkit/skrog"
+
+// BackendName is the manifest's backend, resolving the empty value every
+// install written before #335 carries.
+//
+// A nil receiver reports the distro backend too: callers reach this from a
+// manifest that may not have loaded, and "no manifest" has never meant "wslc".
+func (m *Manifest) BackendName() string {
+	if m == nil || m.Backend == "" {
+		return BackendDistro
+	}
+	return m.Backend
+}
+
+// IsWslc reports whether this install serves a WSL container session.
+func (m *Manifest) IsWslc() bool { return m.BackendName() == BackendWslc }

@@ -42,6 +42,7 @@ func (c *Collector) Collect(ctx context.Context) *Report {
 		if m, err := c.Provisioner.ReadManifest(c.Options); err == nil {
 			r.Engine = EngineInfo{
 				Installed:    true,
+				Backend:      m.BackendName(),
 				Version:      m.EngineVersion,
 				Distro:       m.Distro,
 				Rootfs:       m.RootfsSHA256,

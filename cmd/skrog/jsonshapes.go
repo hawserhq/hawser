@@ -15,7 +15,14 @@ import (
 
 // statusJSON is `skrog status --json`.
 type statusJSON struct {
-	Installed  bool    `json:"installed"`
+	Installed bool `json:"installed"`
+	// Backend is which engine this install serves: "distro" or "wslc" (#335).
+	// Always present once installed, so a consumer never has to infer it from
+	// the absence of `distro`.
+	Backend string `json:"backend,omitempty"`
+	// Session is the wslc session being served. Absent on the distro backend,
+	// where `distro` is the equivalent name.
+	Session    string  `json:"session,omitempty"`
 	Distro     string  `json:"distro,omitempty"`
 	StateDir   string  `json:"stateDir"`
 	Supervisor string  `json:"supervisor"` // running | stopped
