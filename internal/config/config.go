@@ -94,6 +94,9 @@ const (
 	KeyWSLProcessors        = "wsl.processors"
 	KeyWSLSwap              = "wsl.swap"
 	KeyWSLAutoMemoryReclaim = "wsl.auto-memory-reclaim"
+	// KeyWSLVirtiofs mounts Windows drives over virtiofs instead of 9p in every
+	// WSL2 distro (#327). Needs WSL 2.9+; "true" or "false".
+	KeyWSLVirtiofs = "wsl.virtiofs"
 )
 
 // WSLKeys lists the sizing keys, and maps each to its .wslconfig name.
@@ -102,6 +105,7 @@ var WSLKeys = map[string]string{
 	KeyWSLProcessors:        "processors",
 	KeyWSLSwap:              "swap",
 	KeyWSLAutoMemoryReclaim: "autoMemoryReclaim",
+	KeyWSLVirtiofs:          "virtiofs",
 }
 
 // KeyDiskWarnBelow is the free-space floor on the engine data volume under
@@ -216,6 +220,7 @@ var validators = map[string]func(string) (string, error){
 	KeyWSLProcessors:        func(v string) (string, error) { return wslconfig.Validate(wslconfig.KeyProcessors, v) },
 	KeyWSLSwap:              func(v string) (string, error) { return wslconfig.Validate(wslconfig.KeySwap, v) },
 	KeyWSLAutoMemoryReclaim: func(v string) (string, error) { return wslconfig.Validate(wslconfig.KeyAutoMemoryReclaim, v) },
+	KeyWSLVirtiofs:          func(v string) (string, error) { return wslconfig.Validate(wslconfig.KeyVirtiofs, v) },
 }
 
 // validateProxy accepts an http(s) URL, or empty to clear.

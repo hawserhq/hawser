@@ -41,12 +41,14 @@ func wslConfigUsage(w *os.File) {
 	fmt.Fprintf(w, `usage: skrog wsl-config [show|apply] [--yes] [--json]
 
 Right-sizes the WSL2 VM the engine runs in: memory, processors, swap and
-autoMemoryReclaim. Those live in %%USERPROFILE%%\.wslconfig, which is GLOBAL —
-every WSL2 distro on this machine shares it, Docker Desktop's included — so
-Skrog records what you asked for and writes it only when you say so:
+autoMemoryReclaim, plus virtiofs for how Windows drives are mounted. Those
+live in %%USERPROFILE%%\.wslconfig, which is GLOBAL — every WSL2 distro on this
+machine shares it, Docker Desktop's included — so Skrog records what you asked
+for and writes it only when you say so:
 
   skrog config set wsl.memory 4GB
   skrog config set wsl.processors 2
+  skrog config set wsl.virtiofs true   # faster /mnt/c; needs WSL 2.9+
   skrog wsl-config apply            # shows the diff, asks, then writes
 
   show     the effective limits and any pending changes (default)

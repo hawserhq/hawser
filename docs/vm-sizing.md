@@ -22,6 +22,7 @@ skrog wsl-config apply          # shows the diff, asks, then writes
 | `wsl.processors` | `processors` | how many CPUs the VM sees |
 | `wsl.swap` | `swap` | swap file size; `0` disables it |
 | `wsl.auto-memory-reclaim` | `autoMemoryReclaim` | `gradual`, `dropcache` or `disabled` — hands idle memory back to Windows |
+| `wsl.virtiofs` | `virtiofs` | `true` mounts Windows drives over virtiofs instead of 9p — see below |
 
 Values are validated when you set them, in the way WSL reads them, so a typo
 fails at `skrog config set` rather than silently sizing the VM as something
@@ -32,6 +33,64 @@ Networking keys (`networkingMode`, `dnsTunneling`, `autoProxy`) are **not**
 managed here. `skrog doctor` recommends those for VPNs ([vpn.md](vpn.md)) and
 leaves them to you, because they change how every distro on the machine reaches
 the network.
+
+## `wsl.virtiofs`: a faster `/mnt/c`, and the one key here that is not about size
+
+WSL2 has historically mounted Windows drives into distros over **9p**. WSL 2.9
+can use **virtiofs** instead, and for a source tree on `C:` that is the single
+largest performance difference available to the distro backend.
+
+```powershell
+skrog config set wsl.virtiofs true
+skrog wsl-config apply
+wsl --shutdown          # required, and it stops every distro on the machine
+```
+
+### Measured
+
+A Windows folder bind-mounted into a container through Skrog, timed inside the
+container, on WSL 2.9.11 / Windows 10 22H2. First write after a VM boot
+discarded and the write repeated three times, because a cold VM's first write
+is not representative — it came in at 34 MB/s and the next three at 103, 239
+and 155.
+
+| | 9p | virtiofs | |
+|---|---|---|---|
+| write 256 MB (`conv=fsync`) | 122 MB/s | 155 MB/s | ~1.3×, noisy on both |
+| read 256 MB (warm) | 205 MB/s | **811 MB/s** | **4.0×** |
+| create 1000 files | 2.17 s | 2.02 s | ~1.1× |
+| `ls -l` 1000 files | 0.68 s | **0.22 s** | **3.1×** |
+| read 1000 files | 2.49 s | 1.52 s | 1.6× |
+| delete 1000 files | 1.52 s | 0.92 s | 1.7× |
+
+Reads and directory listings are where it pays, which is the shape of `npm
+install`, a gradle build, or a large `docker build` context. Writes are a
+modest gain with enough variance that it is fair to call them a wash.
+
+### Side effects, checked rather than assumed
+
+| | virtiofs |
+|---|---|
+| `chmod` | **works** — `chmod 600` sticks, same as 9p's `metadata` option |
+| symlinks | work |
+| case sensitivity | insensitive, unchanged |
+| `inotify` | events fire, so file watchers keep working |
+
+That first row is worth calling out, because it does *not* hold on the other
+backend: a wslc session's virtiofs shares present `-rwxrwxrwx` and ignore
+`chmod` ([wslc-backend.md](wslc-backend.md#bind-mount-metadata-is-virtiofs-flavoured)).
+WSL's drvfs virtiofs keeps the metadata behaviour. Two different uses of the
+same filesystem.
+
+### Caveats
+
+- **WSL 2.9 or newer.** On older WSL the key is ignored silently and you stay
+  on 9p. Check with `wsl --version`.
+- **Machine-wide**, like every key on this page. Every distro's `/mnt/*`
+  changes, Docker Desktop's included.
+- **Needs `wsl --shutdown`** to take effect, which stops everything.
+- Confirm it took: `wsl -d skrog-engine -u root --exec sh -c "grep ' /mnt/c ' /proc/mounts"`
+  should say `virtiofs`, not `9p`.
 
 ## Nothing is written without consent
 

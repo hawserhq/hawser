@@ -10,9 +10,10 @@ func TestAppliesAnswersForEveryKey(t *testing.T) {
 	// effect now", which is exactly the wrong direction to be wrong in: it is
 	// the claim that was false about the audit log for two releases.
 	valid := map[string]bool{
-		AppliesNow:     true,
-		AppliesOnStart: true,
-		AppliesOnUse:   true,
+		AppliesNow:        true,
+		AppliesOnStart:    true,
+		AppliesOnUse:      true,
+		AppliesOnWSLApply: true,
 	}
 	for _, k := range Keys() {
 		got := Applies(k)
@@ -67,5 +68,30 @@ func TestAppliesSentencesReadAsSentences(t *testing.T) {
 		if s == "" || strings.ToLower(s[:1]) != s[:1] {
 			t.Errorf("%q should start lower-case", s)
 		}
+	}
+}
+
+// Every wsl.* key is an intention until `skrog wsl-config apply` writes it and
+// the WSL VM restarts. They used to fall through to the default and report "in
+// effect now", which is the same false claim this function was written to stop
+// — and the "answers for every key" test could not catch it, because the wrong
+// answer was still one of the valid three.
+func TestAppliesWSLSizingKeysAreNotInEffectYet(t *testing.T) {
+	if len(WSLKeys) == 0 {
+		t.Fatal("no wsl.* keys; this test would pass vacuously")
+	}
+	for k := range WSLKeys {
+		if got := Applies(k); got != AppliesOnWSLApply {
+			t.Errorf("Applies(%q) = %q, want %q — nothing writes ~/.wslconfig until `wsl-config apply`",
+				k, got, AppliesOnWSLApply)
+		}
+	}
+}
+
+// The sentence has to name the command that actually does the work, or it is
+// the same class of dead end as telling people to run `skrog restart`.
+func TestAppliesOnWSLApplyNamesTheCommand(t *testing.T) {
+	if !strings.Contains(AppliesOnWSLApply, "wsl-config apply") {
+		t.Errorf("AppliesOnWSLApply does not name the command: %q", AppliesOnWSLApply)
 	}
 }
