@@ -37,11 +37,15 @@ matters more to you than the licence does, come back in a few months.
 
 ## Install
 
-Requirements: WSL 2.x from the Store or MSI on a virtualization-capable machine, and a
-`docker` CLI. Windows 11 is the primary target; Windows 10 22H2 (build 19045) is tested
-and works. Docker Desktop's CLI works (Skrog
-coexists with it), or install Skrog's own bundled CLI with `skrog cli install` and drop
-Docker Desktop entirely — see [docs/docker-cli.md](docs/docker-cli.md).
+Requirements: WSL 2.x from the Store or MSI on a virtualization-capable machine.
+Windows 11 is the primary target; Windows 10 22H2 (build 19045) is tested and works.
+
+**[docs/install.md](docs/install.md) is the step-by-step guide** — what to download,
+how to verify it, and what to run. The short version is below.
+
+You also need a `docker` command, and **Skrog does not install one by default**: Docker
+Desktop's works (Skrog coexists with it), and on a machine without it `skrog cli install`
+fetches the upstream tools — see [docs/docker-cli.md](docs/docker-cli.md).
 
 ```powershell
 irm https://wslkit.github.io/skrog/install.ps1 | iex
@@ -68,7 +72,9 @@ it at any time.
 Binaries are not Authenticode-signed yet, so SmartScreen will warn on first run. Code
 signing is applied for through the [SignPath Foundation](https://signpath.org), with
 signing by [SignPath.io](https://about.signpath.io); until a certificate is issued the
-warning stands, and the [code signing policy](docs/code-signing.md) says who can produce
+warning stands — and a real Windows installer (MSI, winget, scoop,
+[#77](https://github.com/wslkit/skrog/issues/77)) waits on that signature, since an
+unsigned MSI would make the warning worse rather than better, and the [code signing policy](docs/code-signing.md) says who can produce
 a signed binary and how. What every release **does** carry today is SLSA build
 provenance and a cosign-signed `SHA256SUMS` — two checks an Authenticode signature does
 not give you, since they tie the artifact to a workflow and a commit. See
@@ -270,6 +276,7 @@ from these same files. Grouped below by the question you arrived with; every
 page is reachable from here.
 
 **Start**
+[Installing Skrog](docs/install.md) ·
 [Bundled docker CLI](docs/docker-cli.md) ·
 [Dev Containers](docs/devcontainers.md) ·
 [wslc and Skrog](docs/wsl-containers.md) ·

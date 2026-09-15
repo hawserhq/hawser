@@ -220,9 +220,8 @@ flags:
 
 	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir})
 	p := &provision.Provisioner{Logger: cliLogger(false)}
-	distro, ok := resolveDistro(p, opts)
+	distro, ok := requireDistroInstall(p, opts, "engine", "Microsoft ships this engine and `wsl --update` moves it, so there is no version for Skrog to install or roll back to.")
 	if !ok {
-		fmt.Fprintln(os.Stderr, "skrog: no install found. Run `skrog install` first.")
 		return exitNotFound
 	}
 	opts.Distro = distro

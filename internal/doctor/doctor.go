@@ -91,6 +91,7 @@ func Registry() []Check {
 		checkSession0(),
 		checkRunner(),
 		checkWSLSizing(),
+		checkWslc(),
 		checkHooks(),
 	}
 }

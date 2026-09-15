@@ -2,8 +2,10 @@ package main
 
 import (
 	"encoding/json"
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wslkit/skrog/internal/provision"
@@ -116,4 +118,71 @@ func TestVersionBackendConstantMatchesProvision(t *testing.T) {
 		t.Errorf("version.BackendWslc = %q, provision.BackendWslc = %q",
 			version.BackendWslc, provision.BackendWslc)
 	}
+}
+
+// The distro-only commands used to say "no install found. Run `skrog install`
+// first." on a wslc install (#335). Both halves of that are wrong: there IS an
+// install, and running install again would change nothing. A user acts
+// differently on "you have nothing" than on "this does not apply to what you
+// have".
+func TestRequireDistroInstallExplainsItselfOnWslc(t *testing.T) {
+	opts := writeManifest(t, provision.Manifest{Backend: provision.BackendWslc})
+
+	stderr := captureStderr(t, func() {
+		if _, ok := requireDistroInstall(&provision.Provisioner{}, opts,
+			"compact", "the session VHD belongs to WSLC, not to Skrog."); ok {
+			t.Error("compact was allowed on a wslc install")
+		}
+	})
+
+	if strings.Contains(stderr, "no install found") {
+		t.Errorf("still claims nothing is installed:\n%s", stderr)
+	}
+	for _, want := range []string{"skrog compact", "wslc", "session VHD"} {
+		if !strings.Contains(stderr, want) {
+			t.Errorf("message does not mention %q:\n%s", want, stderr)
+		}
+	}
+}
+
+// And a distro install is unaffected: same resolution, same message on failure.
+func TestRequireDistroInstallPassesThroughOnDistro(t *testing.T) {
+	opts := writeManifest(t, provision.Manifest{Distro: "skrog-engine"})
+	got, ok := requireDistroInstall(&provision.Provisioner{}, opts, "compact", "irrelevant")
+	if !ok || got != "skrog-engine" {
+		t.Errorf("got (%q, %v), want (skrog-engine, true)", got, ok)
+	}
+}
+
+func TestRequireDistroInstallStillReportsNoInstall(t *testing.T) {
+	opts := provision.Options{StateDir: t.TempDir()}
+	stderr := captureStderr(t, func() {
+		if _, ok := requireDistroInstall(&provision.Provisioner{}, opts, "compact", "irrelevant"); ok {
+			t.Error("an empty state dir resolved a distro")
+		}
+	})
+	if !strings.Contains(stderr, "no install found") {
+		t.Errorf("an uninstalled machine should still be told to install:\n%s", stderr)
+	}
+}
+
+// captureStderr runs fn with os.Stderr redirected and returns what it wrote.
+func captureStderr(t *testing.T, fn func()) string {
+	t.Helper()
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prev := os.Stderr
+	os.Stderr = w
+	done := make(chan string, 1)
+	go func() {
+		var b strings.Builder
+		_, _ = io.Copy(&b, r)
+		done <- b.String()
+	}()
+	fn()
+	w.Close()
+	os.Stderr = prev
+	return <-done
 }

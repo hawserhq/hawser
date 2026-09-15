@@ -62,8 +62,7 @@ flags:
 	log := cliLogger(false)
 
 	p := &provision.Provisioner{Logger: log}
-	if _, ok := resolveDistro(p, opts); !ok {
-		fmt.Fprintln(os.Stderr, "skrog: no install found. Run `skrog install` first.")
+	if _, ok := requireDistroInstall(p, opts, "migrate", "it copies Docker Desktop's data into a distro Skrog owns, and this install has none."); !ok {
 		return exitNotFound
 	}
 

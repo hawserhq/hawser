@@ -72,9 +72,8 @@ flags:
 
 	opts := optsWithResolvedStateDir(provision.Options{StateDir: *stateDir, Distro: *distro})
 	p := &provision.Provisioner{Logger: cliLogger(false)}
-	target, ok := resolveDistro(p, opts)
+	target, ok := requireDistroInstall(p, opts, "compact", "the session VHD belongs to WSLC, not to Skrog.")
 	if !ok {
-		fmt.Fprintln(os.Stderr, "skrog: no install found. Run `skrog install` first.")
 		return exitNotFound
 	}
 	opts.Distro = target
