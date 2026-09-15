@@ -2,12 +2,16 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net"
+	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/wslkit/skrog/internal/pipeproxy"
 	"github.com/wslkit/skrog/internal/provision"
@@ -32,6 +36,10 @@ type wslcEngineAdapter struct {
 	secret  string
 	session string
 	log     *slog.Logger
+
+	// lease is released while the engine is deliberately stopped, so it does
+	// not re-take the session the supervisor just terminated. Nil is fine.
+	lease *wslc.Lease
 }
 
 // Running reports whether the session is up AND our agent is in it.
@@ -54,6 +62,9 @@ func (e *wslcEngineAdapter) Running(ctx context.Context) bool {
 // Start resolves a session -- creating one if nothing is running -- and places
 // the agent. Idempotent, which is what the supervisor's restart loop needs.
 func (e *wslcEngineAdapter) Start(ctx context.Context) error {
+	if e.lease != nil {
+		e.lease.Resume()
+	}
 	session, err := e.local.ResolveSession(ctx)
 	if err != nil {
 		return err
@@ -77,6 +88,12 @@ func (e *wslcEngineAdapter) Start(ctx context.Context) error {
 // machine. Terminating every session would take down whatever the user is
 // running with `wslc` by hand.
 func (e *wslcEngineAdapter) Stop(ctx context.Context) error {
+	// Release the lease FIRST. Otherwise the terminate below ends the held
+	// process, the lease sees an error, and one second later it takes the
+	// session again -- undoing the stop.
+	if e.lease != nil {
+		e.lease.Pause()
+	}
 	if e.session == "" {
 		return nil
 	}
@@ -96,6 +113,9 @@ type wslcSupervised struct {
 	Translate pipeproxy.SourceTranslator
 	Policies  wslc.Policies
 	Session   string
+	// Busy vetoes an idle stop while real containers are running. Non-nil, or
+	// the supervisor vetoes EVERY idle stop (see supervise.maybeIdleStop).
+	Busy      func(ctx context.Context) (bool, error)
 	stopWatch context.CancelFunc
 	watcher   *wslc.PortWatcher
 	shares    *wslc.ShareTable
@@ -157,11 +177,17 @@ func startWslcStack(ctx context.Context, agentPath, stateDir string, log *slog.L
 		Logger:     log,
 	}
 
+	var lease *wslc.Lease
+	if watcher != nil {
+		lease = watcher.Lease
+	}
+
 	s := &wslcSupervised{
 		Dialer:    dialer,
 		Translate: shares.Translator(ctx),
 		Policies:  policies,
 		Session:   session,
+		Busy:      wslcBusy(runningContainerNames(dialer)),
 		watcher:   watcher,
 		shares:    shares,
 		Engine: &wslcEngineAdapter{
@@ -170,6 +196,7 @@ func startWslcStack(ctx context.Context, agentPath, stateDir string, log *slog.L
 			secret:  secret,
 			session: session,
 			log:     log,
+			lease:   lease,
 		},
 	}
 
@@ -292,4 +319,80 @@ func stopEngineDirectly(ctx context.Context, target engineTarget, p *provision.P
 		return err
 	}
 	return l.Terminate(ctx, session)
+}
+
+// wslcBusy is the idle-stop veto for this backend: are any containers running
+// that are not Skrog's own bookkeeping?
+//
+// The generic probe would be wrong here. Windows-path bind mounts leave one
+// `skrog-share-<drive>` holder running for as long as the bridge does (#321),
+// and those are running containers -- so the moment anyone bound a Windows
+// folder, an unfiltered probe would report busy forever and the session would
+// never be reclaimed.
+//
+// Skrog's own holders are not work: terminating the session takes them with it,
+// and the share table re-establishes them on the next bind.
+func wslcBusy(names func(ctx context.Context) ([]string, error)) func(ctx context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
+		running, err := names(ctx)
+		if err != nil {
+			// An error is a veto, exactly as the distro probe treats it:
+			// stopping the engine kills whatever runs in it, so idling
+			// requires a definite "nothing is running".
+			return false, err
+		}
+		for _, n := range running {
+			if !strings.HasPrefix(strings.TrimPrefix(n, "/"), wslc.HolderPrefix) {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+}
+
+// runningContainerNames lists the names of running containers over the engine
+// dialer, the same transport the pipe uses.
+func runningContainerNames(dialer pipeproxy.Dialer) func(ctx context.Context) ([]string, error) {
+	client := &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				rwc, err := dialer.Dial(ctx)
+				if err != nil {
+					return nil, err
+				}
+				return rwcConn{rwc}, nil
+			},
+			// One probe, one connection: the engine socket is not a place to
+			// pool idle keep-alives that would themselves look like activity.
+			DisableKeepAlives: true,
+		},
+	}
+	return func(ctx context.Context) ([]string, error) {
+		ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet,
+			"http://engine/"+wslc.APIVersion+"/containers/json", nil)
+		if err != nil {
+			return nil, err
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, err
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			return nil, fmt.Errorf("engine returned %s to the container probe", resp.Status)
+		}
+		var containers []struct {
+			Names []string `json:"Names"`
+		}
+		if err := json.NewDecoder(resp.Body).Decode(&containers); err != nil {
+			return nil, err
+		}
+		var out []string
+		for _, c := range containers {
+			out = append(out, c.Names...)
+		}
+		return out, nil
+	}
 }
