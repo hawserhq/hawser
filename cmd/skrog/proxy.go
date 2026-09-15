@@ -28,7 +28,7 @@ func runProxy(args []string) int {
 		noRewrite  = fs.Bool("no-path-translation", false, "relay bytes verbatim, without translating Windows bind paths")
 		sddl       = fs.String("sddl", "", "security descriptor for the pipe (advanced; default restricts to SYSTEM, admins and interactive users)")
 		engine     = fs.String("engine", "distro", "engine backend: distro (a WSL2 distro Skrog owns) or wslc (a WSL container session) [experimental]")
-		agentPath  = fs.String("agent", "", "linux skrog-agent binary to place in the wslc session (default: lifted from the engine distro)")
+		agentPath  = fs.String("agent", "", "linux skrog-agent to place in the wslc session (default: the one shipped beside skrog.exe, else lifted from the engine distro)")
 	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: skrog proxy [flags]

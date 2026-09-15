@@ -622,7 +622,7 @@ Exit codes: 0 clean shutdown, 1 error, 2 usage, 3 no engine installed.
 
 flags:
   -agent string
-    	linux skrog-agent binary to place in the wslc session (default: lifted from the engine distro)
+    	linux skrog-agent to place in the wslc session (default: the one shipped beside skrog.exe, else lifted from the engine distro)
   -distro string
     	WSL distro to relay to (default: from the install manifest)
   -engine string
