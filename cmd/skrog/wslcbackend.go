@@ -7,13 +7,19 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
+	"github.com/wslkit/skrog/internal/audit"
+	"github.com/wslkit/skrog/internal/config"
 	"github.com/wslkit/skrog/internal/dockerctx"
+	"github.com/wslkit/skrog/internal/logging"
 	"github.com/wslkit/skrog/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/policy"
 	"github.com/wslkit/skrog/internal/provision"
 	"github.com/wslkit/skrog/internal/wslc"
 )
@@ -278,14 +284,33 @@ func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provisi
 			"privileged-allowed", policies.PrivilegedAllowed)
 	}
 
+	// Skrog's own policy.yaml and the audit log, wired exactly as the distro
+	// backend wires them. The audit log is worth having here for its own sake:
+	// it records every container-affecting call through the pipe, which is a
+	// record WSLC itself does not keep (#322).
+	sd := optsWithResolvedStateDir(opts).StateDir
+	settings := config.NewWatcher(sd)
+	ownPolicy := policy.NewWatcher(sd)
+	ownPolicy.OnError = func(err error) {
+		log.Error("policy file is not valid", "error", err, "path", policy.Path(sd))
+	}
+	auditor := &audit.Switch{
+		Enabled: func() bool { return settings.Config().Audit },
+		Open: func() (io.WriteCloser, error) {
+			return logging.NewRotatingWriter(filepath.Join(sd, "audit.log"), 0, 0)
+		},
+	}
+	defer auditor.Close()
+
 	// Only the named-pipe case is translated here. See wslc.TranslateBindSource:
 	// a pipe means this engine's socket on any backend (#164), while a Windows
 	// drive path has no meaning in a session yet and fails loudly rather than
 	// silently mounting nothing (#321).
+	gate := combinedGate{wsl: &wslc.PolicyGate{Policies: policies}, skrog: ownPolicy}
 	srv := &pipeproxy.Server{
 		Dialer:  dialer,
 		Logger:  log,
-		Handler: pipeproxy.RewriteBindsFor(wslc.TranslateBindSource, nil, &wslc.PolicyGate{Policies: policies}),
+		Handler: pipeproxy.RewriteBindsFor(wslc.TranslateBindSource, auditor, gate),
 	}
 
 	fmt.Fprintf(os.Stderr, `
