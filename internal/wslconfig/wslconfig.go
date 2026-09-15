@@ -38,15 +38,25 @@ const (
 	KeyProcessors        = "processors"
 	KeySwap              = "swap"
 	KeyAutoMemoryReclaim = "autoMemoryReclaim"
+	// KeyVirtiofs switches how WSL2 mounts Windows drives into every distro:
+	// virtiofs instead of 9p for /mnt/c (#327). Present from WSL 2.9.x.
+	//
+	// It belongs here rather than in doctor's advice, next to the networking
+	// keys, because it is the same KIND of setting as memory and processors:
+	// machine-wide, deliberate, and about how the VM performs rather than how
+	// it reaches the network. Measured on 2.9.11, a Windows folder
+	// bind-mounted into a container reads about 4x faster and lists a
+	// directory about 3x faster, with writes a modest and noisy gain.
+	KeyVirtiofs = "virtiofs"
 )
 
-// Managed lists them in display order. Deliberately short: these are the
-// sizing knobs a runner owner sets deliberately. Networking keys
-// (networkingMode, dnsTunneling, autoProxy) stay doctor's advice rather than
-// something an install writes, because they change how every distro on the
-// machine reaches the network.
+// Managed lists them in display order. Deliberately short: these are the knobs
+// a runner owner sets deliberately. Networking keys (networkingMode,
+// dnsTunneling, autoProxy) stay doctor's advice rather than something an
+// install writes, because they change how every distro on the machine reaches
+// the network.
 func Managed() []string {
-	return []string{KeyMemory, KeyProcessors, KeySwap, KeyAutoMemoryReclaim}
+	return []string{KeyMemory, KeyProcessors, KeySwap, KeyAutoMemoryReclaim, KeyVirtiofs}
 }
 
 // Path is ~/.wslconfig.
@@ -289,6 +299,12 @@ func Validate(key, value string) (string, error) {
 			return strings.ToLower(v), nil
 		}
 		return "", fmt.Errorf("%s: %q is not gradual, dropcache or disabled", key, value)
+	case KeyVirtiofs:
+		switch strings.ToLower(v) {
+		case "true", "false":
+			return strings.ToLower(v), nil
+		}
+		return "", fmt.Errorf("%s: %q is not true or false", key, value)
 	}
 	return "", fmt.Errorf("%q is not a managed .wslconfig key (managed: %s)",
 		key, strings.Join(Managed(), ", "))

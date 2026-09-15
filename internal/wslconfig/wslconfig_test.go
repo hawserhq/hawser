@@ -293,3 +293,53 @@ func TestAllReportsOnlyManagedKeys(t *testing.T) {
 		t.Errorf("All() = %v, want just memory and swap", all)
 	}
 }
+
+// virtiofs (#327) is a boolean, and the value is written verbatim into a file
+// WSL parses -- so a typo that reaches ~/.wslconfig would be ignored silently
+// and the user would be left wondering why /mnt/c is still 9p.
+func TestValidateVirtiofs(t *testing.T) {
+	for _, in := range []string{"true", "TRUE", "True", "false", " false "} {
+		got, err := wslconfig.Validate(wslconfig.KeyVirtiofs, in)
+		if err != nil {
+			t.Errorf("wslconfig.Validate(virtiofs, %q): %v", in, err)
+			continue
+		}
+		if got != "true" && got != "false" {
+			t.Errorf("wslconfig.Validate(virtiofs, %q) = %q, want a lowercased bool", in, got)
+		}
+	}
+	for _, in := range []string{"yes", "1", "on", "enabled", "9p"} {
+		if _, err := wslconfig.Validate(wslconfig.KeyVirtiofs, in); err == nil {
+			t.Errorf("wslconfig.Validate(virtiofs, %q) accepted a value WSL does not parse as a bool", in)
+		}
+	}
+	// Clearing stays allowed, like every other key: that is how a user goes
+	// back to WSL's default rather than pinning false forever.
+	if got, err := wslconfig.Validate(wslconfig.KeyVirtiofs, ""); err != nil || got != "" {
+		t.Errorf("clearing virtiofs = (%q, %v), want empty and no error", got, err)
+	}
+}
+
+func TestVirtiofsIsManaged(t *testing.T) {
+	var found bool
+	for _, k := range wslconfig.Managed() {
+		if k == wslconfig.KeyVirtiofs {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("virtiofs is not in wslconfig.Managed(), so wsl-config would never write it: %v", wslconfig.Managed())
+	}
+}
+
+// The key name must match what WSL reads. It is `wsl2.virtiofs` in the
+// binaries' own config table, so the file key is "virtiofs" under [wsl2] --
+// getting this wrong writes a line WSL ignores without complaint.
+func TestVirtiofsKeySpelling(t *testing.T) {
+	if wslconfig.KeyVirtiofs != "virtiofs" {
+		t.Errorf("wslconfig.KeyVirtiofs = %q; WSL reads wsl2.virtiofs", wslconfig.KeyVirtiofs)
+	}
+	if wslconfig.Section != "wsl2" {
+		t.Errorf("wslconfig.Section = %q; virtiofs lives under [wsl2]", wslconfig.Section)
+	}
+}
