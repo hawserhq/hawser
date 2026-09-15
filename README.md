@@ -22,6 +22,13 @@ A minimal, invisible way to run the upstream open source **Docker Engine on Wind
 No license fees, no Electron, no Kubernetes — install once, `docker ps` works forever, on
 laptops and CI runners alike.
 
+It is a **free, open source alternative to Docker Desktop** — the same upstream `dockerd`
+underneath, without the subscription larger companies now need, the desktop application, or
+the auto-update that changes your engine mid-sprint. **Rancher Desktop** and **Podman
+Desktop** are free too; Skrog differs by being headless, and by running dockerd itself
+rather than a Docker-*compatible* API. [How it compares](#how-it-compares) is the honest
+version, including where each of them wins.
+
 **Status: pre-release.** Installable and working as a daily driver: install once and
 the engine starts at every logon, heals itself, and answers `docker` at the same speed as
 Docker Desktop. Read [PLAN.md](PLAN.md) for the strategy and [ROADMAP.md](ROADMAP.md) for
