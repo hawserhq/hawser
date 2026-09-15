@@ -281,7 +281,7 @@ flags:
 		}
 		defer st.Close()
 		wslcStack = st
-		dialer, engineImpl = st.Dialer, st.Engine
+		dialer, engineImpl, busy = st.Dialer, st.Engine, st.Busy
 	} else {
 		d := engineDialer(targetDistro, "", opts.StateDir, log)
 		dialer = d
@@ -377,12 +377,12 @@ flags:
 		// readable file at all the zero value is off, so the supervisor still
 		// never idle-stops on a guess.
 		IdleTimeout: func() time.Duration { return cfg.Config().IdleTimeout },
-		// Nil on the wslc backend, which makes idle-stop unconditional on the
-		// timeout. The distro probe also asks whether a /mnt/wsl integration
-		// is mounted, and neither that nor a "running containers" veto
-		// transfers: terminating a session with containers in it is what the
-		// lease prevents while the bridge is up, and an idle-stop here is the
-		// deliberate reclaim of ~820 MB.
+		// Must be non-nil on BOTH backends: supervise.maybeIdleStop vetoes
+		// every idle stop when it is nil, so passing nil for wslc disabled the
+		// ~820 MB reclaim it was supposed to enable. The wslc probe ignores
+		// Skrog's own skrog-share-* holders, which are bookkeeping rather than
+		// work, and would otherwise veto forever once a Windows folder was
+		// bound.
 		Busy: busy,
 		// Lifecycle hooks (#70): fire off-thread and time-bounded so a user's
 		// script never blocks the reconciler.

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strconv"
+	"sync/atomic"
 	"time"
 )
 
@@ -43,7 +44,22 @@ type Lease struct {
 	// Hold is how long each held process sleeps before the lease renews it.
 	// Zero uses DefaultLeaseHold.
 	Hold time.Duration
+
+	// paused suspends the lease while the engine is deliberately stopped.
+	//
+	// Without it the lease and the supervisor fight: `skrog stop` terminates
+	// the session, the blocking hold returns an error, and one second later
+	// the lease takes it again -- either resurrecting the VM the user just
+	// stopped, or spinning a wslc.exe per second for the life of the process.
+	paused atomic.Bool
 }
+
+// Pause suspends the lease. Called when the engine is stopped on purpose, so
+// nothing here holds the session open against that decision.
+func (l *Lease) Pause() { l.paused.Store(true) }
+
+// Resume allows the lease to be taken again.
+func (l *Lease) Resume() { l.paused.Store(false) }
 
 // DefaultLeaseHold bounds how long a leaked lease can pin the VM.
 //
@@ -73,24 +89,64 @@ func (l *Lease) Run(ctx context.Context) {
 	seconds := strconv.Itoa(int(hold.Seconds()))
 
 	var held bool
+	backoff := minLeaseRetry
 	for ctx.Err() == nil {
+		if l.paused.Load() {
+			// Stopped on purpose. Idle here rather than re-taking the session
+			// the supervisor just terminated.
+			held = false
+			if !sleepCtx(ctx, minLeaseRetry) {
+				return
+			}
+			continue
+		}
 		if !held {
 			l.log().Debug("holding a session lease", "session", l.Session)
 			held = true
 		}
 		// Blocks until the process exits: normally when ctx is cancelled and
 		// the child is killed, otherwise when the VM went away.
-		if _, err := l.Local.RunInSession(ctx, l.Session, "sleep", seconds); err != nil && ctx.Err() == nil {
-			// A session that does not exist yet, or a VM mid-restart. The
-			// dialer's re-bootstrap handles the engine side; here it is enough
-			// to wait a moment and take the lease again.
-			l.log().Debug("session lease ended, re-taking it", "error", err)
-			held = false
-			select {
-			case <-ctx.Done():
-			case <-time.After(time.Second):
-			}
+		_, err := l.Local.RunInSession(ctx, l.Session, "sleep", seconds)
+		if err == nil {
+			backoff = minLeaseRetry
+			continue
 		}
+		if ctx.Err() != nil {
+			return
+		}
+		// A session that does not exist yet, or a VM mid-restart. The
+		// dialer's re-bootstrap handles the engine side; here it is enough
+		// to wait and take the lease again.
+		//
+		// Backed off, because the failure may be permanent -- a session name
+		// that no longer exists never comes back, and a fixed one-second
+		// retry then spawns 86,400 processes a day, at Debug, for months.
+		l.log().Debug("session lease ended, re-taking it", "error", err, "in", backoff)
+		held = false
+		if !sleepCtx(ctx, backoff) {
+			return
+		}
+		if backoff *= 2; backoff > maxLeaseRetry {
+			backoff = maxLeaseRetry
+		}
+	}
+}
+
+// Retry bounds for a lease that cannot be taken.
+const (
+	minLeaseRetry = time.Second
+	maxLeaseRetry = 30 * time.Second
+)
+
+// sleepCtx waits, reporting false if the context ended first.
+func sleepCtx(ctx context.Context, d time.Duration) bool {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return false
+	case <-t.C:
+		return true
 	}
 }
 
