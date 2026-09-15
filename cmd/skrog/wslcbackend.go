@@ -260,6 +260,24 @@ func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provisi
 	// policy/audit ride on the same handler, so both are off here too — which
 	// is why this backend is experimental and not something `skrog serve`
 	// offers yet (#322).
+	// The administrator's WSL container policy is enforced here, standing in
+	// for the checks in wslcsession that a direct docker.sock relay bypasses
+	// (#322). Skrog reads WSL's own configuration, so a deployed allowlist
+	// means the same thing through this pipe as through `wslc`.
+	policies, err := wslc.ReadPolicies()
+	if err != nil {
+		// Fail closed. A policy that cannot be read is not the same as no
+		// policy, and guessing in the permissive direction is how a bypass
+		// ships.
+		fmt.Fprintf(os.Stderr, "skrog: cannot read the WSL container policy: %v\n", err)
+		return exitError
+	}
+	if policies.Restrictive() {
+		log.Info("enforcing the deployed WSL container policy",
+			"registry-allowlist", policies.RegistryAllowlist,
+			"privileged-allowed", policies.PrivilegedAllowed)
+	}
+
 	// Only the named-pipe case is translated here. See wslc.TranslateBindSource:
 	// a pipe means this engine's socket on any backend (#164), while a Windows
 	// drive path has no meaning in a session yet and fails loudly rather than
@@ -267,7 +285,7 @@ func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provisi
 	srv := &pipeproxy.Server{
 		Dialer:  dialer,
 		Logger:  log,
-		Handler: pipeproxy.RewriteBindsFor(wslc.TranslateBindSource, nil, nil),
+		Handler: pipeproxy.RewriteBindsFor(wslc.TranslateBindSource, nil, &wslc.PolicyGate{Policies: policies}),
 	}
 
 	fmt.Fprintf(os.Stderr, `
@@ -276,8 +294,11 @@ Bridge is up against the wslc session %q (experimental).
   docker --context %s ps
   $env:DOCKER_HOST = "%s"; docker ps
 
-Not yet supported on this backend: Windows-path bind mounts (#321),
-policy and audit (#322), UDP published ports.
+The deployed WSL container policy is enforced here (registry allowlist,
+privileged containers). Skrog's own policy.yaml and the audit log are not
+yet wired on this backend (#322).
+
+Not yet supported: Windows-path bind mounts (#321), UDP published ports.
 
 Ctrl-C to stop.
 

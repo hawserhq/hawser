@@ -104,6 +104,27 @@ func rewriteBinds(client net.Conn, engine io.ReadWriteCloser, audit AuditSink, g
 		}
 		reqStart := time.Now()
 
+		// Pulls and builds are judged before anything is forwarded. Unlike a
+		// container create there is no body to rewrite — the reference is in
+		// the query string — so this is a decision, not an edit (#322).
+		if ig, ok := gate.(ImageGate); ok && gate != nil {
+			var denied error
+			if image, isPull := pullTarget(req); isPull {
+				if reason, no := ig.DenyPull(image); no {
+					denied = errors.New(reason)
+				}
+			} else if isImageBuild(req) {
+				if reason, no := ig.DenyBuild(); no {
+					denied = errors.New(reason)
+				}
+			}
+			if denied != nil {
+				observe(audit, reqStart, req, http.StatusForbidden, denied)
+				trace("DENY %s %s: %v", req.Method, req.URL.Path, denied)
+				return writeError(client, http.StatusForbidden, denied)
+			}
+		}
+
 		if isContainerCreate(req) {
 			denied, err := rewriteCreateBody(req, gate, translate)
 			switch {
@@ -553,4 +574,58 @@ func translateBindList(binds []string, translate SourceTranslator) ([]string, er
 		out[i] = t
 	}
 	return out, nil
+}
+
+// ImageGate is an optional extension of Gate for requests that name an image
+// without carrying a container-create body (#322).
+//
+// It exists because gating container creation is not the same guarantee as
+// gating a registry. `POST /containers/create` is the only request the handler
+// parsed until now, so a rule about which registries may be used stopped a
+// blocked image from RUNNING but not from being PULLED — and on a backend whose
+// whole premise is standing in for an administrator's registry allowlist, that
+// gap is the difference between enforcing the policy and appearing to.
+//
+// A Gate that does not implement this is unaffected; pulls and builds pass as
+// they always have.
+type ImageGate interface {
+	// DenyPull judges `docker pull` and the implicit pull inside `docker run`.
+	// The image is the reference as the client wrote it.
+	DenyPull(image string) (reason string, denied bool)
+
+	// DenyBuild judges `docker build`. It takes no image because a Dockerfile
+	// can pull from anywhere, which is exactly why it may need refusing: WSL
+	// takes the same position for `wslc image build`, refusing whenever an
+	// allowlist is active because it cannot attribute the traffic.
+	DenyBuild() (reason string, denied bool)
+}
+
+var (
+	imageCreatePath = regexp.MustCompile(`^(/v[0-9.]+)?/images/create$`)
+	buildPath       = regexp.MustCompile(`^(/v[0-9.]+)?/build$`)
+)
+
+// pullTarget reports the image a pull request names, if it is one.
+//
+// The reference lives in the query string rather than a body: `fromImage` plus
+// an optional `tag`. A request with `fromSrc` instead is an import from a
+// tarball, which names no registry and is left alone.
+func pullTarget(req *http.Request) (image string, isPull bool) {
+	if req.Method != http.MethodPost || !imageCreatePath.MatchString(req.URL.Path) {
+		return "", false
+	}
+	q := req.URL.Query()
+	from := q.Get("fromImage")
+	if from == "" {
+		return "", false
+	}
+	if tag := q.Get("tag"); tag != "" && !strings.ContainsAny(from, "@") {
+		from += ":" + tag
+	}
+	return from, true
+}
+
+// isImageBuild reports whether the request is a build.
+func isImageBuild(req *http.Request) bool {
+	return req.Method == http.MethodPost && buildPath.MatchString(req.URL.Path)
 }

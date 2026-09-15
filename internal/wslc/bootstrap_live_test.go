@@ -54,7 +54,16 @@ func liveSession(t *testing.T) (*Local, context.Context, string) {
 	if err != nil {
 		t.Skipf("no wslc session to work in: %v", err)
 	}
+	// Hold a lease for the duration. Without one the session VM idle-terminates
+	// after ~30 s and takes the agent and any test containers with it, which
+	// showed up as a suite that passed alone and failed in sequence. The
+	// backend holds the same lease in production, so this is the real
+	// configuration rather than a test crutch.
+	leaseCtx, dropLease := context.WithCancel(context.Background())
+	go (&Lease{Local: l, Session: session, Hold: 5 * time.Minute}).Run(leaseCtx)
+
 	t.Cleanup(func() {
+		dropLease()
 		// Stop the agent, but leave the session alone.
 		_, _ = l.RunInSession(context.Background(), session, "sh", "-c", stopScript)
 	})
