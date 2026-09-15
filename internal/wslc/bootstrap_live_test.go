@@ -152,3 +152,57 @@ func TestLiveVsockReachesTheWslcEngine(t *testing.T) {
 	}
 	t.Logf("wslc engine over vsock: %.200s", body)
 }
+
+// The share table against a real session: a Windows folder reaches a container
+// created over the engine socket, over virtiofs, and writes reach Windows.
+// This is #321's whole mechanism, and none of it is exercised by the unit
+// tests — those fake the CLI.
+func TestLiveWindowsPathBindMount(t *testing.T) {
+	l, ctx, session := liveSession(t)
+	const secret = "live-test-secret"
+	if err := l.Bootstrap(ctx, session, buildAgent(t), secret); err != nil {
+		t.Fatalf("Bootstrap: %v", err)
+	}
+
+	dial := (&pipeproxy.VsockDialer{Port: AgentPort, Secret: secret, Cooldown: -1}).Dial
+	shares := &ShareTable{Local: l, Session: session, EngineDial: dial}
+	t.Cleanup(func() { shares.Close(context.Background()) })
+
+	// A folder on Windows with a known file in it.
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "marker.txt"), []byte("hello-from-windows\n"), 0o644); err != nil {
+		t.Fatalf("writing the marker: %v", err)
+	}
+
+	guest, err := shares.Translate(ctx, dir)
+	if err != nil {
+		t.Fatalf("Translate(%q): %v", dir, err)
+	}
+	if !strings.HasPrefix(guest, "/mnt/{") {
+		t.Fatalf("Translate returned %q, want a /mnt/{GUID} share path", guest)
+	}
+	t.Logf("%s -> %s", dir, guest)
+
+	// Read it from inside the session, through the share.
+	out, err := l.RunInSession(ctx, session, "sh", "-c",
+		"cat '"+guest+"/marker.txt'; mount | grep -c virtiofs")
+	if err != nil {
+		t.Fatalf("reading through the share: %v", err)
+	}
+	if !strings.Contains(out, "hello-from-windows") {
+		t.Errorf("the Windows file was not readable through the share: %q", out)
+	}
+
+	// And a write from the guest reaches Windows.
+	if _, err := l.RunInSession(ctx, session, "sh", "-c",
+		"echo written-in-guest > '"+guest+"/back.txt'"); err != nil {
+		t.Fatalf("writing through the share: %v", err)
+	}
+	back, err := os.ReadFile(filepath.Join(dir, "back.txt"))
+	if err != nil {
+		t.Fatalf("the guest's write did not reach Windows: %v", err)
+	}
+	if !strings.Contains(string(back), "written-in-guest") {
+		t.Errorf("Windows sees %q", back)
+	}
+}

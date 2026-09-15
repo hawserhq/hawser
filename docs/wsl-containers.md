@@ -168,15 +168,23 @@ to the host is driven from the Windows side. Skrog runs its own relay, and binds
 the address your `-p` asked for — `wslc`'s own relay only ever binds
 `127.0.0.1`.
 
+**Windows folders work too**, which the `wslc` CLI cannot do for an arbitrary
+path and which is the main reason to prefer this backend: a session has no
+`/mnt/c`, so Skrog shares the drive into the session and rewrites `C:\src\app`
+to the share's guest path. The mount lands on **virtiofs**, and on the same
+folder that is around 1.6× the write and 3.4× the read of the 9p transport a
+WSL2 distro uses for `/mnt/c`. Editing a file on Windows is visible in the
+container immediately, so the ordinary edit-and-reload loop works.
+
+The cost is one `skrog-share-<drive>` container per drive you bind from, holding
+the share open — the share exists only while something mounts it. It is removed
+when the bridge stops. Sharing a drive exposes it to the session VM, which is
+the same exposure a distro already has through `/mnt/c`;
+[`allow-bind-sources`](policy.md) is the way to narrow what containers may mount.
+
 ### What does not work
 
-- **Windows-path bind mounts.** `-v C:\src:/app` is refused with an explanation
-  rather than silently mounting nothing: a session has no `/mnt/c`, because each
-  Windows folder becomes its own virtiofs share at `/mnt/{GUID}`. The mechanism
-  to support them is proven and measured — a shared folder reaches a container
-  over virtiofs at 1.6× the write and 3.4× the read of a distro's 9p — it is
-  simply not wired up yet ([#321](https://github.com/wslkit/skrog/issues/321)).
-  Guest paths such as `/tmp` and `/var/run/docker.sock` work normally.
+- **UDP published ports.** The relay is a stream transport.
 - **UDP published ports.** The relay is a stream transport.
 - **Engine pinning.** `skrog lock` has nothing to pin: Microsoft ships the
   engine and `wsl --update` moves it underneath you.
@@ -199,12 +207,15 @@ call with its outcome, which is a record WSLC itself does not keep.
 
 ### Should you use it?
 
-Probably not yet, unless you are curious or your IT department has approved
-`wslc` and nothing else. Measured on one machine, the two backends are within
-noise on the control plane and on in-VM filesystem I/O, and a wslc session costs
-roughly **820 MB** for a second VM. Its one real advantage is virtiofs bind
-mounts — and that is the part not wired up yet
-([#321](https://github.com/wslkit/skrog/issues/321)).
+It depends on what your work looks like. Measured on one machine, the two
+backends are within noise on the control plane and on in-VM filesystem I/O, and
+a wslc session costs roughly **820 MB** for a second VM.
+
+What decides it is where your source tree lives. If you build and test against
+files on a Windows drive, virtiofs is meaningfully faster than the 9p transport
+a distro uses for `/mnt/c`, and that gap is felt on exactly the workloads people
+complain about — `npm install`, a gradle build, a large `docker build` context.
+If your work lives inside the Linux filesystem, there is little in it.
 
 There is also one thing this backend can never do: **pin the engine.** Microsoft
 ships it and `wsl --update` moves it, so `skrog lock` has nothing to record and

@@ -214,3 +214,23 @@ func IsPipe(path string) bool { return isPipe(path) }
 // HasDrive reports whether the path starts with a Windows drive designator
 // (C:\, C:/, /c/, //c/ and the other spellings driveLen accepts).
 func HasDrive(path string) bool { return driveLen(path) > 0 }
+
+// SplitDrive splits a Windows path into its drive letter and the remainder,
+// with separators normalised:
+//
+//	C:\src\app  -> ("c", "src/app", true)
+//	C:/src      -> ("c", "src", true)
+//	C:\         -> ("c", "", true)
+//	/tmp        -> ("", "", false)
+//
+// Exported for backends that map a drive somewhere other than /mnt/<drive>. A
+// wslc session has no /mnt/c at all: each Windows folder handed to it becomes
+// its own virtiofs share at /mnt/{GUID}, so the drive has to be resolved to a
+// share before the remainder can be appended (#321).
+func SplitDrive(path string) (drive, rest string, ok bool) {
+	n := driveLen(path)
+	if n == 0 {
+		return "", "", false
+	}
+	return strings.ToLower(path[:1]), strings.TrimPrefix(toSlash(path[n:]), "/"), true
+}

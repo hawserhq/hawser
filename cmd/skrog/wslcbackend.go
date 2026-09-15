@@ -302,15 +302,22 @@ func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provisi
 	}
 	defer auditor.Close()
 
-	// Only the named-pipe case is translated here. See wslc.TranslateBindSource:
-	// a pipe means this engine's socket on any backend (#164), while a Windows
-	// drive path has no meaning in a session yet and fails loudly rather than
-	// silently mounting nothing (#321).
+	// Bind sources are resolved through the share table: a pipe means this
+	// engine's socket (#164), a Windows drive resolves to the virtiofs share
+	// that exposes it (#321), and a guest path passes through untouched.
+	shares := &wslc.ShareTable{
+		Local:      wslc.New(),
+		Session:    session,
+		EngineDial: dialer.Dial,
+		Logger:     log,
+	}
+	defer shares.Close(context.Background())
+
 	gate := combinedGate{wsl: &wslc.PolicyGate{Policies: policies}, skrog: ownPolicy}
 	srv := &pipeproxy.Server{
 		Dialer:  dialer,
 		Logger:  log,
-		Handler: pipeproxy.RewriteBindsFor(wslc.TranslateBindSource, auditor, gate),
+		Handler: pipeproxy.RewriteBindsFor(shares.Translator(ctx), auditor, gate),
 	}
 
 	fmt.Fprintf(os.Stderr, `
@@ -319,15 +326,17 @@ Bridge is up against the wslc session %q (experimental).
   docker --context %s ps
   $env:DOCKER_HOST = "%s"; docker ps
 
-The deployed WSL container policy is enforced here (registry allowlist,
-privileged containers). Skrog's own policy.yaml and the audit log are not
-yet wired on this backend (#322).
+Policy and audit are enforced here: the machine's deployed WSL container
+policy, Skrog's own policy.yaml, and the audit log.
 
-Not yet supported: Windows-path bind mounts (#321), UDP published ports.
+Windows-path bind mounts work by sharing the drive into the session, which
+leaves a %s* holder container running for as long as the bridge does.
+
+Not yet supported: UDP published ports.
 
 Ctrl-C to stop.
 
-`, session, dockerctx.Name, dockerHost)
+`, session, dockerctx.Name, dockerHost, wslc.HolderPrefix)
 
 	sctx, stop := interruptible()
 	defer stop()
