@@ -58,15 +58,29 @@ func DefaultSessionName() string {
 }
 
 // ResolveSession picks the session to work in: Skrog's own if it exists,
-// otherwise the CLI default. Returns an error when neither is running, since
-// the caller cannot create one (see SessionName).
+// otherwise the CLI default — creating that default when nothing is running,
+// so starting the bridge needs no manual setup step (#335).
+//
+// It still cannot create a NAMED session; see SessionName for why.
 func (l *Local) ResolveSession(ctx context.Context) (string, error) {
 	sessions, err := l.Sessions(ctx)
 	if err != nil {
 		return "", err
 	}
 	if len(sessions) == 0 {
-		return "", fmt.Errorf("wslc: no session is running; start one with `wslc run --rm hello-world`")
+		// Not an error, and telling the user to run `wslc run --rm hello-world`
+		// first was pure friction (#335). The CLI creates the default session
+		// on demand, so Skrog can simply ask for it.
+		//
+		// It has to be asked for in the right way, though: `system session run`
+		// with NO --session creates it, and WITH --session requires it to
+		// already exist ("Session not found"). Everything downstream passes
+		// --session, so one bare call has to go first. Found by running this
+		// against a machine with every session terminated.
+		if err := l.createDefaultSession(ctx); err != nil {
+			return "", err
+		}
+		return DefaultSessionName(), nil
 	}
 	fallback := DefaultSessionName()
 	var haveFallback bool
@@ -327,4 +341,20 @@ func (execRunner) RunStdin(ctx context.Context, stdin io.Reader, name string, ar
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Stdin = stdin
 	return cmd.CombinedOutput()
+}
+
+// createDefaultSession brings the CLI's default session into existence.
+//
+// `wslc system session run <cmd>` with no --session creates it and runs there;
+// the same command WITH --session fails when it does not yet exist. So this is
+// the one call that must omit the flag, and it exists so a user never has to
+// run `wslc run --rm hello-world` by hand before starting the bridge (#335).
+//
+// Booting the session VM takes a few seconds, which is why the caller should
+// not be holding a short timeout when this runs.
+func (l *Local) createDefaultSession(ctx context.Context) error {
+	if _, err := l.run(ctx, "system", "session", "run", "true"); err != nil {
+		return fmt.Errorf("wslc: could not start a container session: %w", err)
+	}
+	return nil
 }

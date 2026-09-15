@@ -133,10 +133,18 @@ func wslcBackend(ctx context.Context, agentPath, stateDir string, log *slog.Logg
 
 // loadGuestAgent finds a linux skrog-agent to place in the session.
 //
-// An explicit path wins. Otherwise it is lifted out of the engine distro,
-// which already has one on PATH — that keeps the spike runnable on a normal
-// install without a second build artifact. A wslc-only install has no distro
-// to lift from, which is why the error says what to pass.
+// Three sources, in the order that gives the right answer soonest:
+//
+//  1. An explicit --agent path. The caller means it.
+//  2. skrog-agent NEXT TO THE EXECUTABLE. Releases ship it there precisely so
+//     this backend needs no distro and no build step (#335).
+//  3. Lifted out of the engine distro, which has one on PATH.
+//
+// The shipped copy is preferred over the distro's because it is the one that
+// matches this binary. Lifting from the distro reaches whatever the installed
+// rootfs happens to carry, and an older one silently costs published ports --
+// the agent predating -forward-port is exactly the trap that made people pass
+// --agent by hand.
 func loadGuestAgent(ctx context.Context, path string) ([]byte, error) {
 	if path != "" {
 		b, err := os.ReadFile(path)
@@ -146,12 +154,52 @@ func loadGuestAgent(ctx context.Context, path string) ([]byte, error) {
 		return b, nil
 	}
 
-	b, err := agentFromDistro(ctx, provision.DefaultDistro)
+	if p, err := shippedAgentPath(); err == nil {
+		if b, err := os.ReadFile(p); err == nil && len(b) > 0 {
+			return b, nil
+		}
+	}
+
+	b, err := liftAgentFromDistro(ctx, provision.DefaultDistro)
 	if err != nil {
-		return nil, fmt.Errorf("no agent binary: pass --agent <path to a linux skrog-agent>, "+
-			"or install the engine distro to lift one from (%w)", err)
+		return nil, fmt.Errorf("no agent binary: expected skrog-agent next to %s, "+
+			"and could not lift one from the engine distro either. "+
+			"Pass --agent <path to a linux skrog-agent>, or build one with "+
+			"`GOOS=linux GOARCH=amd64 go build -o skrog-agent ./guest/agent` (%w)",
+			exeDirForMessage(), err)
 	}
 	return b, nil
+}
+
+// executablePath is os.Executable, indirected so tests can point the lookup at
+// a temporary directory instead of the test binary's own.
+var executablePath = os.Executable
+
+// liftAgentFromDistro is agentFromDistro, indirected for the same reason: a
+// developer machine HAS an engine distro, so a test asserting the
+// no-agent-anywhere path would pass in CI and fail locally.
+var liftAgentFromDistro = agentFromDistro
+
+// shippedAgentPath is the agent a release puts beside skrog.exe.
+func shippedAgentPath() (string, error) {
+	exe, err := executablePath()
+	if err != nil {
+		return "", err
+	}
+	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = resolved
+	}
+	return filepath.Join(filepath.Dir(exe), "skrog-agent"), nil
+}
+
+// exeDirForMessage names the directory in the error above, or a placeholder
+// when the executable cannot be located -- the error is still useful without it.
+func exeDirForMessage() string {
+	p, err := shippedAgentPath()
+	if err != nil {
+		return "skrog.exe"
+	}
+	return p
 }
 
 // agentFromDistro copies the agent out of the engine distro.

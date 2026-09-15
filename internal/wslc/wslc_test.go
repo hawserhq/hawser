@@ -182,3 +182,95 @@ func TestAgentPatternMatchesAgentPath(t *testing.T) {
 		t.Errorf("agentPattern %q contains AgentPath verbatim; it would self-match", agentPattern)
 	}
 }
+
+// With no session running, ResolveSession must still name one (#335).
+//
+// It used to return "no session is running; start one with `wslc run --rm
+// hello-world`", which made the backend look like it needed a manual setup
+// step. It does not: `wslc system session run` creates the default session
+// when none exists, and every caller of this name goes through that.
+func TestResolveSessionNamesTheDefaultWhenNoneIsRunning(t *testing.T) {
+	// A header row and nothing else: the CLI's output for zero sessions.
+	f := &fakeRunner{out: "ID   Creator PID   Display Name\n"}
+	got, err := local(f).ResolveSession(context.Background())
+	if err != nil {
+		t.Fatalf("ResolveSession with no sessions: %v, want the default name", err)
+	}
+	if got != DefaultSessionName() {
+		t.Errorf("ResolveSession = %q, want %q", got, DefaultSessionName())
+	}
+}
+
+// The failure that IS an error stays one: if the CLI cannot be run at all,
+// inventing a session name would turn a clear failure into a confusing one
+// later.
+func TestResolveSessionStillFailsWhenTheCLIDoes(t *testing.T) {
+	f := &fakeRunner{err: errors.New("wslc.exe not found")}
+	if _, err := local(f).ResolveSession(context.Background()); err == nil {
+		t.Fatal("want an error when the CLI cannot be listed, got nil")
+	}
+}
+
+// An existing session is still preferred over the default name, so the backend
+// joins what is already there rather than assuming.
+func TestResolveSessionPrefersARunningSession(t *testing.T) {
+	f := &fakeRunner{out: "ID   Creator PID   Display Name\n7    1234          someone-elses\n"}
+	got, err := local(f).ResolveSession(context.Background())
+	if err != nil {
+		t.Fatalf("ResolveSession: %v", err)
+	}
+	if got != "someone-elses" {
+		t.Errorf("ResolveSession = %q, want the running session", got)
+	}
+}
+
+// recordingRunner keeps every invocation, which the single-shot fakeRunner
+// cannot do — and the ordering of two calls is the whole point here.
+type recordingRunner struct {
+	out   string
+	calls [][]string
+}
+
+func (r *recordingRunner) Run(_ context.Context, _ string, args ...string) ([]byte, error) {
+	r.calls = append(r.calls, args)
+	// The list is empty until a session has been created.
+	if len(args) >= 3 && args[0] == "system" && args[1] == "session" && args[2] == "list" {
+		return []byte(r.out), nil
+	}
+	return []byte(""), nil
+}
+
+// Creating the default session must use a call with NO --session. The same
+// command with --session fails "Session not found" when it does not yet exist,
+// so getting this wrong makes the whole zero-setup path fail on exactly the
+// machines it was written for.
+func TestResolveSessionCreatesWithoutTheSessionFlag(t *testing.T) {
+	r := &recordingRunner{out: "ID   Creator PID   Display Name\n"}
+	if _, err := (&Local{Exe: "wslc.exe", Runner: r}).ResolveSession(context.Background()); err != nil {
+		t.Fatalf("ResolveSession: %v", err)
+	}
+	if len(r.calls) < 2 {
+		t.Fatalf("expected a list then a create, got %v", r.calls)
+	}
+	create := strings.Join(r.calls[1], " ")
+	if !strings.Contains(create, "system session run") {
+		t.Errorf("second call is not a session run: %q", create)
+	}
+	if strings.Contains(create, "--session") {
+		t.Errorf("the creating call passed --session, which requires the session to already exist: %q", create)
+	}
+}
+
+// And when a session already exists, nothing is created — booting a VM
+// because a list looked unfamiliar would be a surprising side effect.
+func TestResolveSessionCreatesNothingWhenOneExists(t *testing.T) {
+	r := &recordingRunner{out: "ID   Creator PID   Display Name\n7    1234          " + DefaultSessionName() + "\n"}
+	if _, err := (&Local{Exe: "wslc.exe", Runner: r}).ResolveSession(context.Background()); err != nil {
+		t.Fatalf("ResolveSession: %v", err)
+	}
+	for _, c := range r.calls {
+		if strings.Contains(strings.Join(c, " "), "session run") {
+			t.Errorf("a session was started although one was already listed: %v", r.calls)
+		}
+	}
+}

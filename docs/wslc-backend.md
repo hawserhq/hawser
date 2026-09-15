@@ -15,14 +15,16 @@ engine.** Everything below is the detail behind those two sentences.
 
 ## Quick start
 
-You need WSL 2.9.3+ and a running session. The shipped `wslc` CLI cannot create
-a *named* session, so Skrog shares the default one — which means you have to
-make it exist first:
+All you need is WSL 2.9.3+:
 
 ```powershell
-wslc run --rm hello-world     # creates the default session
 skrog proxy --engine wslc
 ```
+
+No session to create first and no agent to build: Skrog starts the container
+session if none is running, and places the guest agent that ships beside
+`skrog.exe`. The first run takes a few seconds longer because the session VM
+has to boot.
 
 In another shell:
 
@@ -58,7 +60,7 @@ bridge when you are not using it.
 | `--pipe '\\.\pipe\docker_engine'` | serve somewhere else — including the default pipe, which is reasonable on a machine with no distro install |
 | `--no-context` | do not create or update the `skrog-wslc` context; select with `$env:DOCKER_HOST` instead |
 | `--state-dir <path>` | where `config.json`, `policy.yaml` and `audit.log` live |
-| `--agent <path>` | a specific `skrog-agent` build; by default it is lifted out of the engine distro |
+| `--agent <path>` | a specific `skrog-agent` build; by default the one shipped beside `skrog.exe`, falling back to the engine distro's |
 
 ## How it works
 
@@ -66,8 +68,11 @@ Skrog does not wrap or drive the `wslc` CLI. The CLI is used exactly twice —
 once to find the session, once to stream a guest agent into it — and never
 again while the bridge is up:
 
-1. **Find the session.** `wslc system session list`, falling back to the CLI's
-   own default session name.
+1. **Find the session**, or start one. `wslc system session list`, falling back
+   to the CLI's own default session — created on the spot if nothing is
+   running. That last part has a wrinkle worth knowing if you script against
+   the CLI: `system session run` *with* `--session` requires the session to
+   already exist, and only a bare call without the flag creates it.
 2. **Place the agent.** The `skrog-agent` binary and a per-run shared secret are
    streamed over `wslc system session run` on stdin, byte-exact and verified by
    sha256 in the guest.
@@ -417,8 +422,9 @@ no ([#326](https://github.com/wslkit/skrog/issues/326)):
 
 ## Troubleshooting
 
-**"no wslc session to work in"** — the CLI cannot create a persistent named
-session. Run `wslc run --rm hello-world` first.
+**The first run is slow** — Skrog starts the container session when none is
+running, and a cold session VM takes a few seconds to boot. Later runs join the
+running one.
 
 **Containers vanish after about 30 seconds** — the session VM idle-terminated,
 which means the lease is not being held. Check the bridge is still running;

@@ -19,3 +19,6 @@ engine-bin/
 /site/public/
 /site/resources/
 /site/.hugo_build.lock
+
+# the linux guest agent, built for the wslc backend and shipped in releases
+skrog-agent
