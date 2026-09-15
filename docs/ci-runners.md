@@ -53,7 +53,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: wslkit/setup-skrog@v2
         with:
-          version: 0.4.2        # pin it; "latest" resolves the newest release
+          version: 0.5.0        # pin it; "latest" resolves the newest release
       - run: docker run --rm alpine:3.20 echo hello
 ```
 
