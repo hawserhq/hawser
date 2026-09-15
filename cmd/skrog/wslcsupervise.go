@@ -237,19 +237,29 @@ func wslcStatus(ctx context.Context) (state, session string) {
 // command operates on, so the message names the actual reason rather than a
 // generic refusal.
 func requireDistroInstall(p *provision.Provisioner, opts provision.Options, cmd, why string) (string, bool) {
+	distro, msg := resolveDistroFor(p, opts, cmd, why)
+	if msg != "" {
+		fmt.Fprint(os.Stderr, msg)
+		return "", false
+	}
+	return distro, true
+}
+
+// resolveDistroFor is the decision, kept separate from printing it so the
+// wording is testable without redirecting os.Stderr. An empty msg means the
+// distro is usable; otherwise msg is the whole thing to write, newline
+// included.
+func resolveDistroFor(p *provision.Provisioner, opts provision.Options, cmd, why string) (distro, msg string) {
 	if m, err := p.ReadManifest(opts); err == nil && m.IsWslc() {
-		fmt.Fprintf(os.Stderr,
+		return "", fmt.Sprintf(
 			"skrog: `skrog %s` does not apply on this machine.\n\n"+
 				"  This install's engine is a WSL container session (backend wslc), and\n"+
 				"  %s\n\n"+
 				"  See docs/wslc-backend.md for what this backend does and does not do.\n",
 			cmd, why)
-		return "", false
 	}
-	distro, ok := resolveDistro(p, opts)
-	if !ok {
-		fmt.Fprintln(os.Stderr, "skrog: no install found. Run `skrog install` first.")
-		return "", false
+	if d, ok := resolveDistro(p, opts); ok {
+		return d, ""
 	}
-	return distro, true
+	return "", "skrog: no install found. Run `skrog install` first.\n"
 }
