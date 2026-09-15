@@ -66,7 +66,7 @@ func (l *Lease) Resume() { l.paused.Store(false) }
 // On a clean stop the context is cancelled and exec kills the child, so the
 // lease goes with the bridge. On Windows, though, killing a process does not
 // kill its children — so if skrogw is force-killed (Task Manager, a crash, a
-// `Stop-Process -Force`), the held wslc.exe survives and keeps a ~750 MB VM
+// `Stop-Process -Force`), the held wslc.exe survives and keeps a ~820 MB VM
 // resident with nothing left to use it. Observed exactly that while testing.
 //
 // Renewal is the bound: the guest process exits on its own after this long, and

@@ -33,10 +33,11 @@ const DefaultExe = `C:\Program Files\WSL\wslc.exe`
 //
 //   - `--session <name>` on any subcommand requires the session to already
 //     exist; it never creates one (WSLC_E_SESSION_NOT_FOUND).
-//   - `system session enter --name <name> <storage>` is the only creator, and
-//     its own help says the session is "non-persistent" and "deleted when the
-//     shell exits" — so holding one open means holding a shell process open
-//     for the lifetime of the engine.
+//   - `system session enter --name <name> <storage>` looks like a creator and
+//     is not. Its help says it "creates a non-persistent session with the given
+//     storage path", but pointed at an empty directory it fails with
+//     ERROR_PATH_NOT_FOUND, "No WSLC session found in ..." -- it ATTACHES to
+//     storage that already exists. Measured on 2.9.11.0 (#323).
 //   - The CLI's default session, by contrast, outlives its creator: verified
 //     with the creator PID gone and the session still listed, serving
 //     commands, and cold-booting its VM on demand.
