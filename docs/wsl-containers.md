@@ -127,131 +127,28 @@ code-signed — so SmartScreen warns on first run. Those are the honest edges.
 
 ## Using a wslc session as Skrog's engine
 
-**Experimental.** It works, and it is one command, but it is not something
-`skrog install` will set up for you yet and it is not what a normal install
-uses. Tracked in [#316](https://github.com/wslkit/skrog/issues/316).
-
-Skrog already serves a pipe and relays it to a `dockerd` socket, and
-`internal/pipeproxy` does not care which VM that socket lives in. Point it at a
-wslc session and stock `docker` talks to the engine Microsoft ships:
+**Experimental**, and the most interesting thing on this page: Skrog can serve
+that unreachable engine. `internal/pipeproxy` does not care which VM a
+`docker.sock` lives in, so pointing it at a session gets stock `docker` talking
+to the engine Microsoft ships:
 
 ```powershell
+wslc run --rm hello-world     # the CLI cannot create a named session, so make the default one exist
 skrog proxy --engine wslc
-```
-
-That places Skrog's guest agent in the session VM, serves the Docker API on a
-named pipe, and publishes container ports back to Windows. In another shell:
-
-```powershell
 docker --context skrog ps
-docker version          # Server: 25.0.3, Microsoft Azure Linux 3.0
 ```
 
-Requirements: WSL 2.9.3+ with a wslc session already running (`wslc run --rm
-hello-world` creates one — the CLI cannot create a *named* session, so Skrog
-shares the default one). Ctrl-C stops the bridge and releases everything.
+Compose and Testcontainers work against it, published ports reach Windows, and
+Windows folders bind-mount over **virtiofs** — roughly 2× the write and 4× the
+read of the 9p transport a WSL2 distro uses for `/mnt/c`. An administrator's
+deployed WSL container policy is enforced at the pipe rather than bypassed.
 
-### What works
+What it cannot do is pin the engine: Microsoft ships it and `wsl --update` moves
+it underneath you, so `skrog lock` has nothing to record.
 
-Container lifecycle, `exec`, `logs` and `logs -f`, `stats`, `inspect`,
-`build` and `buildx`, `docker cp`, networks, volumes, `commit`, `save`/`load`,
-`events` — and the two that matter most:
-
-- **Compose**, including healthchecks, `depends_on` conditions, named volumes
-  and published ports.
-- **Testcontainers**, including the Ryuk reaper, which needs the engine socket
-  bind-mounted into a container — something the `wslc` CLI cannot express at all.
-
-Published ports reach Windows, which they do not over a plain socket relay:
-dockerd publishes them inside the session VM and the relay that would carry them
-to the host is driven from the Windows side. Skrog runs its own relay, and binds
-the address your `-p` asked for — `wslc`'s own relay only ever binds
-`127.0.0.1`.
-
-**Windows folders work too**, which the `wslc` CLI cannot do for an arbitrary
-path and which is the main reason to prefer this backend: a session has no
-`/mnt/c`, so Skrog shares the drive into the session and rewrites `C:\src\app`
-to the share's guest path. The mount lands on **virtiofs**, and on the same
-folder that is around 1.6× the write and 3.4× the read of the 9p transport a
-WSL2 distro uses for `/mnt/c`. Editing a file on Windows is visible in the
-container immediately, so the ordinary edit-and-reload loop works.
-
-The cost is one `skrog-share-<drive>` container per drive you bind from, holding
-the share open — the share exists only while something mounts it. It is removed
-when the bridge stops. Sharing a drive exposes it to the session VM, which is
-the same exposure a distro already has through `/mnt/c`;
-[`allow-bind-sources`](policy.md) is the way to narrow what containers may mount.
-
-### What does not work
-
-- **UDP published ports.** The relay is a stream transport.
-- **Engine pinning.** `skrog lock` has nothing to pin: Microsoft ships the
-  engine and `wsl --update` moves it underneath you.
-- **`compact`, `snapshot`, `relocate`, `wsl-integrate`, `gpu`, `engine upgrade`**
-  — all of these operate on Skrog's own distro and have no meaning here.
-
-### Policy and audit
-
-The engine socket sits behind `wslcsession`, which is where WSL enforces an
-administrator's registry allowlist. Talking to the socket directly would bypass
-that, so Skrog reads the same Group Policy configuration WSL reads
-(`HKLM\Software\Policies\WSL`) and applies it at the pipe:
-
-| policy | where Skrog applies it |
-|---|---|
-| `WSLContainerRegistryAllowlist` | `docker pull`, and the image named by `docker run`/`create` |
-| `AllowWSLContainerPrivileged` | `--privileged` on create |
-| `WSLContainerRegistryAllowlist` | `docker build` — **refused outright** while an allowlist is active |
-
-Verified against a machine with a real allowlist deployed: a blocked `docker
-pull` and a `--privileged` run are both refused with a 403 naming the policy
-that stopped them, `docker ps`, `images` and `version` are untouched, and
-`wslc pull` refuses the same image with `WSLC_E_REGISTRY_BLOCKED_BY_POLICY` —
-so the two agree rather than Skrog inventing its own answer.
-
-Builds are the one place Skrog is **stricter than WSL**, and it is worth being
-straight about why. `wslc image build` is not refused: it runs, and the
-allowlist is enforced per source *inside* BuildKit, so a blocked base image
-fails with `source "docker-image://docker.io/library/busybox:latest" denied by
-policy`. `wslcsession` can do that because it drives BuildKit directly and
-attaches a source policy to the solve request. That policy is client-side and
-not daemon configuration — a build sent straight to the session's `dockerd`
-inherits none of it, which is measured rather than assumed. Matching it at the
-pipe would mean rewriting protobuf inside a hijacked HTTP/2 stream, so until
-that exists Skrog refuses the build instead of letting it through.
-
-Note that the refusal covers `/session` and `/grpc` as well as `/build`: buildx
-has been the default `docker build` since Docker 23 and never touches `/build`,
-so gating only the classic endpoint would leave the allowlist void for every
-build a user actually runs.
-
-Skrog's own [`policy.yaml`](policy.md) and the [audit log](audit.md) apply here
-too. The audit log is worth turning on: it records every container-affecting
-call with its outcome, including each denial and the reason — a record WSLC
-itself does not keep.
-
-### Should you use it?
-
-It depends on what your work looks like. Measured on one machine, the two
-backends are within noise on the control plane and on in-VM filesystem I/O, and
-a wslc session costs roughly **820 MB** for a second VM.
-
-What decides it is where your source tree lives. If you build and test against
-files on a Windows drive, virtiofs is meaningfully faster than the 9p transport
-a distro uses for `/mnt/c`, and that gap is felt on exactly the workloads people
-complain about — `npm install`, a gradle build, a large `docker build` context.
-If your work lives inside the Linux filesystem, there is little in it.
-
-There is also one thing this backend can never do: **pin the engine.** Microsoft
-ships it and `wsl --update` moves it, so `skrog lock` has nothing to record and
-the reproducibility this project is otherwise built around does not apply here.
-If that is why you came, the distro backend is the answer and will stay so.
-
-Where this should end up is not a clever workaround. It is Microsoft exposing an
-endpoint officially — gated by the same policy their CLI enforces — at which
-point a Skrog backend becomes a thin adapter and everyone else's tools work too.
-That is what [microsoft/WSL#40976](https://github.com/microsoft/WSL/issues/40976)
-asks for, and the measurements above exist to argue for it.
+**[Using wslc as Skrog's engine](wslc-backend.md)** is the full guide — setup,
+what works and what does not, the measured numbers, policy and audit, and an
+honest pros-and-cons table for choosing between the two backends.
 
 ## Verifying any of this yourself
 

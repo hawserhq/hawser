@@ -252,20 +252,16 @@ func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provisi
 		}
 	}
 
-	// No RewriteBinds here, and that is not an oversight.
+	// Not plain RewriteBinds here, and that is not an oversight.
 	//
-	// The rewrite maps a Windows bind source to /mnt/<drive>, which is correct
+	// That rewrite maps a Windows bind source to /mnt/<drive>, which is correct
 	// for a distro that auto-mounts drives and wrong for a wslc session, where
 	// each Windows folder is its own virtiofs share at /mnt/{GUID} and there is
-	// no /mnt/c at all. Translating here would hand dockerd a path that does
-	// not exist instead of an error the user can read. Guest-absolute sources
-	// (/var/run/docker.sock, /tmp) work untouched, which is what makes
-	// docker-in-docker and Ryuk viable on this backend.
+	// no /mnt/c at all. It would hand dockerd a path that does not exist. The
+	// share table below does the backend's own translation instead (#321);
+	// guest-absolute sources (/var/run/docker.sock, /tmp) still pass through
+	// untouched, which is what makes docker-in-docker and Ryuk viable here.
 	//
-	// Windows-path binds therefore fail until #321 builds the share table, and
-	// policy/audit ride on the same handler, so both are off here too — which
-	// is why this backend is experimental and not something `skrog serve`
-	// offers yet (#322).
 	// The administrator's WSL container policy is enforced here, standing in
 	// for the checks in wslcsession that a direct docker.sock relay bypasses
 	// (#322). Skrog reads WSL's own configuration, so a deployed allowlist
