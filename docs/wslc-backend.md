@@ -143,6 +143,7 @@ Verified against a live session on WSL 2.9.11.0 / Windows 10 22H2:
 | Data | `docker cp`, networks, named volumes |
 | **Compose** | including healthchecks, `depends_on` conditions, named volumes and published ports |
 | **Testcontainers** | including the Ryuk reaper |
+| **Dev Containers** | `devcontainer up`, `exec`, `postCreateCommand`, `containerEnv`, and the workspace mount — which lands on virtiofs here. **Features do not install**; see below |
 | **Windows-folder bind mounts** | `-v C:\src\app:/app`, over virtiofs |
 
 The last three are the ones that matter, because they are what the `wslc` CLI
@@ -164,6 +165,7 @@ cannot do:
 | | why |
 |---|---|
 | **UDP published ports** | the relay is a stream transport |
+| **DNS inside containers** | a session hands containers the Windows host's LAN router as their nameserver, and it answers `SERVFAIL` from inside the session VM. Routing is fine and the daemon resolves normally; `--dns=1.1.1.1` fixes run time, nothing fixes build time. So a Dockerfile or Dev Container Feature that reaches the network during a build fails. **Reproduces with plain `wslc run`, so it is not the bridge** ([#351](https://github.com/wslkit/skrog/issues/351)) |
 | **Engine pinning** | Microsoft ships the engine; `skrog lock` has nothing to record |
 | **A dedicated session** | the shipped CLI cannot create a named session, so Skrog shares the default one |
 | `compact`, `snapshot`, `relocate`, `wsl-integrate`, `gpu`, `engine upgrade` | these operate on Skrog's own distro and have no meaning here |
