@@ -50,8 +50,12 @@ engine      running
 
 ### Or try it without installing
 
-`skrog proxy --engine wslc` runs the same bridge in the foreground, changing
-nothing about the machine. Ctrl-C stops it.
+`skrog proxy --engine wslc` runs the same bridge in the foreground. It writes
+no install manifest and registers no autostart, so it leaves your existing
+setup alone — but it is not literally inert: it creates or updates the
+`skrog-wslc` docker context (pass `--no-context` to skip), writes `audit.log`
+into the state dir when auditing is on, and keeps a `skrog-share-*` holder per
+bound drive while it runs. Ctrl-C stops it and releases all of that.
 
 ```powershell
 skrog proxy --engine wslc
@@ -65,12 +69,14 @@ the machine's engine rather than on which backend it is:
 
 | | pipe | context |
 |---|---|---|
-| `skrog install --engine wslc` | `\\.\pipe\docker_engine` | `skrog` |
-| `skrog proxy --engine wslc` beside a distro install | `\\.\pipe\skrog_wslc` | `skrog-wslc` |
+| `skrog install --engine wslc` | `\\.\pipe\docker_engine`, or `\\.\pipe\skrog_engine` if something else already holds it | `skrog` |
+| `skrog proxy --engine wslc` | always `\\.\pipe\skrog_wslc` | `skrog-wslc` |
 
-So an installed engine is always the one plain `docker` reaches, and an ad-hoc
-bridge never takes that over: a normal Skrog install keeps its pipe and its
-`skrog` context untouched while you experiment.
+So an installed engine takes the pipe plain `docker` uses — unless Docker
+Desktop is already serving it, in which case Skrog steps aside to its own, and
+the install output says which it took. An ad-hoc `proxy` never competes for
+either: a normal Skrog install keeps its pipe and its `skrog` context untouched
+while you experiment.
 
 Switching is the vocabulary you already have:
 
@@ -161,7 +167,7 @@ cannot do:
 | **Engine pinning** | Microsoft ships the engine; `skrog lock` has nothing to record |
 | **A dedicated session** | the shipped CLI cannot create a named session, so Skrog shares the default one |
 | `compact`, `snapshot`, `relocate`, `wsl-integrate`, `gpu`, `engine upgrade` | these operate on Skrog's own distro and have no meaning here |
-| `skrog doctor` | its checks are still distro-shaped ([#335](https://github.com/wslkit/skrog/issues/335)) |
+| `skrog doctor` — partly | it gains a `wslc-session` check (CLI, session, guest agent), but its generic engine check still reads distro-shaped |
 | `skrog lock`, `runner check` | there is no rootfs or engine version to pin, so reproducibility cannot be promised here |
 
 Sharing the default session has a practical consequence worth stating: anything
@@ -327,6 +333,14 @@ the number worth quoting, but it is not a cold-cache figure.
 This is felt on exactly the workloads people complain about: `npm install`, a
 gradle build, a large `docker build` context.
 
+> **This gap is no longer a reason on its own to take this backend.** The 9p
+> column above is the distro default, and the distro can use virtiofs too:
+> `skrog config set wsl.virtiofs true` (#327). Measured on the same host that
+> way, the distro reads at **811 MB/s** against this backend's 800 -- the same
+> number. So if Windows-folder speed is what brought you here, try that switch
+> first: it is one setting, it keeps the pinned engine, and it costs no second
+> VM. See [vm-sizing.md](vm-sizing.md#wslvirtiofs-a-faster-mntc-and-the-one-key-here-that-is-not-about-size).
+
 ## Policy and audit
 
 The engine socket sits behind `wslcsession`, which is where WSL enforces an
@@ -420,8 +434,10 @@ container, the pull gate stops that too.
 ### What you gain
 
 - **Windows-folder I/O, at roughly 2× write and 4× read** over the 9p transport
-  a WSL2 distro uses for `/mnt/c`. This is the real reason to take this backend,
-  and it is the only category where the difference is large.
+  a WSL2 distro uses for `/mnt/c` by default. It is the only category where the
+  difference is large -- but the distro can now use virtiofs too
+  (`skrog config set wsl.virtiofs true`, #327) and reaches the same read speed,
+  so try that first.
 - **Microsoft's engine, supported by Microsoft.** If policy where you work says
   the container runtime has to be first-party, this is a way to have that *and*
   Compose, Testcontainers and the rest of the Docker ecosystem.
@@ -440,9 +456,10 @@ container, the pull gate stops that too.
 - **~820 MB for a second VM.** A wslc session is a whole separate VM; running
   both backends at once costs roughly that much extra.
 - **An older engine.** 25.0.3 / API 1.44, against 29.x on the distro backend.
-- **Experimental, and not wired into the lifecycle.** No `skrog install`, no
-  service, no `skrog doctor`. You run `skrog proxy` in a window and it stops
-  when you close it.
+- **Experimental.** It is a first-class install now -- `skrog install --engine
+  wslc`, `skrog start`, `status`, `version` and a `doctor` check all know it --
+  but it is newer and less exercised than the distro backend, and the engine
+  underneath is not one Skrog can pin.
 - **You share the CLI's default session**, including with anything you run with
   `wslc` by hand.
 - **Holder containers.** One `skrog-share-<drive>` per drive you bind from
@@ -469,12 +486,12 @@ no ([#326](https://github.com/wslkit/skrog/issues/326)):
 
 | if your… | then |
 |---|---|
-| source tree is on `C:` and builds/tests hammer it | **wslc backend** — this is the case it exists for |
+| source tree is on `C:` and builds/tests hammer it | try `skrog config set wsl.virtiofs true` on the distro backend FIRST (#327); it reaches the same speed and keeps a pinnable engine |
 | work lives inside the Linux filesystem | distro backend; there is little in it |
 | CI or team needs a byte-identical engine | distro backend, and it is not close |
 | workplace requires a first-party runtime | **wslc backend** |
 | machine is short on RAM | distro backend, unless you stop the other one |
-| setup needs to survive reboot unattended | distro backend ([#335](https://github.com/wslkit/skrog/issues/335)) |
+| setup needs to survive reboot unattended | either — `skrog install --engine wslc` registers autostart like any install |
 
 ## Troubleshooting
 

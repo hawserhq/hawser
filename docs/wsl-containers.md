@@ -133,6 +133,14 @@ that unreachable engine. `internal/pipeproxy` does not care which VM a
 to the engine Microsoft ships:
 
 ```powershell
+skrog install --engine wslc   # makes it this machine's engine
+skrog start
+docker run --rm hello-world
+```
+
+Or, to try it without changing the install you have:
+
+```powershell
 skrog proxy --engine wslc     # starts the container session if none is running
 docker --context skrog-wslc ps
 ```
