@@ -97,6 +97,41 @@ func resolveDistro(p *provision.Provisioner, opts provision.Options) (string, bo
 	return "", false
 }
 
+// engineTarget is what this install serves: which backend, and the one name
+// that backend needs (#335).
+//
+// resolveDistro answers "which distro", which is the wrong question on a
+// machine whose engine is a WSL container session. This answers "what do I
+// serve", and the two call sites that build a whole stack -- supervise, and
+// the status reporting -- branch on it instead of assuming a distro.
+type engineTarget struct {
+	Backend string // provision.BackendDistro | provision.BackendWslc
+	Distro  string // distro backend only
+}
+
+func (t engineTarget) isWslc() bool { return t.Backend == provision.BackendWslc }
+
+// resolveEngineTarget reads the manifest the way resolveDistro does, and reports
+// what is installed rather than only which distro.
+//
+// A machine with no manifest but an explicit --distro is still a distro
+// target: that is how `supervise --distro X` worked before any of this, and
+// breaking it would be a regression for anyone driving Skrog by hand.
+func resolveEngineTarget(p *provision.Provisioner, opts provision.Options) (engineTarget, bool) {
+	if m, err := p.ReadManifest(opts); err == nil {
+		if m.IsWslc() {
+			return engineTarget{Backend: provision.BackendWslc}, true
+		}
+		if m.Distro != "" {
+			return engineTarget{Backend: provision.BackendDistro, Distro: m.Distro}, true
+		}
+	}
+	if opts.Distro != "" {
+		return engineTarget{Backend: provision.BackendDistro, Distro: opts.Distro}, true
+	}
+	return engineTarget{}, false
+}
+
 func runSupervise(args []string) int {
 	fs := flag.NewFlagSet("supervise", flag.ContinueOnError)
 	var (
@@ -104,6 +139,7 @@ func runSupervise(args []string) int {
 		stateDir  = fs.String("state-dir", "", "override Skrog's state directory")
 		pipeName  = fs.String("pipe", "", "pipe to serve (default: "+pipeproxy.DefaultPipeName+", or Skrog's own if taken)")
 		noContext = fs.Bool("no-context", false, "do not create or update the skrog docker context")
+		agentPath = fs.String("agent", "", "linux skrog-agent for a wslc install (default: the one shipped beside skrog.exe)")
 	)
 	fs.Usage = func() {
 		fmt.Fprintf(os.Stderr, `usage: skrog supervise [flags]
@@ -163,12 +199,15 @@ flags:
 		logging.EventSource))
 
 	p := &provision.Provisioner{Logger: log}
-	targetDistro, ok := resolveDistro(p, opts)
+	target, ok := resolveEngineTarget(p, opts)
 	if !ok {
 		fmt.Fprintln(os.Stderr, "skrog: no install found. Run `skrog install` first.")
 		return exitNotFound
 	}
-	opts.Distro = targetDistro
+	targetDistro := target.Distro
+	if !target.isWslc() {
+		opts.Distro = targetDistro
+	}
 
 	selected, reason := pipeproxy.SelectPipeName(*pipeName)
 	listener, err := pipeproxy.Listen(selected, "")
@@ -217,19 +256,44 @@ flags:
 	// Server and supervisor are deliberately entangled (#41): the server's
 	// traffic feeds the supervisor's idle detection, and the supervisor's
 	// Demand wakes an idle-stopped engine for the server's next connection.
-	dialer := engineDialer(targetDistro, "", opts.StateDir, log)
-
-	// One watcher, consulted wherever a setting is consumed (#202). `skrog
-	// config` promises that "settings apply live: the supervisor re-reads
-	// them every few seconds"; this is what makes that true rather than true
-	// of one key. It stats before it reads, so consulting it per docker call
-	// is cheap.
+	//
 	cfg := config.NewWatcher(opts.StateDir)
 	cfg.OnError = func(err error) {
 		log.Error("settings file is not valid; the settings already in force stay",
 			"error", err)
 	}
 
+	// The wslc backend swaps the transport, the engine adapter and the bind
+	// translation, and adds a port watcher; everything below -- the audit
+	// switch, the policy watcher, idle handling, hooks, stats -- is shared and
+	// untouched (#335).
+	var (
+		dialer     pipeproxy.Dialer
+		engineImpl supervise.Engine
+		busy       func(ctx context.Context) (bool, error)
+		wslcStack  *wslcSupervised
+	)
+	if target.isWslc() {
+		st, err := startWslcStack(ctx, *agentPath, opts.StateDir, log)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
+			return exitError
+		}
+		defer st.Close()
+		wslcStack = st
+		dialer, engineImpl = st.Dialer, st.Engine
+	} else {
+		d := engineDialer(targetDistro, "", opts.StateDir, log)
+		dialer = d
+		engineImpl = &engineAdapter{p: p, opts: opts, cfg: cfg, log: log}
+		busy = engineBusy(d, p, opts, log)
+	}
+
+	// One watcher, consulted wherever a setting is consumed (#202). `skrog
+	// config` promises that "settings apply live: the supervisor re-reads
+	// them every few seconds"; this is what makes that true rather than true
+	// of one key. It stats before it reads, so consulting it per docker call
+	// is cheap.
 	// Bind-path rewriting is always on; the audit log (#121) and the policy
 	// gate (#120) wrap it. Both follow their file live — neither is captured
 	// here — because this process outlives `skrog restart`, so anything read
@@ -287,7 +351,14 @@ flags:
 		log.Info("admission control enabled", "path", policy.Path(opts.StateDir))
 	}
 
+	// On the distro backend a Windows bind source maps to /mnt/<drive>. A wslc
+	// session has no /mnt/c at all, so it needs its own translation and its own
+	// gate -- the machine's deployed WSL policy on top of Skrog's policy.yaml
+	// (#321, #322). Everything else about the handler is the same.
 	handler := pipeproxy.RewriteBindsGuarded(auditor, watcher)
+	if wslcStack != nil {
+		handler = wslcStack.Handler(auditor, watcher)
+	}
 
 	metrics := &pipeproxy.Metrics{}
 	srv := &pipeproxy.Server{
@@ -296,7 +367,7 @@ flags:
 		Metrics: metrics,
 	}
 	sup := &supervise.Supervisor{
-		Engine:   &engineAdapter{p: p, opts: opts, cfg: cfg, log: log},
+		Engine:   engineImpl,
 		Config:   supervise.Config{StateDir: opts.StateDir},
 		Log:      log,
 		Activity: srv,
@@ -306,7 +377,13 @@ flags:
 		// readable file at all the zero value is off, so the supervisor still
 		// never idle-stops on a guess.
 		IdleTimeout: func() time.Duration { return cfg.Config().IdleTimeout },
-		Busy:        engineBusy(dialer, p, opts, log),
+		// Nil on the wslc backend, which makes idle-stop unconditional on the
+		// timeout. The distro probe also asks whether a /mnt/wsl integration
+		// is mounted, and neither that nor a "running containers" veto
+		// transfers: terminating a session with containers in it is what the
+		// lease prevents while the bridge is up, and an idle-stop here is the
+		// deliberate reclaim of ~820 MB.
+		Busy: busy,
 		// Lifecycle hooks (#70): fire off-thread and time-bounded so a user's
 		// script never blocks the reconciler.
 		Hook: hookRunner(opts.StateDir, log),
@@ -641,10 +718,13 @@ Exit codes: 0 engine running or idle, %d engine down, %d usage, %d not installed
 		opts.GPUVendor = c.GPUVendor
 	}
 
-	if distro, ok := resolveDistro(p, opts); ok {
+	if target, ok := resolveEngineTarget(p, opts); ok {
 		st.Installed = true
-		st.Distro = distro
-		opts.Distro = distro
+		st.Backend = target.Backend
+		st.Distro = target.Distro
+		if !target.isWslc() {
+			opts.Distro = target.Distro
+		}
 		if supervise.Held(opts.StateDir) {
 			st.Supervisor = "running"
 			// Only under the lock: the record outlives a supervisor that was
@@ -659,6 +739,16 @@ Exit codes: 0 engine running or idle, %d engine down, %d usage, %d not installed
 			}
 		}
 		switch {
+		case target.isWslc():
+			// A session is "running" when one is up with our agent in it.
+			// Deliberately does NOT create one: status must never boot an
+			// engine to answer (#82), and on this backend that would be a
+			// whole VM.
+			st.Engine, st.Session = wslcStatus(context.Background())
+			if st.Engine == "stopped" &&
+				supervise.ReadEngineState(opts.StateDir) == supervise.EngineIdle {
+				st.Engine = "idle"
+			}
 		case p.EngineRunning(context.Background(), opts):
 			st.Engine = "running"
 			// GPU probes need the distro up (never boot it for status, #82) and
@@ -690,8 +780,17 @@ Exit codes: 0 engine running or idle, %d engine down, %d usage, %d not installed
 		fmt.Println("not installed (run `skrog install`)")
 		return exitNotFound
 	}
-	fmt.Printf("distro      %s\nsupervisor  %s\nengine      %s\ndesired     %s\n",
-		st.Distro, st.Supervisor, st.Engine, st.Desired)
+	// The first line names what this install actually serves. On the distro
+	// backend that is the distro, as it always was; on wslc there is no distro
+	// to name, and printing an empty one would read as a broken install.
+	if st.Backend == provision.BackendWslc {
+		fmt.Printf("backend     wslc  (Microsoft's engine, in a WSL container session)\n")
+		fmt.Printf("session     %s\n", orDash(st.Session))
+	} else {
+		fmt.Printf("distro      %s\n", st.Distro)
+	}
+	fmt.Printf("supervisor  %s\nengine      %s\ndesired     %s\n",
+		st.Supervisor, st.Engine, st.Desired)
 	if st.Profile != "" {
 		fmt.Printf("profile     %s\n", st.Profile)
 	}

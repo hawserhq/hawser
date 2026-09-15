@@ -1,8 +1,8 @@
 # Using wslc as Skrog's engine
 
-**Experimental.** `skrog install` will not set this up for you, and it is not
-what a normal install uses. Tracked in
-[#316](https://github.com/wslkit/skrog/issues/316).
+**Experimental**, but a first-class install: `skrog install --engine wslc` sets
+it up, `skrog start` keeps it running, and `skrog status` and `skrog version`
+report it. Tracked in [#316](https://github.com/wslkit/skrog/issues/316).
 
 [wslc and Skrog](wsl-containers.md) explains what a `wslc` session is and why
 nothing on your machine can otherwise reach the Docker engine inside it. This
@@ -15,32 +15,62 @@ engine.** Everything below is the detail behind those two sentences.
 
 ## Quick start
 
-All you need is WSL 2.9.3+:
+All you need is WSL 2.9.3+. To make it this machine's engine:
+
+```powershell
+skrog install --engine wslc
+skrog start
+docker run --rm hello-world
+```
+
+That is the whole thing. No session to create first, no agent to build, and no
+`--context` to remember: the install serves the pipe `docker.exe` already talks
+to, and registers the supervisor to start at logon like any other install.
+
+There is nothing to download — Microsoft ships the engine, and every session
+already has it — so the install is a check that the machine can do it and a
+proof that it works, then a manifest recording the choice. It takes a few
+seconds because the session VM boots once.
+
+```
+backend  wslc
+session  wslc-cli-<you>
+engine   Microsoft's, shipped with WSL 2.9.11.0
+pipe     \\.\pipe\docker_engine  (default pipe is free)
+```
+
+`skrog status` and `skrog version` report the backend from then on:
+
+```
+backend     wslc  (Microsoft's engine, in a WSL container session)
+session     wslc-cli-<you>
+supervisor  running
+engine      running
+```
+
+### Or try it without installing
+
+`skrog proxy --engine wslc` runs the same bridge in the foreground, changing
+nothing about the machine. Ctrl-C stops it.
 
 ```powershell
 skrog proxy --engine wslc
-```
-
-No session to create first and no agent to build: Skrog starts the container
-session if none is running, and places the guest agent that ships beside
-`skrog.exe`. The first run takes a few seconds longer because the session VM
-has to boot.
-
-In another shell:
-
-```powershell
 docker --context skrog-wslc ps
-docker --context skrog-wslc version    # Server: 25.0.3, Microsoft Azure Linux 3.0
 ```
-
-Ctrl-C stops the bridge and releases everything it held.
 
 ### It runs alongside a normal install
 
-The two backends **coexist**. The wslc bridge serves its own pipe
-(`\\.\pipe\skrog_wslc`) and its own docker context (`skrog-wslc`), so a normal
-Skrog install keeps `\\.\pipe\docker_engine` and the `skrog` context, and
-plain `docker` keeps reaching the engine it always did.
+The two backends **coexist**, and which pipe is used depends on whether this is
+the machine's engine rather than on which backend it is:
+
+| | pipe | context |
+|---|---|---|
+| `skrog install --engine wslc` | `\\.\pipe\docker_engine` | `skrog` |
+| `skrog proxy --engine wslc` beside a distro install | `\\.\pipe\skrog_wslc` | `skrog-wslc` |
+
+So an installed engine is always the one plain `docker` reaches, and an ad-hoc
+bridge never takes that over: a normal Skrog install keeps its pipe and its
+`skrog` context untouched while you experiment.
 
 Switching is the vocabulary you already have:
 
@@ -131,7 +161,8 @@ cannot do:
 | **Engine pinning** | Microsoft ships the engine; `skrog lock` has nothing to record |
 | **A dedicated session** | the shipped CLI cannot create a named session, so Skrog shares the default one |
 | `compact`, `snapshot`, `relocate`, `wsl-integrate`, `gpu`, `engine upgrade` | these operate on Skrog's own distro and have no meaning here |
-| `skrog install`, `serve`, `supervise`, `status`, `doctor` | not wired to this backend yet ([#335](https://github.com/wslkit/skrog/issues/335)) |
+| `skrog doctor` | its checks are still distro-shaped ([#335](https://github.com/wslkit/skrog/issues/335)) |
+| `skrog lock`, `runner check` | there is no rootfs or engine version to pin, so reproducibility cannot be promised here |
 
 Sharing the default session has a practical consequence worth stating: anything
 you run with the `wslc` CLI by hand lands in the same VM as your containers, and

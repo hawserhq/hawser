@@ -400,12 +400,16 @@ fetched as "latest".
 Exit codes: 0 ok, 1 error, 2 usage.
 
 flags:
+  -agent string
+    	linux skrog-agent for the wslc backend (default: the one shipped beside skrog.exe)
   -config skrog config export
     	declarative install from a skrog.yaml (see skrog config export)
   -data-dir string
     	where the distro's VHDX lives (default: under the state dir)
   -distro string
     	WSL distro name (default: skrog-engine)
+  -engine string
+    	engine backend: distro (a WSL2 distro Skrog owns) or wslc (a WSL container session) [experimental] (default "distro")
   -engine-version string
     	engine version to install (default: this build's default)
   -headless
@@ -981,6 +985,8 @@ logon autostart (`skrog autostart`) runs it for you. Logs go to supervisor.log i
 state directory (rotated) as well as stderr.
 
 flags:
+  -agent string
+    	linux skrog-agent for a wslc install (default: the one shipped beside skrog.exe)
   -distro string
     	WSL distro (default: from the install manifest)
   -no-context
