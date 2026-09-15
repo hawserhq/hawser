@@ -63,9 +63,22 @@ func apiStream(ctx context.Context, dial func(context.Context) (io.ReadWriteClos
 
 	// Closing the connection is what unblocks the read below; the engine has
 	// no other way to be told we are done.
+	//
+	// The done channel is what keeps this from leaking. ctx here is the
+	// bridge's, which lives for the whole process, while this function returns
+	// on every dropped stream — and a dropped stream is ROUTINE on this
+	// backend: the session VM idle-terminates whenever it has no running
+	// containers, ending /events, and PortWatcher reconnects. Parking a
+	// goroutine on <-ctx.Done() alone leaked one per reconnect, each pinning a
+	// closed conn, for a logon session that lasts months.
+	done := make(chan struct{})
+	defer close(done)
 	go func() {
-		<-ctx.Done()
-		conn.Close()
+		select {
+		case <-ctx.Done():
+			conn.Close()
+		case <-done:
+		}
 	}()
 
 	if _, err := io.WriteString(conn,

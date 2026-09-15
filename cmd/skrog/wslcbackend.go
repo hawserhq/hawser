@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/wslkit/skrog/internal/audit"
 	"github.com/wslkit/skrog/internal/config"
@@ -259,7 +260,15 @@ func wslcSecret(stateDir string) (string, error) {
 // nothing before the listener is shared — there is no manifest, no distro to
 // start, and path translation is not merely skipped but wrong (see below).
 func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provision.Options, log *slog.Logger) int {
-	ctx := interruptCtx()
+	// ONE interruptible context for everything, established before anything is
+	// started. It used to be interruptCtx() -- literally context.Background()
+	// and documented for short-lived setup calls -- which was then handed to the
+	// port watcher and, through it, to the session lease. Nothing ever cancelled
+	// it, so a clean Ctrl-C left the held wslc.exe orphaned (Windows does not
+	// kill children with their parent) and a ~750 MB session VM resident for up
+	// to DefaultLeaseHold with nothing using it.
+	ctx, stop := interruptible()
+	defer stop()
 
 	dialer, watcher, session, err := wslcBackend(ctx, agentPath, optsWithResolvedStateDir(opts).StateDir, log)
 	if err != nil {
@@ -356,7 +365,15 @@ func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provisi
 		EngineDial: dialer.Dial,
 		Logger:     log,
 	}
-	defer shares.Close(context.Background())
+	// Bounded, and NOT ctx -- ctx is already cancelled by the time this runs.
+	// Unbounded, this could cold-boot a session VM that had idle-terminated,
+	// purely to delete holder containers that went with it, making Ctrl-C
+	// appear to hang and leaving a freshly booted VM behind.
+	defer func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), shareCleanupTimeout)
+		defer cancel()
+		shares.Close(cleanup)
+	}()
 
 	gate := combinedGate{wsl: &wslc.PolicyGate{Policies: policies}, skrog: ownPolicy}
 	srv := &pipeproxy.Server{
@@ -387,10 +404,7 @@ Ctrl-C to stop.
 
 `, session, dockerctx.WslcName, dockerHost, dockerctx.Name, wslc.HolderPrefix)
 
-	sctx, stop := interruptible()
-	defer stop()
-
-	if err := srv.Serve(sctx, listener); err != nil {
+	if err := srv.Serve(ctx, listener); err != nil {
 		fmt.Fprintf(os.Stderr, "skrog: %v\n", err)
 		return exitError
 	}
@@ -416,3 +430,8 @@ func selectWslcPipe(preferred string) (name, reason string) {
 	}
 	return pipeproxy.SelectPipeName(preferred)
 }
+
+// shareCleanupTimeout bounds removing the share holders on shutdown. Long
+// enough for a live session to answer, short enough that a terminated one does
+// not make Ctrl-C look wedged -- and the holders are gone with the VM anyway.
+const shareCleanupTimeout = 5 * time.Second
