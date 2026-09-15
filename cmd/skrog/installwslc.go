@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/wslkit/skrog/internal/autostart"
 	"github.com/wslkit/skrog/internal/dockerctx"
 	"github.com/wslkit/skrog/internal/pipeproxy"
 	"github.com/wslkit/skrog/internal/provision"
+	"github.com/wslkit/skrog/internal/version"
 	"github.com/wslkit/skrog/internal/wslc"
 )
 
@@ -146,5 +148,30 @@ Installed, using a WSL container session as the engine (experimental).
 See docs/wslc-backend.md for what does and does not work.
 
 `)
+	printCLIHintIfMissing()
 	return exitOK
+}
+
+// printCLIHintIfMissing tells the user how to get a `docker` command when they
+// have none.
+//
+// `skrog install` provisions the ENGINE; the CLI is a separate, opt-in `skrog
+// cli install`. On a machine with Docker Desktop that is invisible, because its
+// docker.exe is already on PATH. On a clean machine it is the whole difference
+// between "installed" and "usable", and the install output said nothing about
+// it -- so the next step was `docker run` and "command not found".
+func printCLIHintIfMissing() {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	if len(version.FindDockerBinaries(version.Env{SkrogBin: filepath.Dir(exe)})) > 0 {
+		return
+	}
+	fmt.Printf(`No ` + "`docker`" + ` command found on PATH. Skrog runs the engine; the CLI is
+separate, and installs the upstream tools (docker, compose, buildx):
+
+  skrog cli install
+
+`)
 }

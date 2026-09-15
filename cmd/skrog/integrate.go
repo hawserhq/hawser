@@ -78,9 +78,8 @@ Exit codes: 0 ok, %d error, %d usage.
 	}
 
 	p := &provision.Provisioner{Logger: log}
-	engineDistro, ok := resolveDistro(p, opts)
+	engineDistro, ok := requireDistroInstall(p, opts, "wsl-integrate", "a session has no /mnt/wsl socket to share with your other distros.")
 	if !ok {
-		fmt.Fprintln(os.Stderr, "skrog: no install found. Run `skrog install` first.")
 		return exitNotFound
 	}
 	if err := m.Integrate(ctx, target, engineDistro,

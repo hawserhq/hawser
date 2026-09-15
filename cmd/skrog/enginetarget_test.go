@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/wslkit/skrog/internal/provision"
@@ -115,5 +116,48 @@ func TestVersionBackendConstantMatchesProvision(t *testing.T) {
 	if version.BackendWslc != provision.BackendWslc {
 		t.Errorf("version.BackendWslc = %q, provision.BackendWslc = %q",
 			version.BackendWslc, provision.BackendWslc)
+	}
+}
+
+// The distro-only commands used to say "no install found. Run `skrog install`
+// first." on a wslc install (#335). Both halves of that are wrong: there IS an
+// install, and running install again would change nothing. A user acts
+// differently on "you have nothing" than on "this does not apply to what you
+// have".
+func TestResolveDistroForExplainsItselfOnWslc(t *testing.T) {
+	opts := writeManifest(t, provision.Manifest{Backend: provision.BackendWslc})
+
+	got, msg := resolveDistroFor(&provision.Provisioner{}, opts,
+		"compact", "the session VHD belongs to WSLC, not to Skrog.")
+	if got != "" {
+		t.Errorf("a distro was resolved on a wslc install: %q", got)
+	}
+	if msg == "" {
+		t.Fatal("compact was allowed on a wslc install")
+	}
+	if strings.Contains(msg, "no install found") {
+		t.Errorf("still claims nothing is installed:\n%s", msg)
+	}
+	for _, want := range []string{"skrog compact", "wslc", "session VHD"} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("message does not mention %q:\n%s", want, msg)
+		}
+	}
+}
+
+// And a distro install is unaffected: same resolution, no message.
+func TestResolveDistroForPassesThroughOnDistro(t *testing.T) {
+	opts := writeManifest(t, provision.Manifest{Distro: "skrog-engine"})
+	got, msg := resolveDistroFor(&provision.Provisioner{}, opts, "compact", "irrelevant")
+	if got != "skrog-engine" || msg != "" {
+		t.Errorf("got (%q, %q), want (skrog-engine, \"\")", got, msg)
+	}
+}
+
+func TestResolveDistroForStillReportsNoInstall(t *testing.T) {
+	opts := provision.Options{StateDir: t.TempDir()}
+	_, msg := resolveDistroFor(&provision.Provisioner{}, opts, "compact", "irrelevant")
+	if !strings.Contains(msg, "no install found") {
+		t.Errorf("an uninstalled machine should still be told to install: %q", msg)
 	}
 }

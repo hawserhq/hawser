@@ -7,8 +7,10 @@ import (
 	"io"
 	"log/slog"
 	"net"
+	"os"
 
 	"github.com/wslkit/skrog/internal/pipeproxy"
+	"github.com/wslkit/skrog/internal/provision"
 	"github.com/wslkit/skrog/internal/supervise"
 	"github.com/wslkit/skrog/internal/wslc"
 )
@@ -219,4 +221,45 @@ func wslcStatus(ctx context.Context) (state, session string) {
 		return "running", found
 	}
 	return "stopped", found
+}
+
+// requireDistroInstall resolves the engine distro for a command that only means
+// something on the distro backend, and explains itself when there is not one.
+//
+// It exists because those commands all reported "no install found. Run `skrog
+// install` first." on a wslc install (#335) -- which is both wrong and the
+// least useful thing to say, since there IS an install and running `skrog
+// install` again would not change anything. The distinction matters: "you have
+// nothing installed" and "this command does not apply to what you installed"
+// need different actions from the user.
+//
+// cmd is the command as a user types it ("compact"), and why says what the
+// command operates on, so the message names the actual reason rather than a
+// generic refusal.
+func requireDistroInstall(p *provision.Provisioner, opts provision.Options, cmd, why string) (string, bool) {
+	distro, msg := resolveDistroFor(p, opts, cmd, why)
+	if msg != "" {
+		fmt.Fprint(os.Stderr, msg)
+		return "", false
+	}
+	return distro, true
+}
+
+// resolveDistroFor is the decision, kept separate from printing it so the
+// wording is testable without redirecting os.Stderr. An empty msg means the
+// distro is usable; otherwise msg is the whole thing to write, newline
+// included.
+func resolveDistroFor(p *provision.Provisioner, opts provision.Options, cmd, why string) (distro, msg string) {
+	if m, err := p.ReadManifest(opts); err == nil && m.IsWslc() {
+		return "", fmt.Sprintf(
+			"skrog: `skrog %s` does not apply on this machine.\n\n"+
+				"  This install's engine is a WSL container session (backend wslc), and\n"+
+				"  %s\n\n"+
+				"  See docs/wslc-backend.md for what this backend does and does not do.\n",
+			cmd, why)
+	}
+	if d, ok := resolveDistro(p, opts); ok {
+		return d, ""
+	}
+	return "", "skrog: no install found. Run `skrog install` first.\n"
 }

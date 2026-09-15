@@ -346,6 +346,8 @@ Or make it the default for every shell:
 		fmt.Println("From your next logon the supervisor starts automatically;")
 		fmt.Println("`skrog autostart disable` turns that off.")
 	}
+	fmt.Println()
+	printCLIHintIfMissing()
 	return exitOK
 }
 
