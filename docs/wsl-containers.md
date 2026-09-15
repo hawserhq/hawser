@@ -135,7 +135,7 @@ to the engine Microsoft ships:
 ```powershell
 wslc run --rm hello-world     # the CLI cannot create a named session, so make the default one exist
 skrog proxy --engine wslc
-docker --context skrog ps
+docker --context skrog-wslc ps
 ```
 
 Compose and Testcontainers work against it, published ports reach Windows, and

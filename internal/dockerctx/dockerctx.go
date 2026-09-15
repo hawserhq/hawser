@@ -18,6 +18,15 @@ import (
 // Name is the context Skrog creates.
 const Name = "skrog"
 
+// WslcName is the context for the experimental wslc backend (#335).
+//
+// Separate from Name on purpose: the two backends coexist rather than
+// replacing each other, so `docker context use skrog` and `docker context use
+// skrog-wslc` pick an engine. Pointing one context at whichever bridge started
+// last was the behaviour this replaces, and it silently changed which engine a
+// user's `docker` was talking to.
+const WslcName = "skrog-wslc"
+
 // Runner executes the docker CLI. Injectable so tests need no docker binary.
 type Runner interface {
 	Run(ctx context.Context, name string, args ...string) ([]byte, error)
@@ -146,6 +155,20 @@ func lastLine(s string) string {
 // which pipe is correct. Updating rather than recreating keeps the user's
 // selection intact.
 func (m *Manager) Ensure(ctx context.Context, dockerHost string) error {
+	return m.EnsureNamed(ctx, Name, "Skrog engine (WSL2)", dockerHost)
+}
+
+// EnsureNamed is Ensure for a context other than the default one.
+//
+// It exists so a second backend can have its own context instead of
+// repointing the first one's (#335). The `skrog` context names the distro
+// engine; `skrog-wslc` names a wslc session. Both can exist at once, and
+// `docker context use` is how a user chooses — which is the vocabulary they
+// already have for switching engines.
+func (m *Manager) EnsureNamed(ctx context.Context, name, description, dockerHost string) error {
+	if name == "" {
+		return errors.New("dockerctx: name is required")
+	}
 	if dockerHost == "" {
 		return errors.New("dockerctx: dockerHost is required")
 	}
@@ -153,26 +176,26 @@ func (m *Manager) Ensure(ctx context.Context, dockerHost string) error {
 		return err
 	}
 
-	exists, err := m.Exists(ctx)
+	exists, err := m.ExistsNamed(ctx, name)
 	if err != nil {
 		return err
 	}
 
 	if !exists {
-		_, err := m.run(ctx, "context", "create", Name,
-			"--description", "Skrog engine (WSL2)",
+		_, err := m.run(ctx, "context", "create", name,
+			"--description", description,
 			"--docker", "host="+dockerHost)
 		return err
 	}
 
-	current, err := m.Endpoint(ctx)
+	current, err := m.EndpointOf(ctx, name)
 	if err != nil {
 		return err
 	}
 	if current == dockerHost {
 		return nil
 	}
-	_, err = m.run(ctx, "context", "update", Name, "--docker", "host="+dockerHost)
+	_, err = m.run(ctx, "context", "update", name, "--docker", "host="+dockerHost)
 	return err
 }
 
