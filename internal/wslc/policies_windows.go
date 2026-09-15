@@ -72,7 +72,18 @@ func readRegistryAllowlist(policies registry.Key) ([]string, error) {
 	var entries []string
 	for _, n := range names {
 		v, _, err := sub.GetStringValue(n)
-		if err != nil || v == "" {
+		if err != nil {
+			// FAIL CLOSED. Skipping an unreadable value was a silent
+			// fail-open: an administrator who wrote the list as REG_MULTI_SZ
+			// -- a natural choice for a list -- got ErrUnexpectedType on every
+			// entry, an empty allowlist, and therefore NO restriction at all,
+			// while the registry key looked correctly configured.
+			//
+			// An allowlist that cannot be read is not an absent allowlist.
+			return nil, fmt.Errorf("WSLContainerRegistryAllowlist value %q cannot be read "+
+				"(WSL reads these as REG_SZ strings): %w", n, err)
+		}
+		if v == "" {
 			continue
 		}
 		entries = append(entries, v)

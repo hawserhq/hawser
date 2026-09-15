@@ -38,6 +38,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/wslkit/skrog/internal/apibody"
 )
 
 // FileName is the rule set's name inside the state dir.
@@ -151,14 +153,15 @@ func (r Rules) EvaluateCreate(body map[string]any) Decision {
 	if r.Empty() {
 		return Allow
 	}
-	hc, _ := body["HostConfig"].(map[string]any)
+	hc, _ := apibody.Map(body, "HostConfig")
 
-	if r.DenyPrivileged && truthy(hc["Privileged"]) {
+	if priv, _ := apibody.Field(hc, "Privileged"); r.DenyPrivileged && truthy(priv) {
 		return deny("deny-privileged",
 			"policy denies --privileged: it turns off container isolation wholesale")
 	}
 
-	if added := stringsOf(hc["CapAdd"]); len(added) > 0 {
+	capAdd, _ := apibody.Field(hc, "CapAdd")
+	if added := stringsOf(capAdd); len(added) > 0 {
 		if r.DenyAddedCapabilities {
 			return deny("deny-added-capabilities",
 				"policy denies added capabilities (--cap-add %s)", strings.Join(added, ", "))
@@ -197,7 +200,7 @@ func (r Rules) EvaluateCreate(body map[string]any) Decision {
 		}
 	}
 
-	image, _ := body["Image"].(string)
+	image := apibody.String(body, "Image")
 	if image != "" {
 		if len(r.AllowRegistries) > 0 {
 			reg := registryOf(image)
@@ -260,7 +263,8 @@ func normalizeCap(s string) string {
 // structured HostConfig.Mounts entries.
 func bindSources(hc map[string]any) []string {
 	var out []string
-	for _, b := range stringsOf(hc["Binds"]) {
+	binds, _ := apibody.Field(hc, "Binds")
+	for _, b := range stringsOf(binds) {
 		// "src:dst[:opts]" — and src may be a Windows path with a drive
 		// letter, so the split cannot simply take the first field.
 		//
@@ -272,7 +276,7 @@ func bindSources(hc map[string]any) []string {
 			out = append(out, src)
 		}
 	}
-	if mounts, ok := hc["Mounts"].([]any); ok {
+	if mounts, ok := apibody.Slice(hc, "Mounts"); ok {
 		for _, m := range mounts {
 			mm, ok := m.(map[string]any)
 			if !ok {

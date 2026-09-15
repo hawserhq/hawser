@@ -368,6 +368,31 @@ With `WSLContainerRegistryAllowlist = contoso.azurecr.io` and
 That last row is the point: Microsoft's own CLI refuses the same image for the
 same reason, so the two agree rather than Skrog inventing its own answer.
 
+### What the allowlist is, and is not
+
+It is **admission control at the Docker API**, not a network control. Skrog
+judges the requests that cross its pipe; it does not stand between the engine
+and the internet. Two consequences worth stating plainly:
+
+- **A container can reach any registry it likes.** `docker run … curl` inside a
+  container, or `buildx --driver docker-container` (which runs BuildKit *inside*
+  a container), does its registry traffic in the guest where this gate never
+  sees it.
+- **Provenance is not tracked.** The rules judge the reference in the request.
+  An image already on the machine can be renamed into an allowed one
+  (`docker load` then `docker tag contoso.azurecr.io/anything:1`) and will then
+  pass. Closing that needs image-provenance tracking, which this does not do —
+  [#343](https://github.com/wslkit/skrog/issues/343).
+
+What it does give you is that the *engine* will not fetch from, or run an image
+named for, a registry the administrator forbade — which is what the WSL policy
+it mirrors is for.
+
+Endpoints that could fetch or run an image without naming it anywhere the gate
+can judge — `/plugins/pull`, `/plugins/*/upgrade`, `/services/create`,
+`/services/*/update`, `/swarm/init` — are **refused outright** while an
+allowlist is active, on the same ground as a build.
+
 ### Builds: Skrog is stricter than WSL here
 
 Worth being straight about, because it is the one place the two do not match.

