@@ -4,10 +4,12 @@ import (
 	"bufio"
 	"net"
 	"net/http"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/wslkit/skrog/internal/apibody"
 	"github.com/wslkit/skrog/internal/pipeproxy"
 )
 
@@ -234,5 +236,175 @@ func TestUnrelatedRequestsAreNotJudged(t *testing.T) {
 	}
 	if gate.sawPull != "" || gate.sawBuild {
 		t.Error("the gate was consulted for a listing")
+	}
+}
+
+// The bypass: dockerd calls ParseForm and reads r.Form, where a urlencoded
+// BODY shadows the query string. Reading only the query meant a pull with no
+// query string at all was not recognised as a pull, so the gate never ran and
+// the daemon fetched from a forbidden registry.
+func TestFormBodyPullIsJudged(t *testing.T) {
+	const body = "fromImage=evil.example.com/bad&tag=latest"
+	gate := &fakeImageGate{denyPull: "allowlist does not permit evil.example.com"}
+	resp, engineReached := driveRequest(t, gate,
+		"POST /v1.44/images/create HTTP/1.1\r\nHost: d\r\n"+
+			"Content-Type: application/x-www-form-urlencoded\r\n"+
+			"Content-Length: "+itoa(len(body))+"\r\n\r\n"+body)
+
+	if resp.StatusCode != http.StatusForbidden {
+		t.Errorf("status = %d, want 403 — a form-body pull bypassed the gate", resp.StatusCode)
+	}
+	if engineReached() {
+		t.Error("the engine was contacted for a denied pull")
+	}
+	if gate.sawPull != "evil.example.com/bad:latest" {
+		t.Errorf("gate judged %q, want the reference from the BODY", gate.sawPull)
+	}
+}
+
+// And where both are present, the body wins — exactly as dockerd resolves it.
+func TestFormBodyShadowsTheQueryString(t *testing.T) {
+	const body = "fromImage=evil.example.com/bad"
+	gate := &fakeImageGate{}
+	driveRequest(t, gate,
+		"POST /v1.44/images/create?fromImage=contoso.azurecr.io/ok HTTP/1.1\r\nHost: d\r\n"+
+			"Content-Type: application/x-www-form-urlencoded\r\n"+
+			"Content-Length: "+itoa(len(body))+"\r\n\r\n"+body)
+
+	if gate.sawPull != "evil.example.com/bad" {
+		t.Errorf("gate judged %q; the body shadows the query the way ParseForm does", gate.sawPull)
+	}
+}
+
+// A non-form body must not be parsed as one, and the ordinary query-only pull
+// must keep working untouched.
+func TestQueryOnlyPullStillWorks(t *testing.T) {
+	gate := &fakeImageGate{}
+	driveRequest(t, gate,
+		"POST /v1.44/images/create?fromImage=busybox&tag=latest HTTP/1.1\r\nHost: d\r\nContent-Length: 0\r\n\r\n")
+	if gate.sawPull != "busybox:latest" {
+		t.Errorf("gate judged %q, want busybox:latest", gate.sawPull)
+	}
+}
+
+func itoa(n int) string { return strconv.Itoa(n) }
+
+// caseGate records exactly what the create gate was shown, so a test can prove
+// the gate and the daemon would agree.
+type caseGate struct {
+	sawImage  string
+	sawPriv   bool
+	consulted bool
+}
+
+func (g *caseGate) DenyCreate(body map[string]any) (string, bool) {
+	g.consulted = true
+	// Uses apibody, as every real gate must: the handler passes the map as
+	// decoded, without rewriting keys, because several Docker objects are keyed
+	// by data rather than by field name.
+	g.sawImage = apibody.String(body, "Image")
+	if hc, ok := apibody.Map(body, "HostConfig"); ok {
+		p, _ := apibody.Field(hc, "Privileged")
+		g.sawPriv, _ = p.(bool)
+	}
+	return "", false
+}
+
+// The second bypass: dockerd decodes into structs, so it matches keys
+// case-insensitively and the LAST spelling wins. A gate reading a decoded map
+// saw "Image" and the daemon ran "image". Refusing is the only honest answer,
+// because a decoded map has lost the document order needed to say which wins.
+func TestCaseVariantCreateBodyIsRefused(t *testing.T) {
+	for _, body := range []string{
+		`{"Image":"contoso.azurecr.io/ok","image":"evil.example.com/bad"}`,
+		`{"Image":"ok","HostConfig":{"Privileged":false},"hostconfig":{"Privileged":true}}`,
+		`{"Image":"ok","HostConfig":{"Privileged":false,"privileged":true}}`,
+	} {
+		gate := &caseGate{}
+		resp, engineReached := driveRequest(t, gate,
+			"POST /v1.44/containers/create HTTP/1.1\r\nHost: d\r\nContent-Type: application/json\r\n"+
+				"Content-Length: "+itoa(len(body))+"\r\n\r\n"+body)
+
+		if resp.StatusCode == http.StatusOK {
+			t.Errorf("an ambiguous body was accepted: %s", body)
+		}
+		if engineReached() {
+			t.Errorf("an ambiguous body reached the engine: %s", body)
+		}
+	}
+}
+
+// A single lower-case spelling is not ambiguous, and must still be JUDGED --
+// dockerd honours it, so the gate has to see it too.
+func TestLowercaseCreateFieldsAreStillJudged(t *testing.T) {
+	const body = `{"image":"evil.example.com/bad","hostconfig":{"privileged":true}}`
+	gate := &caseGate{}
+	driveRequest(t, gate,
+		"POST /v1.44/containers/create HTTP/1.1\r\nHost: d\r\nContent-Type: application/json\r\n"+
+			"Content-Length: "+itoa(len(body))+"\r\n\r\n"+body)
+
+	if !gate.consulted {
+		t.Fatal("the gate was never consulted for a lowercase body")
+	}
+	if gate.sawImage != "evil.example.com/bad" {
+		t.Errorf("gate saw Image=%q; dockerd would read the lowercase spelling", gate.sawImage)
+	}
+	if !gate.sawPriv {
+		t.Error("gate saw Privileged=false; dockerd would read true from `privileged`")
+	}
+}
+
+// Endpoints that fetch or run an image without naming it where this gate can
+// judge it. Refused on the same ground as a build: with an allowlist in force,
+// traffic that cannot be attributed must not proceed.
+func TestUnattributableEndpointsAreRefused(t *testing.T) {
+	for _, path := range []string{
+		"/v1.44/plugins/pull?remote=evil.example.com/rogue",
+		"/plugins/pull",
+		"/v1.44/plugins/evil%2Frogue/upgrade?remote=evil.example.com/rogue",
+		"/v1.44/services/create",
+		"/v1.44/services/abc123/update",
+		"/v1.44/swarm/init",
+	} {
+		gate := &fakeImageGate{denyBuild: "allowlist is in force"}
+		resp, engineReached := driveRequest(t, gate,
+			"POST "+path+" HTTP/1.1\r\nHost: d\r\nContent-Length: 0\r\n\r\n")
+
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("%s: status = %d, want 403", path, resp.StatusCode)
+		}
+		if engineReached() {
+			t.Errorf("%s: reached the engine", path)
+		}
+	}
+}
+
+// And with no allowlist they pass untouched: this must not break swarm or
+// plugins on a machine with no policy deployed.
+func TestUnattributableEndpointsPassWithoutAPolicy(t *testing.T) {
+	for _, path := range []string{"/v1.44/plugins/pull", "/v1.44/services/create"} {
+		gate := &fakeImageGate{}
+		resp, engineReached := driveRequest(t, gate,
+			"POST "+path+" HTTP/1.1\r\nHost: d\r\nContent-Length: 0\r\n\r\n")
+		if resp.StatusCode != http.StatusOK || !engineReached() {
+			t.Errorf("%s: blocked with no policy in force (status %d)", path, resp.StatusCode)
+		}
+	}
+}
+
+// Ordinary endpoints with similar-looking paths must not be caught.
+func TestUnattributableMatcherIsNotOverBroad(t *testing.T) {
+	for _, path := range []string{
+		"/v1.44/services/abc123",   // GET-shaped inspect, POSTed
+		"/v1.44/plugins",           // list
+		"/v1.44/swarm",             // inspect
+		"/v1.44/containers/create", // handled by its own gate
+	} {
+		gate := &fakeImageGate{denyBuild: "allowlist is in force"}
+		resp, _ := driveRequest(t, gate,
+			"POST "+path+" HTTP/1.1\r\nHost: d\r\nContent-Length: 0\r\n\r\n")
+		if resp.StatusCode == http.StatusForbidden && path != "/v1.44/containers/create" {
+			t.Errorf("%s: refused as unattributable, but it fetches nothing", path)
+		}
 	}
 }

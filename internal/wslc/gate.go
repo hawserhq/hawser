@@ -3,6 +3,8 @@ package wslc
 import (
 	"fmt"
 	"strings"
+
+	"github.com/wslkit/skrog/internal/apibody"
 )
 
 // PolicyGate enforces the administrator's WSL container policy at Skrog's pipe,
@@ -24,7 +26,7 @@ type PolicyGate struct {
 // Two checks: the image's registry against the allowlist, and --privileged
 // against AllowWSLContainerPrivileged.
 func (g *PolicyGate) DenyCreate(body map[string]any) (string, bool) {
-	if image, _ := body["Image"].(string); image != "" {
+	if image := apibody.String(body, "Image"); image != "" {
 		if server := RegistryServer(image); !g.Policies.RegistryAllowed(server) {
 			return fmt.Sprintf(
 				"WSLContainerRegistryAllowlist does not permit registry %q (image %q); "+
@@ -34,8 +36,8 @@ func (g *PolicyGate) DenyCreate(body map[string]any) (string, bool) {
 	}
 
 	if !g.Policies.PrivilegedAllowed {
-		if hc, ok := body["HostConfig"].(map[string]any); ok {
-			if priv, _ := hc["Privileged"].(bool); priv {
+		if hc, ok := apibody.Map(body, "HostConfig"); ok {
+			if priv, _ := apibody.Field(hc, "Privileged"); truthyPriv(priv) {
 				return "AllowWSLContainerPrivileged denies privileged containers on this machine", true
 			}
 		}
@@ -122,3 +124,13 @@ func RegistryServer(image string) string {
 // allowlist that does not name it therefore blocks `docker pull busybox`, which
 // is the point of deploying one.
 const DockerHubServer = "docker.io"
+
+// truthyPriv accepts the shapes a JSON decode can produce for a boolean the
+// daemon will read as true. A bare type assertion to bool missed `"Privileged":
+// 1`, which dockerd's decoder rejects outright -- but it also missed nothing
+// else, so this stays deliberately narrow rather than inventing coercions the
+// engine does not perform.
+func truthyPriv(v any) bool {
+	b, _ := v.(bool)
+	return b
+}
