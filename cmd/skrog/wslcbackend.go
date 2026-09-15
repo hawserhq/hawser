@@ -232,7 +232,7 @@ func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provisi
 		defer watcher.StopAll()
 	}
 
-	selected, reason := pipeproxy.SelectPipeName(pipeName)
+	selected, reason := selectWslcPipe(pipeName)
 	dockerHost := pipeproxy.DockerHostFor(selected)
 
 	listener, err := pipeproxy.Listen(selected, sddl)
@@ -247,7 +247,8 @@ func runProxyWslc(agentPath, pipeName, sddl string, noContext bool, opts provisi
 
 	if !noContext {
 		mgr := &dockerctx.Manager{}
-		if err := mgr.Ensure(ctx, dockerHost); err != nil {
+		if err := mgr.EnsureNamed(ctx, dockerctx.WslcName,
+			"Skrog via a WSL container session (experimental)", dockerHost); err != nil {
 			log.Warn("could not wire the docker context", "error", err)
 		}
 	}
@@ -322,6 +323,10 @@ Bridge is up against the wslc session %q (experimental).
   docker --context %s ps
   $env:DOCKER_HOST = "%s"; docker ps
 
+This serves its own pipe and its own docker context, so it runs alongside a
+normal Skrog install rather than taking it over: %q stays on the distro
+engine. Pass --pipe to serve somewhere else.
+
 Policy and audit are enforced here: the machine's deployed WSL container
 policy, Skrog's own policy.yaml, and the audit log.
 
@@ -332,7 +337,7 @@ Not yet supported: UDP published ports.
 
 Ctrl-C to stop.
 
-`, session, dockerctx.Name, dockerHost, wslc.HolderPrefix)
+`, session, dockerctx.WslcName, dockerHost, dockerctx.Name, wslc.HolderPrefix)
 
 	sctx, stop := interruptible()
 	defer stop()
@@ -343,4 +348,23 @@ Ctrl-C to stop.
 	}
 	log.Info("bridge stopped")
 	return exitOK
+}
+
+// selectWslcPipe picks the pipe for this backend.
+//
+// Deliberately NOT pipeproxy.SelectPipeName: that one competes for
+// \.\pipe\docker_engine, which is right for the engine this machine
+// installed and wrong for a second backend running beside it (#335). Taking
+// the default pipe would mean whichever bridge started last owned plain
+// `docker`, silently changing which engine a user's commands reached.
+//
+// So this backend serves its own pipe and its own docker context, and a user
+// chooses with `docker context use`. An explicit --pipe still wins: someone
+// who wants the wslc session on the default pipe can say so, and on a machine
+// with no distro install that is a reasonable thing to want.
+func selectWslcPipe(preferred string) (name, reason string) {
+	if preferred == "" {
+		return pipeproxy.WslcPipeName, "the wslc backend's own pipe, so it coexists with the distro backend"
+	}
+	return pipeproxy.SelectPipeName(preferred)
 }

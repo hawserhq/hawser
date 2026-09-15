@@ -27,25 +27,38 @@ skrog proxy --engine wslc
 In another shell:
 
 ```powershell
-docker --context skrog ps
-docker version                # Server: 25.0.3, Microsoft Azure Linux 3.0
+docker --context skrog-wslc ps
+docker --context skrog-wslc version    # Server: 25.0.3, Microsoft Azure Linux 3.0
 ```
 
 Ctrl-C stops the bridge and releases everything it held.
+
+### It runs alongside a normal install
+
+The two backends **coexist**. The wslc bridge serves its own pipe
+(`\\.\pipe\skrog_wslc`) and its own docker context (`skrog-wslc`), so a normal
+Skrog install keeps `\\.\pipe\docker_engine` and the `skrog` context, and
+plain `docker` keeps reaching the engine it always did.
+
+Switching is the vocabulary you already have:
+
+```powershell
+docker context use skrog-wslc     # Microsoft's engine, in a session VM
+docker context use skrog          # your own pinned engine, in a distro
+docker context ls
+```
+
+The cost of running both at once is a second VM, roughly 820 MB. Stop the
+bridge when you are not using it.
 
 ### Useful flags
 
 | flag | why |
 |---|---|
-| `--pipe '\\.\pipe\skrog-wslc'` | serve somewhere other than `\\.\pipe\docker_engine`, so this can run beside a normal Skrog install |
-| `--no-context` | do not touch the `skrog` docker context (see the warning below) |
+| `--pipe '\\.\pipe\docker_engine'` | serve somewhere else — including the default pipe, which is reasonable on a machine with no distro install |
+| `--no-context` | do not create or update the `skrog-wslc` context; select with `$env:DOCKER_HOST` instead |
 | `--state-dir <path>` | where `config.json`, `policy.yaml` and `audit.log` live |
 | `--agent <path>` | a specific `skrog-agent` build; by default it is lifted out of the engine distro |
-
-> **Both backends write the same `skrog` docker context.** It is one fixed name,
-> so running `skrog proxy --engine wslc` while a normal Skrog install is serving
-> will repoint `docker --context skrog` at whichever started last. Pass
-> `--no-context` and select with `$env:DOCKER_HOST` if you want both at once.
 
 ## How it works
 
@@ -418,8 +431,9 @@ VM restart. Skrog probes for this, but if you see it, restart the bridge.
 **A published port is not reachable** — check it is TCP. UDP is not relayed.
 Windows Firewall will also prompt the first time Skrog binds a host listener.
 
-**`docker --context skrog` points at the wrong engine** — both backends write
-the same context name. Use `--no-context` and `$env:DOCKER_HOST`.
+**`docker` reaches the wrong engine** — check `docker context ls`. `skrog` is
+the distro engine and `skrog-wslc` is the session; `docker context use` picks
+one. If a context points somewhere stale, restarting that bridge rewrites it.
 
 ## Verifying any of this yourself
 
