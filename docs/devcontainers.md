@@ -4,10 +4,50 @@ The Dev Containers CLI and the VS Code Dev Containers extension work against the
 Skrog engine with **no shim** — Skrog serves the standard Docker API, and its
 Windows-path rewriting handles the bind mounts these tools generate.
 
-Validated end to end against a real Skrog engine (Dev Containers CLI 0.89.0):
-`devcontainer up` builds and starts the container, the `C:\…\project →
-/workspaces/…` bind mount is translated transparently, and `devcontainer exec`
-runs commands inside it.
+Validated end to end on **both backends** with Dev Containers CLI 0.89.0 —
+`devcontainer up` reporting `"outcome":"success"`, the workspace bind mount
+translated transparently, `postCreateCommand` run, `containerEnv` applied,
+`devcontainer exec` working, and a write from inside the container visible on
+Windows:
+
+| | engine distro | wslc session |
+|---|---|---|
+| `devcontainer up` | ok | ok |
+| workspace mount transport | 9p | **virtiofs** |
+| `exec`, `postCreateCommand`, `containerEnv` | ok | ok |
+| container write reaches Windows | ok | ok |
+| **Features** (anything needing the network at build time) | ok | **no — see below** |
+| docker-outside-of-docker, and `docker run` from inside the dev container | ok | blocked by the row above |
+
+### Features do not install on the wslc backend
+
+A dev container whose Features — or whose Dockerfile — reach the network during
+the **build** fails there, because containers in a wslc session are handed the
+Windows host's LAN router as their nameserver and it answers `SERVFAIL` from
+inside the session VM:
+
+```
+curl: (6) Could not resolve host: packages.microsoft.com
+```
+
+Routing itself is fine (a TCP connect to `1.1.1.1:443` succeeds), and the
+daemon resolves normally — it pulls images by name. It is specifically the
+resolver propagated into containers.
+
+At **run** time you can work around it with an explicit resolver, which fixes
+both DNS and outbound HTTPS:
+
+```jsonc
+"runArgs": ["--dns=1.1.1.1"]
+```
+
+That does not help a Feature, because Features install during the build and
+`runArgs` applies only afterwards. Build-time DNS is the session daemon's
+configuration, which Microsoft ships and Skrog does not edit. Tracked in
+[#351](https://github.com/wslkit/skrog/issues/351).
+
+So: on the wslc backend use a base image that already contains what you need,
+and keep Features for the distro backend.
 
 ## Point them at Skrog
 

@@ -98,6 +98,11 @@ docker context. Nothing else on the system is touched.
 
 - Upstream Docker Engine (Linux containers) in a dedicated WSL2 distro — the real API, byte
   for byte: compose, buildx, Testcontainers, `run -it`, bind mounts with Windows paths
+- **Dev Containers, with no shim**: `devcontainer up` and VS Code's "Reopen in Container"
+  build and run against Skrog unchanged — the `C:\…\project` → `/workspaces/…` bind mount
+  is translated by the bridge, and Features, `postCreateCommand` and
+  docker-outside-of-docker all behave as they do on any Linux engine
+  ([docs/devcontainers.md](docs/devcontainers.md))
 - **Always-on supervisor**: starts at logon, survives engine crashes, `wsl --shutdown`, and
   sleep/resume; `skrog start/stop/restart/status --json`. Settings apply live — the
   supervisor follows the file, so nothing here needs a restart; `skrog restart
